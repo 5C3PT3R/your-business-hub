@@ -137,8 +137,6 @@ export default function Deals() {
           label: 'Add Deal',
           onClick: () => setIsAddDialogOpen(true),
         }}
-        onSearch={setSearchQuery}
-        searchPlaceholder="Search deals..."
       />
       
       <div className="p-6 space-y-6">

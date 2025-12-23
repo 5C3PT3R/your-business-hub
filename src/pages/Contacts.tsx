@@ -264,8 +264,6 @@ export default function Contacts() {
       <Header
         title="Contacts"
         subtitle="Your business network and connections"
-        onSearch={setSearchQuery}
-        searchPlaceholder="Search contacts..."
       />
       
       <div className="p-6 space-y-6">

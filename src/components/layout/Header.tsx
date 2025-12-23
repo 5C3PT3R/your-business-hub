@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { Bell, Search, Plus, X } from 'lucide-react';
+import { Bell, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Popover,
   PopoverContent,
@@ -16,20 +15,11 @@ interface HeaderProps {
     label: string;
     onClick: () => void;
   };
-  onSearch?: (query: string) => void;
-  searchPlaceholder?: string;
 }
 
-export function Header({ title, subtitle, action, onSearch, searchPlaceholder = "Search..." }: HeaderProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+export function Header({ title, subtitle, action }: HeaderProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearNotification } = useNotifications();
-
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setSearchQuery(value);
-    onSearch?.(value);
-  };
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-card/80 backdrop-blur-sm">
@@ -42,18 +32,6 @@ export function Header({ title, subtitle, action, onSearch, searchPlaceholder = 
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Search */}
-          <div className="relative hidden md:block">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder={searchPlaceholder}
-              value={searchQuery}
-              onChange={handleSearch}
-              className="w-64 pl-9 bg-background"
-            />
-          </div>
-
           {/* Notifications */}
           <Popover open={notificationsOpen} onOpenChange={setNotificationsOpen}>
             <PopoverTrigger asChild>
