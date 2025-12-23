@@ -1,77 +1,23 @@
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
-import { MetricCard } from '@/components/dashboard/MetricCard';
-import { RevenueChart } from '@/components/dashboard/RevenueChart';
-import { LeadSourceChart } from '@/components/dashboard/LeadSourceChart';
-import { RecentDeals } from '@/components/dashboard/RecentDeals';
-import { UpcomingTasks } from '@/components/dashboard/UpcomingTasks';
-import { useDashboardMetrics } from '@/hooks/useDashboardMetrics';
+import { IndustryDashboard } from '@/components/dashboard/IndustryDashboard';
 import { useAuth } from '@/hooks/useAuth';
-import { Users, Briefcase, DollarSign, TrendingUp, Loader2 } from 'lucide-react';
+import { useWorkspace } from '@/hooks/useWorkspace';
 
 export default function Dashboard() {
-  const { metrics, loading } = useDashboardMetrics();
   const { user } = useAuth();
+  const { template } = useWorkspace();
   const userName = user?.user_metadata?.full_name?.split(' ')[0] || 'there';
 
   return (
     <MainLayout>
       <Header
         title="Dashboard"
-        subtitle={`Welcome back, ${userName}! Here's what's happening today.`}
+        subtitle={`Welcome back, ${userName}! Here's your ${template?.name || 'CRM'} overview.`}
       />
       
-      <div className="p-4 md:p-6 space-y-4 md:space-y-6">
-        {/* Metrics Grid */}
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        ) : (
-          <div className="grid gap-4 md:gap-6 grid-cols-2 lg:grid-cols-4 animate-fade-in">
-            <MetricCard
-              title="Total Leads"
-              value={metrics.totalLeads.toString()}
-              change={metrics.leadsChange}
-              icon={<Users className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />}
-            />
-            <MetricCard
-              title="Active Deals"
-              value={metrics.totalDeals.toString()}
-              change={metrics.dealsChange}
-              icon={<Briefcase className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />}
-              iconBg="gradient-success"
-            />
-            <MetricCard
-              title="Revenue"
-              value={`$${(metrics.revenue / 1000).toFixed(0)}k`}
-              change={metrics.revenueChange}
-              icon={<DollarSign className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />}
-              iconBg="gradient-warm"
-            />
-            <MetricCard
-              title="Conversion"
-              value={`${metrics.conversionRate}%`}
-              change={metrics.conversionChange}
-              icon={<TrendingUp className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />}
-              iconBg="bg-info"
-            />
-          </div>
-        )}
-
-        {/* Charts Row */}
-        <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-3 animate-slide-up" style={{ animationDelay: '0.1s' }}>
-          <div className="lg:col-span-2">
-            <RevenueChart />
-          </div>
-          <LeadSourceChart />
-        </div>
-
-        {/* Activity Row */}
-        <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2 animate-slide-up" style={{ animationDelay: '0.2s' }}>
-          <RecentDeals />
-          <UpcomingTasks />
-        </div>
+      <div className="p-4 md:p-6">
+        <IndustryDashboard />
       </div>
     </MainLayout>
   );
