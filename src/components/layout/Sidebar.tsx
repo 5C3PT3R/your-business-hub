@@ -14,7 +14,6 @@ import {
   Menu,
   Building2,
   ShoppingCart,
-  Landmark,
   Shield,
   LucideIcon,
   ArrowLeftRight,
@@ -65,12 +64,6 @@ const getNavigation = (industryType: IndustryType | undefined, labels: Record<st
       { name: labels?.deals || 'Orders', href: '/deals', icon: ShoppingCart },
       { name: labels?.tasks || 'Returns', href: '/tasks', icon: CheckSquare },
     ],
-    banking: [
-      { name: labels?.leads || 'Prospects', href: '/leads', icon: Users },
-      { name: labels?.contacts || 'Accounts', href: '/contacts', icon: UserCircle },
-      { name: labels?.deals || 'Applications', href: '/deals', icon: Landmark },
-      { name: labels?.tasks || 'Follow-ups', href: '/tasks', icon: CheckSquare },
-    ],
     insurance: [
       { name: labels?.leads || 'Quotes', href: '/leads', icon: Users },
       { name: labels?.contacts || 'Policyholders', href: '/contacts', icon: UserCircle },
@@ -89,7 +82,6 @@ const industryColors: Record<IndustryType, string> = {
   sales: 'gradient-primary',
   real_estate: 'bg-gradient-to-br from-emerald-500 to-teal-600',
   ecommerce: 'bg-gradient-to-br from-orange-500 to-amber-500',
-  banking: 'bg-gradient-to-br from-blue-500 to-indigo-600',
   insurance: 'bg-gradient-to-br from-rose-500 to-pink-600',
 };
 

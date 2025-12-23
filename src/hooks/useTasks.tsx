@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { useWorkspace } from './useWorkspace';
 import { useToast } from './use-toast';
 
 export type TaskPriority = 'low' | 'medium' | 'high';
@@ -16,21 +17,24 @@ export interface Task {
   related_deal_id: string | null;
   related_contact_id: string | null;
   created_at: string;
+  workspace_id: string | null;
 }
 
 export function useTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { workspace } = useWorkspace();
   const { toast } = useToast();
 
   const fetchTasks = async () => {
-    if (!user) return;
+    if (!user || !workspace) return;
     
     setLoading(true);
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
+      .eq('workspace_id', workspace.id)
       .order('due_date', { ascending: true });
 
     if (error) {
@@ -47,14 +51,14 @@ export function useTasks() {
 
   useEffect(() => {
     fetchTasks();
-  }, [user]);
+  }, [user, workspace?.id]);
 
-  const addTask = async (task: Omit<Task, 'id' | 'created_at'>) => {
-    if (!user) return;
+  const addTask = async (task: Omit<Task, 'id' | 'created_at' | 'workspace_id'>) => {
+    if (!user || !workspace) return;
 
     const { data, error } = await supabase
       .from('tasks')
-      .insert([{ ...task, user_id: user.id }])
+      .insert([{ ...task, user_id: user.id, workspace_id: workspace.id }])
       .select()
       .single();
 
