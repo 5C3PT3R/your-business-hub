@@ -1,17 +1,23 @@
-import { mockTasks } from '@/data/mockData';
+import { useTasks } from '@/hooks/useTasks';
 import { cn } from '@/lib/utils';
-import { Calendar, ArrowRight } from 'lucide-react';
+import { Calendar, ArrowRight, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Checkbox } from '@/components/ui/checkbox';
+import { format } from 'date-fns';
 
-const priorityColors = {
+const priorityColors: Record<string, string> = {
   high: 'border-l-destructive',
   medium: 'border-l-warning',
   low: 'border-l-muted-foreground',
 };
 
 export function UpcomingTasks() {
-  const upcomingTasks = mockTasks.filter((t) => t.status !== 'completed').slice(0, 4);
+  const { tasks, loading, updateTask } = useTasks();
+  const upcomingTasks = tasks.filter((t) => t.status !== 'completed').slice(0, 4);
+
+  const toggleComplete = async (taskId: string) => {
+    await updateTask(taskId, { status: 'completed' });
+  };
 
   return (
     <div className="rounded-xl bg-card p-6 shadow-card">
@@ -29,33 +35,46 @@ export function UpcomingTasks() {
         </Link>
       </div>
 
-      <div className="space-y-3">
-        {upcomingTasks.map((task) => (
-          <div
-            key={task.id}
-            className={cn(
-              'flex items-start gap-3 rounded-lg border border-border border-l-4 p-4 transition-all duration-200 hover:bg-muted/30',
-              priorityColors[task.priority]
-            )}
-          >
-            <Checkbox className="mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <h4 className="font-medium text-foreground truncate">{task.title}</h4>
-              <p className="text-sm text-muted-foreground truncate">{task.description}</p>
-              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                <Calendar className="h-3.5 w-3.5" />
-                <span>{task.dueDate}</span>
-                {task.relatedTo && (
-                  <>
-                    <span>•</span>
-                    <span>{task.relatedTo}</span>
-                  </>
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      ) : upcomingTasks.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          No pending tasks. Great job!
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {upcomingTasks.map((task) => (
+            <div
+              key={task.id}
+              className={cn(
+                'flex items-start gap-3 rounded-lg border border-border border-l-4 p-4 transition-all duration-200 hover:bg-muted/30',
+                priorityColors[task.priority] || priorityColors.medium
+              )}
+            >
+              <Checkbox 
+                className="mt-0.5" 
+                onCheckedChange={() => toggleComplete(task.id)}
+              />
+              <div className="flex-1 min-w-0">
+                <h4 className="font-medium text-foreground truncate">{task.title}</h4>
+                {task.description && (
+                  <p className="text-sm text-muted-foreground truncate">{task.description}</p>
                 )}
+                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  {task.due_date && (
+                    <>
+                      <Calendar className="h-3.5 w-3.5" />
+                      <span>{format(new Date(task.due_date), 'MMM d, yyyy')}</span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
