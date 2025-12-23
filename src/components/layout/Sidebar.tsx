@@ -40,12 +40,12 @@ export function Sidebar() {
         {/* Logo */}
         <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
           <Link to="/" className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg gradient-primary">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl gradient-primary shadow-glow">
               <Zap className="h-5 w-5 text-primary-foreground" />
             </div>
             {!collapsed && (
-              <span className="text-lg font-semibold text-sidebar-foreground">
-                CRM Pro
+              <span className="text-lg font-bold text-sidebar-foreground tracking-tight">
+                Upflo
               </span>
             )}
           </Link>
