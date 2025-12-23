@@ -120,12 +120,12 @@ export default function Reports() {
         subtitle="Analytics and performance insights"
       />
       
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-4 md:space-y-6">
         {/* Toolbar */}
-        <div className="flex items-center justify-between gap-4 animate-fade-in">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 animate-fade-in">
           <div className="flex items-center gap-3">
             <Select value={timePeriod} onValueChange={setTimePeriod}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-full sm:w-48">
                 <Calendar className="mr-2 h-4 w-4" />
                 <SelectValue placeholder="Time period" />
               </SelectTrigger>
@@ -137,9 +137,9 @@ export default function Reports() {
               </SelectContent>
             </Select>
           </div>
-          <Button variant="outline" onClick={handleExport}>
+          <Button variant="outline" onClick={handleExport} className="w-full sm:w-auto">
             <Download className="mr-2 h-4 w-4" />
-            Export Report
+            Export
           </Button>
         </div>
 
@@ -153,69 +153,69 @@ export default function Reports() {
         {!loading && (
           <>
             {/* Summary Metrics */}
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in">
+            <div className="grid gap-4 md:gap-6 grid-cols-2 lg:grid-cols-4 animate-fade-in">
               <MetricCard
-                title="Total Revenue"
+                title="Revenue"
                 value={`$${(metrics.totalRevenue / 1000).toFixed(0)}k`}
                 change={12.5}
-                icon={<DollarSign className="h-6 w-6 text-primary-foreground" />}
+                icon={<DollarSign className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />}
                 iconBg="gradient-primary"
               />
               <MetricCard
                 title="Win Rate"
                 value={`${metrics.winRate}%`}
                 change={3.2}
-                icon={<Target className="h-6 w-6 text-primary-foreground" />}
+                icon={<Target className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />}
                 iconBg="gradient-success"
               />
               <MetricCard
-                title="Active Deals"
+                title="Deals"
                 value={metrics.activeDeals.toString()}
                 change={8.1}
-                icon={<TrendingUp className="h-6 w-6 text-primary-foreground" />}
+                icon={<TrendingUp className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />}
                 iconBg="gradient-warm"
               />
               <MetricCard
-                title="New Leads"
+                title="Leads"
                 value={metrics.newLeads.toString()}
                 change={15.4}
-                icon={<Users className="h-6 w-6 text-primary-foreground" />}
+                icon={<Users className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />}
                 iconBg="bg-info"
               />
             </div>
 
             {/* Charts */}
-            <div className="grid gap-6 lg:grid-cols-2 animate-slide-up">
+            <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2 animate-slide-up">
               <RevenueChart />
               <SalesChart />
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-3 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+            <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-3 animate-slide-up" style={{ animationDelay: '0.1s' }}>
               <div className="lg:col-span-1">
                 <LeadSourceChart />
               </div>
-              <div className="lg:col-span-2 rounded-xl bg-card p-6 shadow-card">
-                <h3 className="text-lg font-semibold text-foreground mb-4">Performance Summary</h3>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-lg bg-muted/50 p-4">
-                    <p className="text-sm text-muted-foreground">Average Deal Size</p>
-                    <p className="text-2xl font-bold text-foreground mt-1">{performanceMetrics.avgDealSize}</p>
-                    <p className="text-sm text-success mt-1">↑ 12% from last month</p>
+              <div className="lg:col-span-2 rounded-xl bg-card p-4 md:p-6 shadow-card">
+                <h3 className="text-base md:text-lg font-semibold text-foreground mb-4">Performance Summary</h3>
+                <div className="grid gap-3 md:gap-4 grid-cols-2">
+                  <div className="rounded-lg bg-muted/50 p-3 md:p-4">
+                    <p className="text-xs md:text-sm text-muted-foreground">Avg Deal Size</p>
+                    <p className="text-lg md:text-2xl font-bold text-foreground mt-1">{performanceMetrics.avgDealSize}</p>
+                    <p className="text-xs md:text-sm text-success mt-1">↑ 12%</p>
                   </div>
-                  <div className="rounded-lg bg-muted/50 p-4">
-                    <p className="text-sm text-muted-foreground">Sales Cycle</p>
-                    <p className="text-2xl font-bold text-foreground mt-1">{performanceMetrics.salesCycle}</p>
-                    <p className="text-sm text-success mt-1">↓ 3 days faster</p>
+                  <div className="rounded-lg bg-muted/50 p-3 md:p-4">
+                    <p className="text-xs md:text-sm text-muted-foreground">Sales Cycle</p>
+                    <p className="text-lg md:text-2xl font-bold text-foreground mt-1">{performanceMetrics.salesCycle}</p>
+                    <p className="text-xs md:text-sm text-success mt-1">↓ 3 days</p>
                   </div>
-                  <div className="rounded-lg bg-muted/50 p-4">
-                    <p className="text-sm text-muted-foreground">Task Completion Rate</p>
-                    <p className="text-2xl font-bold text-foreground mt-1">{performanceMetrics.taskCompletionRate}</p>
-                    <p className="text-sm text-success mt-1">↑ 15% improvement</p>
+                  <div className="rounded-lg bg-muted/50 p-3 md:p-4">
+                    <p className="text-xs md:text-sm text-muted-foreground">Task Rate</p>
+                    <p className="text-lg md:text-2xl font-bold text-foreground mt-1">{performanceMetrics.taskCompletionRate}</p>
+                    <p className="text-xs md:text-sm text-success mt-1">↑ 15%</p>
                   </div>
-                  <div className="rounded-lg bg-muted/50 p-4">
-                    <p className="text-sm text-muted-foreground">Customer Retention</p>
-                    <p className="text-2xl font-bold text-foreground mt-1">{performanceMetrics.customerRetention}</p>
-                    <p className="text-sm text-success mt-1">↑ 2% increase</p>
+                  <div className="rounded-lg bg-muted/50 p-3 md:p-4">
+                    <p className="text-xs md:text-sm text-muted-foreground">Retention</p>
+                    <p className="text-lg md:text-2xl font-bold text-foreground mt-1">{performanceMetrics.customerRetention}</p>
+                    <p className="text-xs md:text-sm text-success mt-1">↑ 2%</p>
                   </div>
                 </div>
               </div>
