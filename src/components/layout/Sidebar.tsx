@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
@@ -14,6 +13,8 @@ import {
   Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/useAuth';
+import { useSidebarCollapse } from '@/hooks/useSidebarCollapse';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -26,8 +27,18 @@ const navigation = [
 ];
 
 export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+  const { collapsed, setCollapsed } = useSidebarCollapse();
   const location = useLocation();
+  const { user } = useAuth();
+
+  const fullName = user?.user_metadata?.full_name || 'User';
+  const email = user?.email || '';
+  const initials = fullName
+    .split(' ')
+    .map((n: string) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <aside
@@ -89,15 +100,15 @@ export function Sidebar() {
         <div className="border-t border-sidebar-border p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sidebar-accent text-sidebar-foreground">
-              <span className="text-sm font-medium">JS</span>
+              <span className="text-sm font-medium">{initials}</span>
             </div>
             {!collapsed && (
               <div className="flex-1 overflow-hidden">
                 <p className="truncate text-sm font-medium text-sidebar-foreground">
-                  John Smith
+                  {fullName}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
-                  Sales Manager
+                  {email}
                 </p>
               </div>
             )}
