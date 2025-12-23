@@ -21,7 +21,10 @@ import {
   RotateCcw,
   FileSpreadsheet,
   X,
-  Upload
+  Upload,
+  Mic,
+  Square,
+  Phone
 } from 'lucide-react';
 import { useAgent, ParsedFileData } from '@/hooks/useAgent';
 import { useWorkspace } from '@/hooks/useWorkspace';
@@ -30,6 +33,7 @@ import { PlannedAction } from '@/types/agent';
 import { cn } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 import { useToast } from '@/hooks/use-toast';
+import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 
 interface AgentPopupProps {
   open: boolean;
@@ -42,6 +46,7 @@ export function AgentPopup({ open, onOpenChange }: AgentPopupProps) {
   const [executingAction, setExecutingAction] = useState<string | null>(null);
   const [uploadedFile, setUploadedFile] = useState<ParsedFileData | null>(null);
   const [isParsingFile, setIsParsingFile] = useState(false);
+  const [voiceTranscription, setVoiceTranscription] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { workspace, template } = useWorkspace();
@@ -55,6 +60,24 @@ export function AgentPopup({ open, onOpenChange }: AgentPopupProps) {
     executeAllApproved,
     clearResponse 
   } = useAgent();
+
+  const {
+    isRecording,
+    isTranscribing,
+    formattedDuration,
+    startRecording,
+    stopRecording,
+    cancelRecording
+  } = useVoiceRecorder();
+
+  const handleVoiceRecordStop = async () => {
+    const transcription = await stopRecording();
+    if (transcription) {
+      setVoiceTranscription(transcription);
+      // Automatically send the transcription to the AI agent
+      setInstruction(`Voice call transcription: "${transcription}". Please analyze this conversation and suggest appropriate CRM actions like creating contacts, leads, deals, or tasks based on the discussion.`);
+    }
+  };
 
   const parseFile = async (file: File): Promise<ParsedFileData | null> => {
     const fileName = file.name.toLowerCase();
@@ -188,6 +211,8 @@ export function AgentPopup({ open, onOpenChange }: AgentPopupProps) {
     setInstruction('');
     setRejectedActions([]);
     setUploadedFile(null);
+    setVoiceTranscription(null);
+    cancelRecording();
     clearResponse();
   };
 
@@ -237,6 +262,32 @@ export function AgentPopup({ open, onOpenChange }: AgentPopupProps) {
 
         {/* Content */}
         <ScrollArea className="flex-1 px-6 py-4">
+          {/* Voice Transcription Badge */}
+          {voiceTranscription && (
+            <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-emerald-500" />
+                  <span className="text-sm font-medium">Call Transcription</span>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-6 w-6 p-0"
+                  onClick={() => {
+                    setVoiceTranscription(null);
+                    setInstruction('');
+                  }}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2 line-clamp-3">
+                "{voiceTranscription}"
+              </p>
+            </div>
+          )}
+
           {/* Uploaded File Badge */}
           {uploadedFile && (
             <div className="mb-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
@@ -280,8 +331,61 @@ export function AgentPopup({ open, onOpenChange }: AgentPopupProps) {
                 Describe what you want to do and I'll suggest the right actions to take.
               </p>
               
-              {/* File Upload Section */}
+              {/* Voice Recording Section */}
               <div className="mt-6 p-4 border-2 border-dashed border-muted-foreground/25 rounded-lg">
+                {isRecording ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="relative">
+                      <div className="h-16 w-16 rounded-full bg-red-500/20 flex items-center justify-center animate-pulse">
+                        <Mic className="h-8 w-8 text-red-500" />
+                      </div>
+                      <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                        {formattedDuration}
+                      </div>
+                    </div>
+                    <span className="text-sm font-medium text-red-500">Recording...</span>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={cancelRecording}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Cancel
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        onClick={handleVoiceRecordStop}
+                        className="bg-red-500 hover:bg-red-600"
+                      >
+                        <Square className="h-4 w-4 mr-1" />
+                        Stop & Transcribe
+                      </Button>
+                    </div>
+                  </div>
+                ) : isTranscribing ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                    <span className="text-sm text-muted-foreground">Transcribing audio...</span>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={startRecording}
+                    className="w-full flex flex-col items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                  >
+                    <Phone className="h-8 w-8 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">
+                      Record a call
+                    </span>
+                    <span className="text-xs text-muted-foreground/75">
+                      Audio will be transcribed and analyzed
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              {/* File Upload Section */}
+              <div className="mt-4 p-4 border-2 border-dashed border-muted-foreground/25 rounded-lg">
                 <input
                   ref={fileInputRef}
                   type="file"
