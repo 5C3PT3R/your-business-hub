@@ -23,8 +23,8 @@ export default function SelectCRM() {
     if (!selectedIndustry || !user) return;
 
     setLoading(true);
-    const userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'My';
-    const workspaceName = `${userName}'s Workspace`;
+    const industry = industries.find(i => i.id === selectedIndustry);
+    const workspaceName = industry?.name || 'My Workspace';
 
     const { error } = await createWorkspace(workspaceName, selectedIndustry);
 
