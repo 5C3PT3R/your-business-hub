@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useSidebarCollapse } from '@/hooks/useSidebarCollapse';
+import { AgentButton } from '@/components/agent/AgentButton';
 import { cn } from '@/lib/utils';
 
 interface MainLayoutProps {
@@ -46,6 +47,7 @@ export function MainLayout({ children }: MainLayoutProps) {
       )}>
         {children}
       </main>
+      <AgentButton />
     </div>
   );
 }
