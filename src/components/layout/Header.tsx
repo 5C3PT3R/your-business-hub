@@ -7,6 +7,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { useNotifications } from '@/hooks/useNotifications';
 
 interface HeaderProps {
   title: string;
@@ -19,35 +20,15 @@ interface HeaderProps {
   searchPlaceholder?: string;
 }
 
-const mockNotifications = [
-  { id: '1', title: 'New lead assigned', message: 'Sarah Johnson from TechCorp', time: '5 min ago', read: false },
-  { id: '2', title: 'Deal updated', message: 'Acme Corp moved to negotiation', time: '1 hour ago', read: false },
-  { id: '3', title: 'Task due soon', message: 'Follow up with client', time: '2 hours ago', read: true },
-];
-
 export function Header({ title, subtitle, action, onSearch, searchPlaceholder = "Search..." }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [notifications, setNotifications] = useState(mockNotifications);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const { notifications, unreadCount, markAsRead, markAllAsRead, clearNotification } = useNotifications();
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setSearchQuery(value);
     onSearch?.(value);
-  };
-
-  const markAsRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  };
-
-  const clearNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-  };
-
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
   return (
