@@ -88,8 +88,8 @@ export default function Tasks() {
       priority: newTask.priority,
       status: newTask.status,
       due_date: newTask.due_date || null,
-      related_contact_id: newTask.related_contact_id || null,
-      related_deal_id: newTask.related_deal_id || null,
+      related_contact_id: newTask.related_contact_id === 'none' || !newTask.related_contact_id ? null : newTask.related_contact_id,
+      related_deal_id: newTask.related_deal_id === 'none' || !newTask.related_deal_id ? null : newTask.related_deal_id,
     });
     
     setNewTask({
@@ -256,7 +256,7 @@ export default function Tasks() {
                       <SelectValue placeholder="Select contact" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value="none">None</SelectItem>
                       {contacts.map((contact) => (
                         <SelectItem key={contact.id} value={contact.id}>
                           {contact.name}
@@ -274,7 +274,7 @@ export default function Tasks() {
                       <SelectValue placeholder="Select deal" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value="none">None</SelectItem>
                       {deals.map((deal) => (
                         <SelectItem key={deal.id} value={deal.id}>
                           {deal.title}
