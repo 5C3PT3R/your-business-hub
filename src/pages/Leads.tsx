@@ -28,7 +28,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Search, Plus, Loader2, Trash2, MoreHorizontal } from 'lucide-react';
+import { Search, Plus, Loader2, Trash2, MoreHorizontal, Undo2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
 
 const statusColors: Record<LeadStatus, string> = {
   new: 'bg-info/10 text-info border-info/20',
@@ -44,20 +45,40 @@ const statusColors: Record<LeadStatus, string> = {
   lost: 'bg-destructive/10 text-destructive border-destructive/20',
 };
 
+const countryCodes = [
+  { code: '+1', country: 'US/CA' },
+  { code: '+44', country: 'UK' },
+  { code: '+91', country: 'IN' },
+  { code: '+86', country: 'CN' },
+  { code: '+81', country: 'JP' },
+  { code: '+49', country: 'DE' },
+  { code: '+33', country: 'FR' },
+  { code: '+61', country: 'AU' },
+  { code: '+55', country: 'BR' },
+  { code: '+971', country: 'UAE' },
+];
+
 export default function Leads() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const { leads, loading, addLead, updateLead, deleteLead } = useLeads();
+  const { toast } = useToast();
 
   const [newLead, setNewLead] = useState({
     name: '',
     email: '',
+    countryCode: '+1',
     phone: '',
     company: '',
     source: '',
-    value: 0,
+    value: '',
   });
+
+  const [deletedLead, setDeletedLead] = useState<{
+    id: string;
+    data: any;
+  } | null>(null);
 
   const filteredLeads = leads.filter((lead) => {
     const matchesSearch = 
@@ -73,17 +94,20 @@ export default function Leads() {
   const handleAddLead = async () => {
     if (!newLead.name) return;
     
+    const fullPhone = newLead.phone ? `${newLead.countryCode} ${newLead.phone}` : null;
+    const valueNum = newLead.value ? parseFloat(newLead.value) : 0;
+    
     await addLead({
       name: newLead.name,
       email: newLead.email || null,
-      phone: newLead.phone || null,
+      phone: fullPhone,
       company: newLead.company || null,
       source: newLead.source || null,
       status: 'new',
-      value: newLead.value,
+      value: valueNum,
     });
     
-    setNewLead({ name: '', email: '', phone: '', company: '', source: '', value: 0 });
+    setNewLead({ name: '', email: '', countryCode: '+1', phone: '', company: '', source: '', value: '' });
     setIsAddDialogOpen(false);
   };
 
@@ -91,11 +115,54 @@ export default function Leads() {
     await updateLead(id, { status });
   };
 
+  const handleDelete = async (lead: any) => {
+    const leadData = { ...lead };
+    const success = await deleteLead(lead.id);
+    
+    if (success) {
+      setDeletedLead({ id: lead.id, data: leadData });
+      toast({
+        title: "Lead deleted",
+        description: "The lead has been removed.",
+        action: (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => handleUndo(leadData)}
+            className="gap-1"
+          >
+            <Undo2 className="h-3 w-3" />
+            Undo
+          </Button>
+        ),
+      });
+    }
+  };
+
+  const handleUndo = async (leadData: any) => {
+    await addLead({
+      name: leadData.name,
+      email: leadData.email,
+      phone: leadData.phone,
+      company: leadData.company,
+      source: leadData.source,
+      status: leadData.status,
+      value: leadData.value,
+    });
+    setDeletedLead(null);
+    toast({
+      title: "Lead restored",
+      description: "The lead has been restored.",
+    });
+  };
+
   return (
     <MainLayout>
       <Header
         title="Leads"
         subtitle="Manage and track your sales leads"
+        onSearch={setSearchQuery}
+        searchPlaceholder="Search leads..."
       />
       
       <div className="p-6 space-y-6">
@@ -159,12 +226,27 @@ export default function Leads() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="lead-phone">Phone</Label>
-                  <Input
-                    id="lead-phone"
-                    value={newLead.phone}
-                    onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })}
-                    placeholder="+1 (555) 123-4567"
-                  />
+                  <div className="flex gap-2">
+                    <Select value={newLead.countryCode} onValueChange={(value) => setNewLead({ ...newLead, countryCode: value })}>
+                      <SelectTrigger className="w-28">
+                        <SelectValue placeholder="Code" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {countryCodes.map((cc) => (
+                          <SelectItem key={cc.code} value={cc.code}>
+                            {cc.code} ({cc.country})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      id="lead-phone"
+                      value={newLead.phone}
+                      onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })}
+                      placeholder="555 123-4567"
+                      className="flex-1"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="lead-company">Company</Label>
@@ -196,8 +278,10 @@ export default function Leads() {
                     id="lead-value"
                     type="number"
                     value={newLead.value}
-                    onChange={(e) => setNewLead({ ...newLead, value: Number(e.target.value) })}
+                    onChange={(e) => setNewLead({ ...newLead, value: e.target.value })}
                     placeholder="10000"
+                    min="0"
+                    step="100"
                   />
                 </div>
                 <Button className="w-full" variant="gradient" onClick={handleAddLead}>
@@ -270,7 +354,7 @@ export default function Leads() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem 
                             className="text-destructive"
-                            onClick={() => deleteLead(lead.id)}
+                            onClick={() => handleDelete(lead)}
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
                             Delete
