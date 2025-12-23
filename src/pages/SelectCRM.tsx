@@ -1,23 +1,28 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { useAuth } from '@/hooks/useAuth';
 import { getAllIndustries, IndustryType } from '@/config/industryTemplates';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Zap, ArrowRight, Loader2, ArrowLeft } from 'lucide-react';
+import { Zap, ArrowRight, Loader2, ArrowLeft, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 export default function SelectCRM() {
   const [selectedIndustry, setSelectedIndustry] = useState<IndustryType | null>(null);
   const [loading, setLoading] = useState(false);
-  const { createWorkspace, hasWorkspace } = useWorkspace();
+  const { createWorkspace, hasWorkspace, workspaces } = useWorkspace();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const industries = getAllIndustries();
+  
+  // Get list of industry types that already have workspaces
+  const existingIndustryTypes = useMemo(() => {
+    return new Set(workspaces.map(w => w.industry_type));
+  }, [workspaces]);
 
   const handleSelectCRM = async () => {
     if (!selectedIndustry || !user) return;
@@ -89,43 +94,53 @@ export default function SelectCRM() {
 
         {/* CRM Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 max-w-5xl w-full mb-10">
-          {industries.map((industry, index) => {
+{industries.map((industry, index) => {
             const Icon = industry.icon;
             const isSelected = selectedIndustry === industry.id;
+            const alreadyExists = existingIndustryTypes.has(industry.id);
             
             return (
               <Card
                 key={industry.id}
                 className={cn(
-                  'relative cursor-pointer transition-all duration-300 border-2 bg-white/10 backdrop-blur-sm hover:bg-white/15',
+                  'relative transition-all duration-300 border-2 bg-white/10 backdrop-blur-sm',
                   'animate-slide-up',
-                  isSelected
+                  alreadyExists
+                    ? 'opacity-60 cursor-not-allowed border-white/10'
+                    : 'cursor-pointer hover:bg-white/15',
+                  isSelected && !alreadyExists
                     ? 'border-white shadow-lg shadow-white/20 scale-[1.02]'
-                    : 'border-white/20 hover:border-white/40'
+                    : !alreadyExists && 'border-white/20 hover:border-white/40'
                 )}
                 style={{ animationDelay: `${0.1 + index * 0.05}s` }}
-                onClick={() => setSelectedIndustry(industry.id)}
+                onClick={() => !alreadyExists && setSelectedIndustry(industry.id)}
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div
                       className={cn(
                         'flex h-12 w-12 items-center justify-center rounded-xl transition-all',
-                        `bg-gradient-to-br ${industry.gradient}`
+                        `bg-gradient-to-br ${industry.gradient}`,
+                        alreadyExists && 'opacity-50'
                       )}
                     >
                       <Icon className="h-6 w-6 text-white" />
                     </div>
-                    {isSelected && (
+                    {alreadyExists ? (
+                      <div className="flex items-center gap-1 text-xs text-emerald-400 bg-emerald-400/20 px-2 py-1 rounded-full">
+                        <Check className="h-3 w-3" />
+                        Created
+                      </div>
+                    ) : isSelected && (
                       <div className="h-6 w-6 rounded-full bg-white flex items-center justify-center animate-scale-in">
                         <div className="h-3 w-3 rounded-full bg-primary" />
                       </div>
                     )}
                   </div>
-                  <CardTitle className="text-lg text-white mt-3">
+                  <CardTitle className={cn("text-lg text-white mt-3", alreadyExists && "opacity-70")}>
                     {industry.name}
                   </CardTitle>
-                  <CardDescription className="text-white/60">
+                  <CardDescription className={cn("text-white/60", alreadyExists && "opacity-70")}>
                     {industry.description}
                   </CardDescription>
                 </CardHeader>
@@ -134,13 +149,19 @@ export default function SelectCRM() {
                     {industry.enabledModules.slice(0, 3).map((module) => (
                       <span
                         key={module}
-                        className="text-xs px-2 py-1 rounded-full bg-white/10 text-white/70"
+                        className={cn(
+                          "text-xs px-2 py-1 rounded-full bg-white/10 text-white/70",
+                          alreadyExists && "opacity-60"
+                        )}
                       >
                         {module.replace('_', ' ')}
                       </span>
                     ))}
                     {industry.enabledModules.length > 3 && (
-                      <span className="text-xs px-2 py-1 rounded-full bg-white/10 text-white/70">
+                      <span className={cn(
+                        "text-xs px-2 py-1 rounded-full bg-white/10 text-white/70",
+                        alreadyExists && "opacity-60"
+                      )}>
                         +{industry.enabledModules.length - 3} more
                       </span>
                     )}
