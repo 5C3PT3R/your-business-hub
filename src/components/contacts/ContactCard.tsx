@@ -1,4 +1,3 @@
-import { Contact } from '@/types/crm';
 import { Button } from '@/components/ui/button';
 import { Mail, Phone, Building, MoreHorizontal } from 'lucide-react';
 import {
@@ -9,7 +8,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 interface ContactCardProps {
-  contact: Contact;
+  contact: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    company: string;
+    position: string;
+    avatar?: string;
+  };
 }
 
 export function ContactCard({ contact }: ContactCardProps) {
@@ -43,29 +50,32 @@ export function ContactCard({ contact }: ContactCardProps) {
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-foreground truncate">{contact.name}</h3>
-          <p className="text-sm text-muted-foreground truncate">{contact.position}</p>
+          <p className="text-sm text-muted-foreground truncate">{contact.position || 'No position'}</p>
         </div>
       </div>
 
       <div className="mt-4 space-y-2">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Building className="h-4 w-4 shrink-0" />
-          <span className="truncate">{contact.company}</span>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Mail className="h-4 w-4 shrink-0" />
-          <span className="truncate">{contact.email}</span>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Phone className="h-4 w-4 shrink-0" />
-          <span>{contact.phone}</span>
-        </div>
+        {contact.company && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Building className="h-4 w-4 shrink-0" />
+            <span className="truncate">{contact.company}</span>
+          </div>
+        )}
+        {contact.email && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Mail className="h-4 w-4 shrink-0" />
+            <span className="truncate">{contact.email}</span>
+          </div>
+        )}
+        {contact.phone && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Phone className="h-4 w-4 shrink-0" />
+            <span>{contact.phone}</span>
+          </div>
+        )}
       </div>
 
-      <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">
-          Last contact: {contact.lastContact}
-        </span>
+      <div className="mt-4 pt-4 border-t border-border flex items-center justify-end">
         <div className="flex gap-2">
           <Button variant="ghost" size="icon" className="h-8 w-8">
             <Mail className="h-4 w-4" />
