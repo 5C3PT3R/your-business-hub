@@ -1,18 +1,18 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { useAuth } from '@/hooks/useAuth';
 import { getAllIndustries, IndustryType } from '@/config/industryTemplates';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Zap, ArrowRight, Loader2 } from 'lucide-react';
+import { Zap, ArrowRight, Loader2, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 export default function SelectCRM() {
   const [selectedIndustry, setSelectedIndustry] = useState<IndustryType | null>(null);
   const [loading, setLoading] = useState(false);
-  const { createWorkspace } = useWorkspace();
+  const { createWorkspace, hasWorkspace } = useWorkspace();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -56,23 +56,34 @@ export default function SelectCRM() {
       </div>
 
       {/* Header */}
-      <header className="relative z-10 p-6 md:p-8">
+      <header className="relative z-10 p-6 md:p-8 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary shadow-glow">
             <Zap className="h-5 w-5 text-primary-foreground" />
           </div>
           <span className="text-xl font-bold text-white">Upflo</span>
         </div>
+        {hasWorkspace && (
+          <Link to="/">
+            <Button variant="ghost" className="text-white/70 hover:text-white hover:bg-white/10">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Dashboard
+            </Button>
+          </Link>
+        )}
       </header>
 
       {/* Main content */}
       <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 pb-12">
         <div className="text-center mb-10 max-w-2xl">
           <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-4 animate-fade-in">
-            Choose Your CRM
+            {hasWorkspace ? 'Create New Workspace' : 'Choose Your CRM'}
           </h1>
           <p className="text-lg md:text-xl text-white/70 animate-fade-in" style={{ animationDelay: '0.1s' }}>
-            Select the CRM tailored for your industry. Each version is optimized with AI features specific to your workflow.
+            {hasWorkspace 
+              ? 'Add another CRM workspace to your account. Each workspace is independent with its own data.'
+              : 'Select the CRM tailored for your industry. Each version is optimized with AI features specific to your workflow.'
+            }
           </p>
         </div>
 
