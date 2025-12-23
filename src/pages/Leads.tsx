@@ -161,8 +161,6 @@ export default function Leads() {
       <Header
         title="Leads"
         subtitle="Manage and track your sales leads"
-        onSearch={setSearchQuery}
-        searchPlaceholder="Search leads..."
       />
       
       <div className="p-6 space-y-6">
