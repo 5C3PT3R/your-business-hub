@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { useWorkspace } from './useWorkspace';
 import { useToast } from './use-toast';
 
 export type DealStage = 'discovery' | 'proposal' | 'negotiation' | 'contract' | 'closed_won' | 'closed_lost';
@@ -15,21 +16,24 @@ export interface Deal {
   expected_close_date: string | null;
   probability: number;
   created_at: string;
+  workspace_id: string | null;
 }
 
 export function useDeals() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { workspace } = useWorkspace();
   const { toast } = useToast();
 
   const fetchDeals = async () => {
-    if (!user) return;
+    if (!user || !workspace) return;
     
     setLoading(true);
     const { data, error } = await supabase
       .from('deals')
       .select('*')
+      .eq('workspace_id', workspace.id)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -46,14 +50,14 @@ export function useDeals() {
 
   useEffect(() => {
     fetchDeals();
-  }, [user]);
+  }, [user, workspace?.id]);
 
-  const addDeal = async (deal: Omit<Deal, 'id' | 'created_at'>) => {
-    if (!user) return;
+  const addDeal = async (deal: Omit<Deal, 'id' | 'created_at' | 'workspace_id'>) => {
+    if (!user || !workspace) return;
 
     const { data, error } = await supabase
       .from('deals')
-      .insert([{ ...deal, user_id: user.id }])
+      .insert([{ ...deal, user_id: user.id, workspace_id: workspace.id }])
       .select()
       .single();
 

@@ -2,12 +2,11 @@ import {
   Briefcase, 
   Building2, 
   ShoppingCart, 
-  Landmark, 
   Shield,
   LucideIcon 
 } from 'lucide-react';
 
-export type IndustryType = 'sales' | 'real_estate' | 'ecommerce' | 'banking' | 'insurance';
+export type IndustryType = 'sales' | 'real_estate' | 'ecommerce' | 'insurance';
 
 export interface IndustryTemplate {
   id: IndustryType;
@@ -82,24 +81,6 @@ export const industryTemplates: Record<IndustryType, IndustryTemplate> = {
       tasks: 'Returns',
     },
     dashboardWidgets: ['order_stats', 'ticket_queue', 'customer_satisfaction', 'return_rate', 'metrics'],
-  },
-  banking: {
-    id: 'banking',
-    name: 'Banking CRM',
-    description: 'Call-center CRM with SLA & compliance',
-    icon: Landmark,
-    color: 'hsl(210, 80%, 55%)',
-    gradient: 'from-blue-500 to-indigo-600',
-    accentColor: 'blue',
-    enabledModules: ['accounts', 'applications', 'compliance', 'sla_tracking', 'calls'],
-    pipelines: ['loan_pipeline', 'account_opening_pipeline'],
-    uiLabels: {
-      deals: 'Applications',
-      contacts: 'Accounts',
-      leads: 'Prospects',
-      tasks: 'Follow-ups',
-    },
-    dashboardWidgets: ['sla_compliance', 'application_status', 'call_metrics', 'pending_approvals', 'metrics'],
   },
   insurance: {
     id: 'insurance',
