@@ -14,7 +14,285 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      activities: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          related_contact_id: string | null
+          related_deal_id: string | null
+          related_lead_id: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          related_contact_id?: string | null
+          related_deal_id?: string | null
+          related_lead_id?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          related_contact_id?: string | null
+          related_deal_id?: string | null
+          related_lead_id?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activities_related_contact_id_fkey"
+            columns: ["related_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_related_deal_id_fkey"
+            columns: ["related_deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_related_lead_id_fkey"
+            columns: ["related_lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contacts: {
+        Row: {
+          avatar_url: string | null
+          company: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          name: string
+          phone: string | null
+          position: string | null
+          status: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          company?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          name: string
+          phone?: string | null
+          position?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          company?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          name?: string
+          phone?: string | null
+          position?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      deals: {
+        Row: {
+          company: string | null
+          contact_id: string | null
+          created_at: string | null
+          expected_close_date: string | null
+          id: string
+          probability: number | null
+          stage: Database["public"]["Enums"]["deal_stage"] | null
+          title: string
+          updated_at: string | null
+          user_id: string
+          value: number | null
+        }
+        Insert: {
+          company?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          expected_close_date?: string | null
+          id?: string
+          probability?: number | null
+          stage?: Database["public"]["Enums"]["deal_stage"] | null
+          title: string
+          updated_at?: string | null
+          user_id: string
+          value?: number | null
+        }
+        Update: {
+          company?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          expected_close_date?: string | null
+          id?: string
+          probability?: number | null
+          stage?: Database["public"]["Enums"]["deal_stage"] | null
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deals_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          company: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          name: string
+          phone: string | null
+          source: string | null
+          status: Database["public"]["Enums"]["lead_status"] | null
+          updated_at: string | null
+          user_id: string
+          value: number | null
+        }
+        Insert: {
+          company?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          name: string
+          phone?: string | null
+          source?: string | null
+          status?: Database["public"]["Enums"]["lead_status"] | null
+          updated_at?: string | null
+          user_id: string
+          value?: number | null
+        }
+        Update: {
+          company?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          name?: string
+          phone?: string | null
+          source?: string | null
+          status?: Database["public"]["Enums"]["lead_status"] | null
+          updated_at?: string | null
+          user_id?: string
+          value?: number | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          company: string | null
+          created_at: string | null
+          email: string | null
+          full_name: string | null
+          id: string
+          role: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          company?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name?: string | null
+          id: string
+          role?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          company?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          role?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      tasks: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          priority: Database["public"]["Enums"]["task_priority"] | null
+          related_contact_id: string | null
+          related_deal_id: string | null
+          status: Database["public"]["Enums"]["task_status"] | null
+          title: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: Database["public"]["Enums"]["task_priority"] | null
+          related_contact_id?: string | null
+          related_deal_id?: string | null
+          status?: Database["public"]["Enums"]["task_status"] | null
+          title: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: Database["public"]["Enums"]["task_priority"] | null
+          related_contact_id?: string | null
+          related_deal_id?: string | null
+          status?: Database["public"]["Enums"]["task_status"] | null
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_related_contact_id_fkey"
+            columns: ["related_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_related_deal_id_fkey"
+            columns: ["related_deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +301,16 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      deal_stage:
+        | "discovery"
+        | "proposal"
+        | "negotiation"
+        | "contract"
+        | "closed_won"
+        | "closed_lost"
+      lead_status: "new" | "contacted" | "qualified" | "lost"
+      task_priority: "low" | "medium" | "high"
+      task_status: "pending" | "in_progress" | "completed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +437,18 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      deal_stage: [
+        "discovery",
+        "proposal",
+        "negotiation",
+        "contract",
+        "closed_won",
+        "closed_lost",
+      ],
+      lead_status: ["new", "contacted", "qualified", "lost"],
+      task_priority: ["low", "medium", "high"],
+      task_status: ["pending", "in_progress", "completed"],
+    },
   },
 } as const
