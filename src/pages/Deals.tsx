@@ -139,23 +139,23 @@ export default function Deals() {
         }}
       />
       
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-4 md:space-y-6">
         {/* Toolbar */}
-        <div className="flex items-center justify-between gap-4 animate-fade-in">
-          <div className="flex items-center gap-3">
-            <div className="relative max-w-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between animate-fade-in">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="relative flex-1 sm:flex-none">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="search"
                 placeholder="Search deals..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 w-64"
+                className="pl-9 w-full sm:w-64"
               />
             </div>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" className="w-full sm:w-auto">
                   <Filter className="mr-2 h-4 w-4" />
                   Filters
                 </Button>
@@ -191,22 +191,22 @@ export default function Deals() {
             </Popover>
           </div>
           
-          <div className="flex items-center gap-1 rounded-lg border border-border p-1">
+          <div className="flex items-center gap-1 rounded-lg border border-border p-1 self-start">
             <Button
               variant={viewMode === 'pipeline' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('pipeline')}
             >
-              <LayoutGrid className="mr-2 h-4 w-4" />
-              Pipeline
+              <LayoutGrid className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Pipeline</span>
             </Button>
             <Button
               variant={viewMode === 'table' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('table')}
             >
-              <TableIcon className="mr-2 h-4 w-4" />
-              Table
+              <TableIcon className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Table</span>
             </Button>
           </div>
         </div>

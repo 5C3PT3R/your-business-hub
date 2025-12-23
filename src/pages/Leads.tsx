@@ -163,11 +163,11 @@ export default function Leads() {
         subtitle="Manage and track your sales leads"
       />
       
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-4 md:space-y-6">
         {/* Filters */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between animate-fade-in">
-          <div className="flex flex-1 items-center gap-3">
-            <div className="relative flex-1 max-w-md">
+        <div className="flex flex-col gap-3 animate-fade-in">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="search"
@@ -178,7 +178,7 @@ export default function Leads() {
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-full sm:w-40">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -299,17 +299,17 @@ export default function Leads() {
 
         {/* Table */}
         {!loading && (
-          <div className="rounded-xl border border-border bg-card shadow-card animate-slide-up overflow-hidden">
+          <div className="rounded-xl border border-border bg-card shadow-card animate-slide-up overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead>Name</TableHead>
-                  <TableHead>Company</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Source</TableHead>
+                  <TableHead className="min-w-[120px]">Name</TableHead>
+                  <TableHead className="hidden md:table-cell">Company</TableHead>
+                  <TableHead className="hidden lg:table-cell">Email</TableHead>
+                  <TableHead className="hidden sm:table-cell">Source</TableHead>
                   <TableHead>Value</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
+                  <TableHead className="hidden md:table-cell">Created</TableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -317,9 +317,9 @@ export default function Leads() {
                 {filteredLeads.map((lead) => (
                   <TableRow key={lead.id} className="hover:bg-muted/30">
                     <TableCell className="font-medium">{lead.name}</TableCell>
-                    <TableCell>{lead.company || '-'}</TableCell>
-                    <TableCell>{lead.email || '-'}</TableCell>
-                    <TableCell className="capitalize">{lead.source?.replace('_', ' ') || '-'}</TableCell>
+                    <TableCell className="hidden md:table-cell">{lead.company || '-'}</TableCell>
+                    <TableCell className="hidden lg:table-cell">{lead.email || '-'}</TableCell>
+                    <TableCell className="hidden sm:table-cell capitalize">{lead.source?.replace('_', ' ') || '-'}</TableCell>
                     <TableCell>${lead.value.toLocaleString()}</TableCell>
                     <TableCell>
                       <Select 
@@ -339,7 +339,7 @@ export default function Leads() {
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="hidden md:table-cell text-muted-foreground">
                       {format(new Date(lead.created_at), 'MMM d, yyyy')}
                     </TableCell>
                     <TableCell>

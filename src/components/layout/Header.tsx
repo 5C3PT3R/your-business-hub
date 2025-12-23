@@ -7,6 +7,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { useNotifications } from '@/hooks/useNotifications';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface HeaderProps {
   title: string;
@@ -20,29 +21,30 @@ interface HeaderProps {
 export function Header({ title, subtitle, action }: HeaderProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearNotification } = useNotifications();
+  const isMobile = useIsMobile();
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-card/80 backdrop-blur-sm">
-      <div className="flex h-16 items-center justify-between px-6">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">{title}</h1>
+      <div className="flex h-14 md:h-16 items-center justify-between px-4 md:px-6">
+        <div className={isMobile ? 'ml-12' : ''}>
+          <h1 className="text-lg md:text-xl font-semibold text-foreground">{title}</h1>
           {subtitle && (
-            <p className="text-sm text-muted-foreground">{subtitle}</p>
+            <p className="text-xs md:text-sm text-muted-foreground line-clamp-1">{subtitle}</p>
           )}
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           {/* Notifications */}
           <Popover open={notificationsOpen} onOpenChange={setNotificationsOpen}>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
+              <Button variant="ghost" size="icon" className="relative h-9 w-9 md:h-10 md:w-10">
+                <Bell className="h-4 w-4 md:h-5 md:w-5" />
                 {unreadCount > 0 && (
-                  <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
+                  <span className="absolute right-1 top-1 md:right-1.5 md:top-1.5 h-2 w-2 rounded-full bg-destructive" />
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-80 p-0">
+            <PopoverContent align="end" className="w-72 md:w-80 p-0">
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <h4 className="font-semibold text-foreground">Notifications</h4>
                 {unreadCount > 0 && (
@@ -91,9 +93,9 @@ export function Header({ title, subtitle, action }: HeaderProps) {
 
           {/* Action button */}
           {action && (
-            <Button onClick={action.onClick} variant="gradient">
+            <Button onClick={action.onClick} variant="gradient" size={isMobile ? "sm" : "default"} className="gap-1">
               <Plus className="h-4 w-4" />
-              {action.label}
+              <span className="hidden sm:inline">{action.label}</span>
             </Button>
           )}
         </div>

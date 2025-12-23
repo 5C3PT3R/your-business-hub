@@ -2,6 +2,9 @@ import { ReactNode, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { useSidebarCollapse } from '@/hooks/useSidebarCollapse';
+import { cn } from '@/lib/utils';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -10,6 +13,8 @@ interface MainLayoutProps {
 export function MainLayout({ children }: MainLayoutProps) {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
+  const { collapsed } = useSidebarCollapse();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -35,7 +40,10 @@ export function MainLayout({ children }: MainLayoutProps) {
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
-      <main className="pl-64 transition-all duration-300">
+      <main className={cn(
+        'transition-all duration-300',
+        isMobile ? 'pl-0' : collapsed ? 'pl-20' : 'pl-64'
+      )}>
         {children}
       </main>
     </div>
