@@ -161,6 +161,198 @@ export type Database = {
           },
         ]
       }
+      ecommerce_customers: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          lifetime_value: number | null
+          name: string
+          phone: string | null
+          total_orders: number | null
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          lifetime_value?: number | null
+          name: string
+          phone?: string | null
+          total_orders?: number | null
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          lifetime_value?: number | null
+          name?: string
+          phone?: string | null
+          total_orders?: number | null
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ecommerce_customers_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ecommerce_orders: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          delivery_date: string | null
+          id: string
+          items: Json | null
+          order_number: string
+          order_status: Database["public"]["Enums"]["order_status"] | null
+          payment_status: Database["public"]["Enums"]["payment_status"] | null
+          refund_eligible: boolean | null
+          total_amount: number | null
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          delivery_date?: string | null
+          id?: string
+          items?: Json | null
+          order_number: string
+          order_status?: Database["public"]["Enums"]["order_status"] | null
+          payment_status?: Database["public"]["Enums"]["payment_status"] | null
+          refund_eligible?: boolean | null
+          total_amount?: number | null
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          delivery_date?: string | null
+          id?: string
+          items?: Json | null
+          order_number?: string
+          order_status?: Database["public"]["Enums"]["order_status"] | null
+          payment_status?: Database["public"]["Enums"]["payment_status"] | null
+          refund_eligible?: boolean | null
+          total_amount?: number | null
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ecommerce_orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "ecommerce_customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ecommerce_orders_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ecommerce_tickets: {
+        Row: {
+          assigned_to: string | null
+          category: Database["public"]["Enums"]["ticket_category"] | null
+          created_at: string
+          customer_id: string | null
+          description: string | null
+          first_response_at: string | null
+          id: string
+          order_id: string | null
+          priority: Database["public"]["Enums"]["ticket_priority"] | null
+          resolved_at: string | null
+          sla_due_at: string | null
+          status: Database["public"]["Enums"]["ticket_status"] | null
+          subject: string
+          ticket_number: string
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          category?: Database["public"]["Enums"]["ticket_category"] | null
+          created_at?: string
+          customer_id?: string | null
+          description?: string | null
+          first_response_at?: string | null
+          id?: string
+          order_id?: string | null
+          priority?: Database["public"]["Enums"]["ticket_priority"] | null
+          resolved_at?: string | null
+          sla_due_at?: string | null
+          status?: Database["public"]["Enums"]["ticket_status"] | null
+          subject: string
+          ticket_number: string
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          assigned_to?: string | null
+          category?: Database["public"]["Enums"]["ticket_category"] | null
+          created_at?: string
+          customer_id?: string | null
+          description?: string | null
+          first_response_at?: string | null
+          id?: string
+          order_id?: string | null
+          priority?: Database["public"]["Enums"]["ticket_priority"] | null
+          resolved_at?: string | null
+          sla_due_at?: string | null
+          status?: Database["public"]["Enums"]["ticket_status"] | null
+          subject?: string
+          ticket_number?: string
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ecommerce_tickets_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "ecommerce_customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ecommerce_tickets_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "ecommerce_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ecommerce_tickets_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           company: string | null
@@ -235,6 +427,273 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      realestate_buyer_pipeline: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          deal_value: number | null
+          expected_close_date: string | null
+          id: string
+          notes: string | null
+          probability: number | null
+          property_id: string | null
+          stage: Database["public"]["Enums"]["buyer_stage"] | null
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          deal_value?: number | null
+          expected_close_date?: string | null
+          id?: string
+          notes?: string | null
+          probability?: number | null
+          property_id?: string | null
+          stage?: Database["public"]["Enums"]["buyer_stage"] | null
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          deal_value?: number | null
+          expected_close_date?: string | null
+          id?: string
+          notes?: string | null
+          probability?: number | null
+          property_id?: string | null
+          stage?: Database["public"]["Enums"]["buyer_stage"] | null
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "realestate_buyer_pipeline_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "realestate_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "realestate_buyer_pipeline_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "realestate_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "realestate_buyer_pipeline_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      realestate_clients: {
+        Row: {
+          budget_max: number | null
+          budget_min: number | null
+          client_type: Database["public"]["Enums"]["client_type"] | null
+          created_at: string
+          email: string | null
+          id: string
+          intent_level: Database["public"]["Enums"]["intent_level"] | null
+          name: string
+          notes: string | null
+          phone: string | null
+          preferred_locations: string[] | null
+          property_type: string | null
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          budget_max?: number | null
+          budget_min?: number | null
+          client_type?: Database["public"]["Enums"]["client_type"] | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          intent_level?: Database["public"]["Enums"]["intent_level"] | null
+          name: string
+          notes?: string | null
+          phone?: string | null
+          preferred_locations?: string[] | null
+          property_type?: string | null
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          budget_max?: number | null
+          budget_min?: number | null
+          client_type?: Database["public"]["Enums"]["client_type"] | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          intent_level?: Database["public"]["Enums"]["intent_level"] | null
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          preferred_locations?: string[] | null
+          property_type?: string | null
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "realestate_clients_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      realestate_properties: {
+        Row: {
+          address: string | null
+          amenities: string[] | null
+          area_sqft: number | null
+          bathrooms: number | null
+          bedrooms: number | null
+          broker_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          images: string[] | null
+          location: string
+          price: number
+          property_type: Database["public"]["Enums"]["property_type"] | null
+          status: Database["public"]["Enums"]["property_status"] | null
+          title: string
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          address?: string | null
+          amenities?: string[] | null
+          area_sqft?: number | null
+          bathrooms?: number | null
+          bedrooms?: number | null
+          broker_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          images?: string[] | null
+          location: string
+          price: number
+          property_type?: Database["public"]["Enums"]["property_type"] | null
+          status?: Database["public"]["Enums"]["property_status"] | null
+          title: string
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          address?: string | null
+          amenities?: string[] | null
+          area_sqft?: number | null
+          bathrooms?: number | null
+          bedrooms?: number | null
+          broker_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          images?: string[] | null
+          location?: string
+          price?: number
+          property_type?: Database["public"]["Enums"]["property_type"] | null
+          status?: Database["public"]["Enums"]["property_status"] | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "realestate_properties_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      realestate_site_visits: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          feedback: string | null
+          id: string
+          interest_level: number | null
+          notes: string | null
+          property_id: string | null
+          scheduled_at: string
+          status: Database["public"]["Enums"]["visit_status"] | null
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          feedback?: string | null
+          id?: string
+          interest_level?: number | null
+          notes?: string | null
+          property_id?: string | null
+          scheduled_at: string
+          status?: Database["public"]["Enums"]["visit_status"] | null
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          feedback?: string | null
+          id?: string
+          interest_level?: number | null
+          notes?: string | null
+          property_id?: string | null
+          scheduled_at?: string
+          status?: Database["public"]["Enums"]["visit_status"] | null
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "realestate_site_visits_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "realestate_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "realestate_site_visits_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "realestate_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "realestate_site_visits_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tasks: {
         Row: {
@@ -370,6 +829,15 @@ export type Database = {
       }
     }
     Enums: {
+      buyer_stage:
+        | "inquiry"
+        | "qualified"
+        | "site_visit"
+        | "negotiation"
+        | "booked"
+        | "closed_won"
+        | "closed_lost"
+      client_type: "buyer" | "seller" | "both"
       deal_stage:
         | "discovery"
         | "proposal"
@@ -383,9 +851,36 @@ export type Database = {
         | "ecommerce"
         | "banking"
         | "insurance"
+      intent_level: "cold" | "warm" | "hot"
       lead_status: "new" | "contacted" | "qualified" | "lost"
+      order_status:
+        | "pending"
+        | "confirmed"
+        | "shipped"
+        | "delivered"
+        | "cancelled"
+        | "refunded"
+      payment_status: "pending" | "paid" | "failed" | "refunded"
+      property_status: "available" | "under_negotiation" | "booked" | "sold"
+      property_type:
+        | "apartment"
+        | "villa"
+        | "plot"
+        | "commercial"
+        | "penthouse"
+        | "studio"
       task_priority: "low" | "medium" | "high"
       task_status: "pending" | "in_progress" | "completed"
+      ticket_category:
+        | "refund"
+        | "delivery_delay"
+        | "damaged_product"
+        | "payment_issue"
+        | "general"
+        | "other"
+      ticket_priority: "low" | "medium" | "high" | "urgent"
+      ticket_status: "new" | "in_progress" | "waiting" | "resolved" | "closed"
+      visit_status: "scheduled" | "completed" | "cancelled" | "no_show"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -513,6 +1008,16 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      buyer_stage: [
+        "inquiry",
+        "qualified",
+        "site_visit",
+        "negotiation",
+        "booked",
+        "closed_won",
+        "closed_lost",
+      ],
+      client_type: ["buyer", "seller", "both"],
       deal_stage: [
         "discovery",
         "proposal",
@@ -528,9 +1033,39 @@ export const Constants = {
         "banking",
         "insurance",
       ],
+      intent_level: ["cold", "warm", "hot"],
       lead_status: ["new", "contacted", "qualified", "lost"],
+      order_status: [
+        "pending",
+        "confirmed",
+        "shipped",
+        "delivered",
+        "cancelled",
+        "refunded",
+      ],
+      payment_status: ["pending", "paid", "failed", "refunded"],
+      property_status: ["available", "under_negotiation", "booked", "sold"],
+      property_type: [
+        "apartment",
+        "villa",
+        "plot",
+        "commercial",
+        "penthouse",
+        "studio",
+      ],
       task_priority: ["low", "medium", "high"],
       task_status: ["pending", "in_progress", "completed"],
+      ticket_category: [
+        "refund",
+        "delivery_delay",
+        "damaged_product",
+        "payment_issue",
+        "general",
+        "other",
+      ],
+      ticket_priority: ["low", "medium", "high", "urgent"],
+      ticket_status: ["new", "in_progress", "waiting", "resolved", "closed"],
+      visit_status: ["scheduled", "completed", "cancelled", "no_show"],
     },
   },
 } as const
