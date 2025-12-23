@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
-import { LeadsTable } from '@/components/leads/LeadsTable';
+import { useLeads, LeadStatus } from '@/hooks/useLeads';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -11,20 +12,90 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Filter, Download } from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Search, Plus, Loader2, Trash2, MoreHorizontal } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { format } from 'date-fns';
+
+const statusColors: Record<LeadStatus, string> = {
+  new: 'bg-info/10 text-info border-info/20',
+  contacted: 'bg-warning/10 text-warning border-warning/20',
+  qualified: 'bg-success/10 text-success border-success/20',
+  lost: 'bg-destructive/10 text-destructive border-destructive/20',
+};
 
 export default function Leads() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const { leads, loading, addLead, updateLead, deleteLead } = useLeads();
+
+  const [newLead, setNewLead] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    company: '',
+    source: '',
+    value: 0,
+  });
+
+  const filteredLeads = leads.filter((lead) => {
+    const matchesSearch = 
+      lead.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (lead.company?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
+      (lead.email?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
+    
+    const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
+
+  const handleAddLead = async () => {
+    if (!newLead.name) return;
+    
+    await addLead({
+      name: newLead.name,
+      email: newLead.email || null,
+      phone: newLead.phone || null,
+      company: newLead.company || null,
+      source: newLead.source || null,
+      status: 'new',
+      value: newLead.value,
+    });
+    
+    setNewLead({ name: '', email: '', phone: '', company: '', source: '', value: 0 });
+    setIsAddDialogOpen(false);
+  };
+
+  const handleStatusChange = async (id: string, status: LeadStatus) => {
+    await updateLead(id, { status });
+  };
 
   return (
     <MainLayout>
       <Header
         title="Leads"
         subtitle="Manage and track your sales leads"
-        action={{
-          label: 'Add Lead',
-          onClick: () => console.log('Add lead'),
-        }}
       />
       
       <div className="p-6 space-y-6">
@@ -41,7 +112,7 @@ export default function Leads() {
                 className="pl-9"
               />
             </div>
-            <Select defaultValue="all">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -53,35 +124,175 @@ export default function Leads() {
                 <SelectItem value="lost">Lost</SelectItem>
               </SelectContent>
             </Select>
-            <Select defaultValue="all">
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Source" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Sources</SelectItem>
-                <SelectItem value="website">Website</SelectItem>
-                <SelectItem value="linkedin">LinkedIn</SelectItem>
-                <SelectItem value="referral">Referral</SelectItem>
-                <SelectItem value="coldcall">Cold Call</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
-              <Filter className="mr-2 h-4 w-4" />
-              More Filters
-            </Button>
-            <Button variant="outline" size="sm">
-              <Download className="mr-2 h-4 w-4" />
-              Export
-            </Button>
-          </div>
+          
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="gradient">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Lead
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Lead</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="lead-name">Name *</Label>
+                  <Input
+                    id="lead-name"
+                    value={newLead.name}
+                    onChange={(e) => setNewLead({ ...newLead, name: e.target.value })}
+                    placeholder="John Doe"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lead-email">Email</Label>
+                  <Input
+                    id="lead-email"
+                    type="email"
+                    value={newLead.email}
+                    onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
+                    placeholder="john@example.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lead-phone">Phone</Label>
+                  <Input
+                    id="lead-phone"
+                    value={newLead.phone}
+                    onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })}
+                    placeholder="+1 (555) 123-4567"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lead-company">Company</Label>
+                  <Input
+                    id="lead-company"
+                    value={newLead.company}
+                    onChange={(e) => setNewLead({ ...newLead, company: e.target.value })}
+                    placeholder="Acme Inc."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lead-source">Source</Label>
+                  <Select value={newLead.source} onValueChange={(value) => setNewLead({ ...newLead, source: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select source" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="website">Website</SelectItem>
+                      <SelectItem value="linkedin">LinkedIn</SelectItem>
+                      <SelectItem value="referral">Referral</SelectItem>
+                      <SelectItem value="cold_call">Cold Call</SelectItem>
+                      <SelectItem value="event">Event</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lead-value">Estimated Value ($)</Label>
+                  <Input
+                    id="lead-value"
+                    type="number"
+                    value={newLead.value}
+                    onChange={(e) => setNewLead({ ...newLead, value: Number(e.target.value) })}
+                    placeholder="10000"
+                  />
+                </div>
+                <Button className="w-full" variant="gradient" onClick={handleAddLead}>
+                  Add Lead
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
+        {/* Loading State */}
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        )}
+
         {/* Table */}
-        <div className="animate-slide-up">
-          <LeadsTable />
-        </div>
+        {!loading && (
+          <div className="rounded-xl border border-border bg-card shadow-card animate-slide-up overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead>Name</TableHead>
+                  <TableHead>Company</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Value</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="w-12"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredLeads.map((lead) => (
+                  <TableRow key={lead.id} className="hover:bg-muted/30">
+                    <TableCell className="font-medium">{lead.name}</TableCell>
+                    <TableCell>{lead.company || '-'}</TableCell>
+                    <TableCell>{lead.email || '-'}</TableCell>
+                    <TableCell className="capitalize">{lead.source?.replace('_', ' ') || '-'}</TableCell>
+                    <TableCell>${lead.value.toLocaleString()}</TableCell>
+                    <TableCell>
+                      <Select 
+                        value={lead.status} 
+                        onValueChange={(value) => handleStatusChange(lead.id, value as LeadStatus)}
+                      >
+                        <SelectTrigger className="h-7 w-28 border-0 p-0">
+                          <Badge variant="outline" className={statusColors[lead.status]}>
+                            {lead.status}
+                          </Badge>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="new">New</SelectItem>
+                          <SelectItem value="contacted">Contacted</SelectItem>
+                          <SelectItem value="qualified">Qualified</SelectItem>
+                          <SelectItem value="lost">Lost</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {format(new Date(lead.created_at), 'MMM d, yyyy')}
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem 
+                            className="text-destructive"
+                            onClick={() => deleteLead(lead.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filteredLeads.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                      {searchQuery || statusFilter !== 'all' 
+                        ? 'No leads found matching your filters.' 
+                        : 'No leads yet. Add your first lead!'}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
     </MainLayout>
   );
