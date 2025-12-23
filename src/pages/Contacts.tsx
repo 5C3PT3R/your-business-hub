@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
-import { ContactCard } from '@/components/contacts/ContactCard';
 import { useContacts } from '@/hooks/useContacts';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, LayoutGrid, List, Plus, Loader2 } from 'lucide-react';
+import { Search, LayoutGrid, List, Plus, Loader2, Mail, Phone, Building, MoreHorizontal, Trash2, Edit, Undo2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   Dialog,
@@ -14,20 +13,59 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+
+const statusOptions = [
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+  { value: 'prospect', label: 'Prospect' },
+  { value: 'customer', label: 'Customer' },
+];
+
+const countryCodes = [
+  { code: '+1', country: 'US/CA' },
+  { code: '+44', country: 'UK' },
+  { code: '+91', country: 'IN' },
+  { code: '+86', country: 'CN' },
+  { code: '+81', country: 'JP' },
+  { code: '+49', country: 'DE' },
+  { code: '+33', country: 'FR' },
+  { code: '+61', country: 'AU' },
+  { code: '+55', country: 'BR' },
+  { code: '+971', country: 'UAE' },
+];
 
 export default function Contacts() {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const { contacts, loading, addContact } = useContacts();
+  const [editingContact, setEditingContact] = useState<any>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const { contacts, loading, addContact, updateContact, deleteContact } = useContacts();
+  const { toast } = useToast();
 
   const [newContact, setNewContact] = useState({
     name: '',
     email: '',
+    countryCode: '+1',
     phone: '',
     company: '',
     position: '',
+    status: 'active',
   });
 
   const filteredContacts = contacts.filter(
@@ -40,18 +78,185 @@ export default function Contacts() {
   const handleAddContact = async () => {
     if (!newContact.name) return;
     
+    const fullPhone = newContact.phone ? `${newContact.countryCode} ${newContact.phone}` : null;
+    
     await addContact({
       name: newContact.name,
       email: newContact.email || null,
-      phone: newContact.phone || null,
+      phone: fullPhone,
       company: newContact.company || null,
       position: newContact.position || null,
       avatar_url: null,
-      status: 'active',
+      status: newContact.status,
     });
     
-    setNewContact({ name: '', email: '', phone: '', company: '', position: '' });
+    setNewContact({ name: '', email: '', countryCode: '+1', phone: '', company: '', position: '', status: 'active' });
     setIsAddDialogOpen(false);
+  };
+
+  const handleEditContact = async () => {
+    if (!editingContact?.name) return;
+    
+    await updateContact(editingContact.id, {
+      name: editingContact.name,
+      email: editingContact.email || null,
+      phone: editingContact.phone || null,
+      company: editingContact.company || null,
+      position: editingContact.position || null,
+      status: editingContact.status,
+    });
+    
+    setEditingContact(null);
+    setIsEditDialogOpen(false);
+  };
+
+  const handleDelete = async (contact: any) => {
+    const contactData = { ...contact };
+    const success = await deleteContact(contact.id);
+    
+    if (success) {
+      toast({
+        title: "Contact deleted",
+        description: "The contact has been removed.",
+        action: (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => handleUndo(contactData)}
+            className="gap-1"
+          >
+            <Undo2 className="h-3 w-3" />
+            Undo
+          </Button>
+        ),
+      });
+    }
+  };
+
+  const handleUndo = async (contactData: any) => {
+    await addContact({
+      name: contactData.name,
+      email: contactData.email,
+      phone: contactData.phone,
+      company: contactData.company,
+      position: contactData.position,
+      avatar_url: contactData.avatar_url,
+      status: contactData.status,
+    });
+    toast({
+      title: "Contact restored",
+      description: "The contact has been restored.",
+    });
+  };
+
+  const openEditDialog = (contact: any) => {
+    setEditingContact({ ...contact });
+    setIsEditDialogOpen(true);
+  };
+
+  const ContactCard = ({ contact }: { contact: any }) => {
+    const initials = contact.name
+      .split(' ')
+      .map((n: string) => n[0])
+      .join('')
+      .toUpperCase();
+
+    return (
+      <div className="group relative rounded-xl border border-border bg-card p-6 shadow-card transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 hover:border-primary/30">
+        <div className="absolute right-4 top-4 opacity-0 group-hover:opacity-100 transition-opacity">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => openEditDialog(contact)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit Contact
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                className="text-destructive"
+                onClick={() => handleDelete(contact)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div 
+          className="flex items-start gap-4 cursor-pointer"
+          onClick={() => openEditDialog(contact)}
+        >
+          <div className="flex h-14 w-14 items-center justify-center rounded-full gradient-primary text-primary-foreground font-semibold text-lg">
+            {initials}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-foreground truncate">{contact.name}</h3>
+            <p className="text-sm text-muted-foreground truncate">{contact.position || 'No position'}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {contact.company && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Building className="h-4 w-4 shrink-0" />
+              <span className="truncate">{contact.company}</span>
+            </div>
+          )}
+          {contact.email && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Mail className="h-4 w-4 shrink-0" />
+              <span className="truncate">{contact.email}</span>
+            </div>
+          )}
+          {contact.phone && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Phone className="h-4 w-4 shrink-0" />
+              <span>{contact.phone}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
+          <span className={cn(
+            'text-xs px-2 py-1 rounded-full',
+            contact.status === 'active' ? 'bg-success/10 text-success' :
+            contact.status === 'customer' ? 'bg-primary/10 text-primary' :
+            contact.status === 'prospect' ? 'bg-warning/10 text-warning' :
+            'bg-muted text-muted-foreground'
+          )}>
+            {contact.status || 'active'}
+          </span>
+          <div className="flex gap-2">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (contact.email) window.location.href = `mailto:${contact.email}`;
+              }}
+            >
+              <Mail className="h-4 w-4" />
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (contact.phone) window.location.href = `tel:${contact.phone}`;
+              }}
+            >
+              <Phone className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -59,6 +264,8 @@ export default function Contacts() {
       <Header
         title="Contacts"
         subtitle="Your business network and connections"
+        onSearch={setSearchQuery}
+        searchPlaceholder="Search contacts..."
       />
       
       <div className="p-6 space-y-6">
@@ -127,12 +334,27 @@ export default function Contacts() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone</Label>
-                    <Input
-                      id="phone"
-                      value={newContact.phone}
-                      onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
-                      placeholder="+1 (555) 123-4567"
-                    />
+                    <div className="flex gap-2">
+                      <Select value={newContact.countryCode} onValueChange={(value) => setNewContact({ ...newContact, countryCode: value })}>
+                        <SelectTrigger className="w-28">
+                          <SelectValue placeholder="Code" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {countryCodes.map((cc) => (
+                            <SelectItem key={cc.code} value={cc.code}>
+                              {cc.code} ({cc.country})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        id="phone"
+                        value={newContact.phone}
+                        onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
+                        placeholder="555 123-4567"
+                        className="flex-1"
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="company">Company</Label>
@@ -152,6 +374,21 @@ export default function Contacts() {
                       placeholder="CEO"
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="status">Status</Label>
+                    <Select value={newContact.status} onValueChange={(value) => setNewContact({ ...newContact, status: value })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {statusOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <Button className="w-full" variant="gradient" onClick={handleAddContact}>
                     Add Contact
                   </Button>
@@ -160,6 +397,78 @@ export default function Contacts() {
             </Dialog>
           </div>
         </div>
+
+        {/* Edit Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Contact</DialogTitle>
+            </DialogHeader>
+            {editingContact && (
+              <div className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name">Name *</Label>
+                  <Input
+                    id="edit-name"
+                    value={editingContact.name}
+                    onChange={(e) => setEditingContact({ ...editingContact, name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-email">Email</Label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={editingContact.email || ''}
+                    onChange={(e) => setEditingContact({ ...editingContact, email: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-phone">Phone</Label>
+                  <Input
+                    id="edit-phone"
+                    value={editingContact.phone || ''}
+                    onChange={(e) => setEditingContact({ ...editingContact, phone: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-company">Company</Label>
+                  <Input
+                    id="edit-company"
+                    value={editingContact.company || ''}
+                    onChange={(e) => setEditingContact({ ...editingContact, company: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-position">Position</Label>
+                  <Input
+                    id="edit-position"
+                    value={editingContact.position || ''}
+                    onChange={(e) => setEditingContact({ ...editingContact, position: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-status">Status</Label>
+                  <Select value={editingContact.status || 'active'} onValueChange={(value) => setEditingContact({ ...editingContact, status: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statusOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button className="w-full" variant="gradient" onClick={handleEditContact}>
+                  Save Changes
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Loading State */}
         {loading && (
@@ -184,15 +493,7 @@ export default function Contacts() {
                 style={{ animationDelay: `${index * 0.05}s` }}
                 className="animate-fade-in"
               >
-                <ContactCard contact={{
-                  id: contact.id,
-                  name: contact.name,
-                  email: contact.email || '',
-                  phone: contact.phone || '',
-                  company: contact.company || '',
-                  position: contact.position || '',
-                  avatar: contact.avatar_url || '',
-                }} />
+                <ContactCard contact={contact} />
               </div>
             ))}
           </div>
