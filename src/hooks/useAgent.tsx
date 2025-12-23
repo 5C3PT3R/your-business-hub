@@ -8,6 +8,13 @@ import { useTasks } from './useTasks';
 import { useToast } from './use-toast';
 import { AgentResponse, PlannedAction, industryActions } from '@/types/agent';
 
+export interface ParsedFileData {
+  fileName: string;
+  headers: string[];
+  rows: Record<string, string>[];
+  totalRows: number;
+}
+
 export function useAgent() {
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState<AgentResponse | null>(null);
@@ -20,7 +27,7 @@ export function useAgent() {
   const { tasks, addTask, updateTask, deleteTask } = useTasks();
   const { toast } = useToast();
 
-  const sendInstruction = useCallback(async (instruction: string) => {
+  const sendInstruction = useCallback(async (instruction: string, fileData?: ParsedFileData) => {
     if (!workspace) {
       toast({
         title: "No workspace selected",
@@ -38,12 +45,22 @@ export function useAgent() {
       const industryType = workspace.industry_type;
       const allowedActions = industryActions[industryType] || industryActions.sales;
 
-      const context = {
+      const context: Record<string, any> = {
         leads: leads.slice(0, 10),
         contacts: contacts.slice(0, 10),
         deals: deals.slice(0, 10),
         tasks: tasks.slice(0, 10),
       };
+
+      // Include file data if provided
+      if (fileData) {
+        context.uploadedFile = {
+          fileName: fileData.fileName,
+          headers: fileData.headers,
+          sampleRows: fileData.rows.slice(0, 5), // Send first 5 rows as sample
+          totalRows: fileData.totalRows,
+        };
+      }
 
       const { data, error } = await supabase.functions.invoke('crm-agent', {
         body: {
@@ -52,6 +69,10 @@ export function useAgent() {
           industryType,
           context,
           allowedActions,
+          fileData: fileData ? {
+            headers: fileData.headers,
+            rows: fileData.rows,
+          } : undefined,
         },
       });
 
@@ -158,6 +179,38 @@ export function useAgent() {
         case 'complete_task':
           if (action.record_id) {
             await updateTask(action.record_id, { status: 'completed' });
+          }
+          break;
+
+        case 'bulk_create_leads':
+          if (action.params?.items && Array.isArray(action.params.items)) {
+            for (const item of action.params.items) {
+              await addLead({
+                name: item.name || 'Imported Lead',
+                email: item.email || null,
+                phone: item.phone || null,
+                company: item.company || null,
+                source: 'import',
+                status: 'new',
+                value: item.value || 0,
+              });
+            }
+          }
+          break;
+
+        case 'bulk_create_contacts':
+          if (action.params?.items && Array.isArray(action.params.items)) {
+            for (const item of action.params.items) {
+              await addContact({
+                name: item.name || 'Imported Contact',
+                email: item.email || null,
+                phone: item.phone || null,
+                company: item.company || null,
+                position: item.position || null,
+                avatar_url: null,
+                status: 'active',
+              });
+            }
           }
           break;
 
