@@ -19,15 +19,20 @@ export function LeadSourceChart() {
             outerRadius={100}
             paddingAngle={4}
             dataKey="value"
+            style={{ outline: 'none' }}
           >
             {leadSourceData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.color} />
+              <Cell 
+                key={`cell-${index}`} 
+                fill={entry.color} 
+                style={{ outline: 'none' }}
+              />
             ))}
           </Pie>
           <Tooltip
             contentStyle={{
-              backgroundColor: 'hsl(0, 0%, 100%)',
-              border: '1px solid hsl(220, 13%, 91%)',
+              backgroundColor: 'hsl(var(--card))',
+              border: '1px solid hsl(var(--border))',
               borderRadius: '8px',
               boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
             }}
