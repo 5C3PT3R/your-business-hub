@@ -21,46 +21,46 @@ export default function Dashboard() {
         subtitle={`Welcome back, ${userName}! Here's what's happening today.`}
       />
       
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-4 md:space-y-6">
         {/* Metrics Grid */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in">
+          <div className="grid gap-4 md:gap-6 grid-cols-2 lg:grid-cols-4 animate-fade-in">
             <MetricCard
               title="Total Leads"
               value={metrics.totalLeads.toString()}
               change={metrics.leadsChange}
-              icon={<Users className="h-6 w-6 text-primary-foreground" />}
+              icon={<Users className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />}
             />
             <MetricCard
               title="Active Deals"
               value={metrics.totalDeals.toString()}
               change={metrics.dealsChange}
-              icon={<Briefcase className="h-6 w-6 text-primary-foreground" />}
+              icon={<Briefcase className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />}
               iconBg="gradient-success"
             />
             <MetricCard
               title="Revenue"
               value={`$${(metrics.revenue / 1000).toFixed(0)}k`}
               change={metrics.revenueChange}
-              icon={<DollarSign className="h-6 w-6 text-primary-foreground" />}
+              icon={<DollarSign className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />}
               iconBg="gradient-warm"
             />
             <MetricCard
-              title="Conversion Rate"
+              title="Conversion"
               value={`${metrics.conversionRate}%`}
               change={metrics.conversionChange}
-              icon={<TrendingUp className="h-6 w-6 text-primary-foreground" />}
+              icon={<TrendingUp className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />}
               iconBg="bg-info"
             />
           </div>
         )}
 
         {/* Charts Row */}
-        <div className="grid gap-6 lg:grid-cols-3 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+        <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-3 animate-slide-up" style={{ animationDelay: '0.1s' }}>
           <div className="lg:col-span-2">
             <RevenueChart />
           </div>
@@ -68,7 +68,7 @@ export default function Dashboard() {
         </div>
 
         {/* Activity Row */}
-        <div className="grid gap-6 lg:grid-cols-2 animate-slide-up" style={{ animationDelay: '0.2s' }}>
+        <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2 animate-slide-up" style={{ animationDelay: '0.2s' }}>
           <RecentDeals />
           <UpcomingTasks />
         </div>
