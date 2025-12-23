@@ -43,10 +43,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Route that requires auth but no workspace (for CRM selection)
+// Route for CRM selection (requires auth, accessible always)
 function CRMSelectionRoute({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
-  const { hasWorkspace, loading: workspaceLoading } = useWorkspace();
+  const { loading: workspaceLoading } = useWorkspace();
 
   if (authLoading || workspaceLoading) {
     return (
@@ -60,10 +60,7 @@ function CRMSelectionRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/auth" replace />;
   }
 
-  if (hasWorkspace) {
-    return <Navigate to="/" replace />;
-  }
-
+  // Allow access even if user has workspaces (they can create more)
   return <>{children}</>;
 }
 

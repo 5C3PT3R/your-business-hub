@@ -154,20 +154,36 @@ function SidebarContent({ collapsed, setCollapsed, showCollapseButton = true, on
         )}
       </div>
 
-      {/* Workspace Switcher (if multiple workspaces) */}
-      {!collapsed && workspaces.length > 1 && (
+      {/* Workspace Switcher */}
+      {!collapsed && (
         <div className="px-3 py-2 border-b border-sidebar-border">
-          <select
-            value={workspace?.id || ''}
-            onChange={(e) => switchWorkspace(e.target.value)}
-            className="w-full text-xs bg-sidebar-accent text-sidebar-foreground rounded-md px-2 py-1.5 border-0 focus:ring-1 focus:ring-sidebar-ring"
-          >
-            {workspaces.map((ws) => (
-              <option key={ws.id} value={ws.id}>
-                {ws.name}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            {workspaces.length > 1 ? (
+              <select
+                value={workspace?.id || ''}
+                onChange={(e) => switchWorkspace(e.target.value)}
+                className="flex-1 text-xs bg-sidebar-accent text-sidebar-foreground rounded-md px-2 py-1.5 border-0 focus:ring-1 focus:ring-sidebar-ring"
+              >
+                {workspaces.map((ws) => (
+                  <option key={ws.id} value={ws.id}>
+                    {ws.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="flex-1 text-xs text-sidebar-foreground/70 truncate">
+                {workspace?.name}
+              </span>
+            )}
+            <Link
+              to="/select-crm"
+              onClick={onNavigate}
+              className="p-1.5 rounded-md hover:bg-sidebar-accent text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors"
+              title="Switch CRM or create new workspace"
+            >
+              <ArrowLeftRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
       )}
 
