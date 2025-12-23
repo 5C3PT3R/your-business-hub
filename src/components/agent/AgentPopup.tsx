@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,13 +18,18 @@ import {
   CheckCircle2, 
   XCircle,
   Sparkles,
-  RotateCcw
+  RotateCcw,
+  FileSpreadsheet,
+  X,
+  Upload
 } from 'lucide-react';
-import { useAgent } from '@/hooks/useAgent';
+import { useAgent, ParsedFileData } from '@/hooks/useAgent';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { ActionCard } from './ActionCard';
 import { PlannedAction } from '@/types/agent';
 import { cn } from '@/lib/utils';
+import * as XLSX from 'xlsx';
+import { useToast } from '@/hooks/use-toast';
 
 interface AgentPopupProps {
   open: boolean;
@@ -34,8 +40,12 @@ export function AgentPopup({ open, onOpenChange }: AgentPopupProps) {
   const [instruction, setInstruction] = useState('');
   const [rejectedActions, setRejectedActions] = useState<string[]>([]);
   const [executingAction, setExecutingAction] = useState<string | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<ParsedFileData | null>(null);
+  const [isParsingFile, setIsParsingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { workspace, template } = useWorkspace();
+  const { toast } = useToast();
   const { 
     isLoading, 
     response, 
@@ -46,12 +56,112 @@ export function AgentPopup({ open, onOpenChange }: AgentPopupProps) {
     clearResponse 
   } = useAgent();
 
+  const parseFile = async (file: File): Promise<ParsedFileData | null> => {
+    const fileName = file.name.toLowerCase();
+    
+    try {
+      if (fileName.endsWith('.csv')) {
+        // Parse CSV
+        const text = await file.text();
+        const lines = text.split('\n').filter(line => line.trim());
+        if (lines.length === 0) return null;
+        
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        const rows = lines.slice(1).map(line => {
+          const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+          const row: Record<string, string> = {};
+          headers.forEach((header, i) => {
+            row[header] = values[i] || '';
+          });
+          return row;
+        });
+        
+        return {
+          fileName: file.name,
+          headers,
+          rows: rows.slice(0, 100), // Limit to 100 rows
+          totalRows: rows.length,
+        };
+      } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        // Parse Excel
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet);
+        
+        if (jsonData.length === 0) return null;
+        
+        const headers = Object.keys(jsonData[0]);
+        const rows = jsonData.slice(0, 100).map(row => {
+          const cleanRow: Record<string, string> = {};
+          headers.forEach(h => {
+            cleanRow[h] = String(row[h] ?? '');
+          });
+          return cleanRow;
+        });
+        
+        return {
+          fileName: file.name,
+          headers,
+          rows,
+          totalRows: jsonData.length,
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error parsing file:', error);
+      return null;
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const validTypes = ['.csv', '.xlsx', '.xls'];
+    const isValid = validTypes.some(type => file.name.toLowerCase().endsWith(type));
+    
+    if (!isValid) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a CSV, Excel (.xlsx), or Excel (.xls) file.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsParsingFile(true);
+    const parsed = await parseFile(file);
+    setIsParsingFile(false);
+    
+    if (parsed) {
+      setUploadedFile(parsed);
+      toast({
+        title: "File uploaded",
+        description: `Loaded ${parsed.totalRows} rows from ${parsed.fileName}`,
+      });
+    } else {
+      toast({
+        title: "Failed to parse file",
+        description: "Could not read the file. Please check the format.",
+        variant: "destructive",
+      });
+    }
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!instruction.trim() || isLoading) return;
     
     setRejectedActions([]);
-    await sendInstruction(instruction);
+    await sendInstruction(instruction, uploadedFile || undefined);
   };
 
   const handleApprove = async (action: PlannedAction) => {
@@ -77,6 +187,7 @@ export function AgentPopup({ open, onOpenChange }: AgentPopupProps) {
   const handleReset = () => {
     setInstruction('');
     setRejectedActions([]);
+    setUploadedFile(null);
     clearResponse();
   };
 
@@ -98,6 +209,9 @@ export function AgentPopup({ open, onOpenChange }: AgentPopupProps) {
               </div>
               <div>
                 <DialogTitle className="text-lg">AI Ops Agent</DialogTitle>
+                <DialogDescription className="sr-only">
+                  AI assistant to help manage your CRM operations
+                </DialogDescription>
                 <div className="flex items-center gap-2 mt-0.5">
                   <Badge variant="secondary" className="text-xs">
                     {template?.name || 'CRM'}
@@ -112,7 +226,7 @@ export function AgentPopup({ open, onOpenChange }: AgentPopupProps) {
                 </div>
               </div>
             </div>
-            {response && (
+            {(response || uploadedFile) && (
               <Button variant="ghost" size="sm" onClick={handleReset}>
                 <RotateCcw className="h-4 w-4 mr-1" />
                 Reset
@@ -123,6 +237,41 @@ export function AgentPopup({ open, onOpenChange }: AgentPopupProps) {
 
         {/* Content */}
         <ScrollArea className="flex-1 px-6 py-4">
+          {/* Uploaded File Badge */}
+          {uploadedFile && (
+            <div className="mb-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileSpreadsheet className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">{uploadedFile.fileName}</span>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-6 w-6 p-0"
+                  onClick={() => setUploadedFile(null)}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {uploadedFile.totalRows} rows • {uploadedFile.headers.length} columns
+              </p>
+              <div className="flex flex-wrap gap-1 mt-2">
+                {uploadedFile.headers.slice(0, 5).map(header => (
+                  <Badge key={header} variant="outline" className="text-xs">
+                    {header}
+                  </Badge>
+                ))}
+                {uploadedFile.headers.length > 5 && (
+                  <Badge variant="outline" className="text-xs">
+                    +{uploadedFile.headers.length - 5} more
+                  </Badge>
+                )}
+              </div>
+            </div>
+          )}
+
           {!response && !isLoading && (
             <div className="text-center py-8">
               <Sparkles className="h-12 w-12 mx-auto text-primary/50 mb-4" />
@@ -130,6 +279,35 @@ export function AgentPopup({ open, onOpenChange }: AgentPopupProps) {
               <p className="text-sm text-muted-foreground max-w-xs mx-auto">
                 Describe what you want to do and I'll suggest the right actions to take.
               </p>
+              
+              {/* File Upload Section */}
+              <div className="mt-6 p-4 border-2 border-dashed border-muted-foreground/25 rounded-lg">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  id="file-upload"
+                />
+                <label 
+                  htmlFor="file-upload" 
+                  className="cursor-pointer flex flex-col items-center gap-2"
+                >
+                  {isParsingFile ? (
+                    <Loader2 className="h-8 w-8 text-muted-foreground animate-spin" />
+                  ) : (
+                    <Upload className="h-8 w-8 text-muted-foreground" />
+                  )}
+                  <span className="text-sm text-muted-foreground">
+                    {isParsingFile ? 'Parsing file...' : 'Upload CSV or Excel file'}
+                  </span>
+                  <span className="text-xs text-muted-foreground/75">
+                    Supports .csv, .xlsx, .xls
+                  </span>
+                </label>
+              </div>
+
               <div className="mt-4 flex flex-wrap gap-2 justify-center">
                 {template?.id === 'sales' && (
                   <>
@@ -139,6 +317,11 @@ export function AgentPopup({ open, onOpenChange }: AgentPopupProps) {
                     <Button variant="outline" size="sm" onClick={() => setInstruction('Move stale deals forward')}>
                       Update deals
                     </Button>
+                    {uploadedFile && (
+                      <Button variant="outline" size="sm" onClick={() => setInstruction('Import contacts from the uploaded file')}>
+                        Import from file
+                      </Button>
+                    )}
                   </>
                 )}
                 {template?.id === 'real_estate' && (
@@ -149,6 +332,11 @@ export function AgentPopup({ open, onOpenChange }: AgentPopupProps) {
                     <Button variant="outline" size="sm" onClick={() => setInstruction('Match properties to clients')}>
                       Match properties
                     </Button>
+                    {uploadedFile && (
+                      <Button variant="outline" size="sm" onClick={() => setInstruction('Import clients from the uploaded file')}>
+                        Import from file
+                      </Button>
+                    )}
                   </>
                 )}
                 {template?.id === 'ecommerce' && (
@@ -159,6 +347,11 @@ export function AgentPopup({ open, onOpenChange }: AgentPopupProps) {
                     <Button variant="outline" size="sm" onClick={() => setInstruction('Process pending refunds')}>
                       Process refunds
                     </Button>
+                    {uploadedFile && (
+                      <Button variant="outline" size="sm" onClick={() => setInstruction('Import customers from the uploaded file')}>
+                        Import from file
+                      </Button>
+                    )}
                   </>
                 )}
                 {template?.id === 'insurance' && (
@@ -169,6 +362,11 @@ export function AgentPopup({ open, onOpenChange }: AgentPopupProps) {
                     <Button variant="outline" size="sm" onClick={() => setInstruction('Send renewal reminders')}>
                       Renewals
                     </Button>
+                    {uploadedFile && (
+                      <Button variant="outline" size="sm" onClick={() => setInstruction('Import policyholders from the uploaded file')}>
+                        Import from file
+                      </Button>
+                    )}
                   </>
                 )}
               </div>
@@ -257,7 +455,7 @@ export function AgentPopup({ open, onOpenChange }: AgentPopupProps) {
           
           <form onSubmit={handleSubmit} className="flex gap-2">
             <Input
-              placeholder="Tell me what to do..."
+              placeholder={uploadedFile ? "What should I do with the data?" : "Tell me what to do..."}
               value={instruction}
               onChange={(e) => setInstruction(e.target.value)}
               disabled={isLoading}

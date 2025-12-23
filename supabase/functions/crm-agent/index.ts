@@ -18,26 +18,36 @@ interface AgentRequest {
     tickets?: any[];
     properties?: any[];
     clients?: any[];
+    uploadedFile?: {
+      fileName: string;
+      headers: string[];
+      sampleRows: Record<string, string>[];
+      totalRows: number;
+    };
   };
   allowedActions: string[];
+  fileData?: {
+    headers: string[];
+    rows: Record<string, string>[];
+  };
 }
 
 const industryPrompts: Record<string, string> = {
   sales: `You are an AI CRM Operations Agent for a Sales CRM. 
 You help users manage leads, contacts, deals, and tasks.
-Available actions: create_lead, update_lead, create_contact, update_contact, create_deal, update_deal_stage, create_task, complete_task, send_followup, qualify_lead`,
+Available actions: create_lead, update_lead, create_contact, update_contact, create_deal, update_deal_stage, create_task, complete_task, send_followup, qualify_lead, bulk_create_leads, bulk_create_contacts`,
 
   real_estate: `You are an AI CRM Operations Agent for a Real Estate CRM.
 You help users manage clients, properties, site visits, and bookings.
-Available actions: create_client, update_client, add_property, update_property_status, schedule_site_visit, create_booking, send_property_match, update_intent_level`,
+Available actions: create_client, update_client, add_property, update_property_status, schedule_site_visit, create_booking, send_property_match, update_intent_level, bulk_create_clients`,
 
   ecommerce: `You are an AI CRM Operations Agent for an E-commerce CRM.
 You help users manage customers, orders, tickets, and returns.
-Available actions: create_ticket, escalate_ticket, resolve_ticket, update_order_status, process_refund, create_customer, send_update, flag_priority`,
+Available actions: create_ticket, escalate_ticket, resolve_ticket, update_order_status, process_refund, create_customer, send_update, flag_priority, bulk_create_customers`,
 
   insurance: `You are an AI CRM Operations Agent for an Insurance CRM.
 You help users manage policies, claims, renewals, and policyholders.
-Available actions: create_claim, update_claim_status, schedule_renewal, create_policy, update_policyholder, flag_fraud, send_reminder, escalate_case`
+Available actions: create_claim, update_claim_status, schedule_renewal, create_policy, update_policyholder, flag_fraud, send_reminder, escalate_case, bulk_create_policyholders`
 };
 
 serve(async (req) => {
@@ -46,7 +56,7 @@ serve(async (req) => {
   }
 
   try {
-    const { instruction, workspaceId, industryType, context, allowedActions } = await req.json() as AgentRequest;
+    const { instruction, workspaceId, industryType, context, allowedActions, fileData } = await req.json() as AgentRequest;
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     
     if (!OPENAI_API_KEY) {
@@ -55,6 +65,21 @@ serve(async (req) => {
 
     const industryPrompt = industryPrompts[industryType] || industryPrompts.sales;
     
+    let fileContext = "";
+    if (context.uploadedFile) {
+      fileContext = `
+
+UPLOADED FILE DATA:
+- File Name: ${context.uploadedFile.fileName}
+- Total Rows: ${context.uploadedFile.totalRows}
+- Columns: ${context.uploadedFile.headers.join(', ')}
+- Sample Data (first ${context.uploadedFile.sampleRows.length} rows):
+${JSON.stringify(context.uploadedFile.sampleRows, null, 2)}
+
+When importing data from files, use bulk_create_leads or bulk_create_contacts with an "items" array in params.
+Each item should map the file columns to the appropriate fields (name, email, phone, company, etc.).`;
+    }
+
     const systemPrompt = `${industryPrompt}
 
 CRITICAL RULES:
@@ -64,12 +89,18 @@ CRITICAL RULES:
 4. Actions with confidence < 0.7 should require approval.
 5. Never suggest actions outside the allowed list.
 6. Be concise and action-oriented.
+7. For file imports, analyze the columns and map them to appropriate CRM fields.
 
 CURRENT CONTEXT:
 - Workspace ID: ${workspaceId}
 - Industry: ${industryType}
 - Allowed Actions: ${allowedActions.join(', ')}
-- Available Records: ${JSON.stringify(context, null, 2)}
+- Available Records: ${JSON.stringify({
+  leads: context.leads?.length || 0,
+  contacts: context.contacts?.length || 0,
+  deals: context.deals?.length || 0,
+  tasks: context.tasks?.length || 0,
+}, null, 2)}${fileContext}
 
 RESPONSE FORMAT (JSON ONLY):
 {
@@ -86,9 +117,32 @@ RESPONSE FORMAT (JSON ONLY):
     }
   ],
   "summary": "One-line summary of the plan"
+}
+
+For bulk imports, use this format:
+{
+  "action": "bulk_create_contacts",
+  "params": {
+    "items": [
+      {"name": "John Doe", "email": "john@example.com", "phone": "123-456-7890", "company": "Acme Inc"},
+      ...
+    ]
+  },
+  "confidence": 0.9,
+  "requires_approval": true,
+  "reason": "Import X contacts from uploaded file"
 }`;
 
     console.log("Sending request to OpenAI API...");
+
+    // Build the user message with file data if available
+    let userMessage = instruction;
+    if (fileData && fileData.rows.length > 0) {
+      userMessage += `\n\nFile data to process (${fileData.rows.length} rows):\n${JSON.stringify(fileData.rows.slice(0, 20), null, 2)}`;
+      if (fileData.rows.length > 20) {
+        userMessage += `\n... and ${fileData.rows.length - 20} more rows`;
+      }
+    }
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -100,10 +154,10 @@ RESPONSE FORMAT (JSON ONLY):
         model: "gpt-4o-mini",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: instruction }
+          { role: "user", content: userMessage }
         ],
         temperature: 0.3,
-        max_tokens: 2048,
+        max_tokens: 4096,
       }),
     });
 
