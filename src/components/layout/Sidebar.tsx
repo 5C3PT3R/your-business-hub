@@ -12,24 +12,86 @@ import {
   ChevronRight,
   Zap,
   Menu,
-  X,
+  Building2,
+  ShoppingCart,
+  Landmark,
+  Shield,
+  LucideIcon,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useSidebarCollapse } from '@/hooks/useSidebarCollapse';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useWorkspace } from '@/hooks/useWorkspace';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useState } from 'react';
+import { IndustryType } from '@/config/industryTemplates';
 
-const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Leads', href: '/leads', icon: Users },
-  { name: 'Contacts', href: '/contacts', icon: UserCircle },
-  { name: 'Deals', href: '/deals', icon: Briefcase },
-  { name: 'Tasks', href: '/tasks', icon: CheckSquare },
-  { name: 'Reports', href: '/reports', icon: BarChart3 },
-  { name: 'Settings', href: '/settings', icon: Settings },
-];
+interface NavItem {
+  name: string;
+  href: string;
+  icon: LucideIcon;
+}
+
+// Industry-specific navigation
+const getNavigation = (industryType: IndustryType | undefined, labels: Record<string, string> | undefined): NavItem[] => {
+  const baseNav: NavItem[] = [
+    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  ];
+
+  const endNav: NavItem[] = [
+    { name: 'Reports', href: '/reports', icon: BarChart3 },
+    { name: 'Settings', href: '/settings', icon: Settings },
+  ];
+
+  // Industry-specific middle items
+  const industryNav: Record<IndustryType, NavItem[]> = {
+    sales: [
+      { name: labels?.leads || 'Leads', href: '/leads', icon: Users },
+      { name: labels?.contacts || 'Contacts', href: '/contacts', icon: UserCircle },
+      { name: labels?.deals || 'Deals', href: '/deals', icon: Briefcase },
+      { name: labels?.tasks || 'Tasks', href: '/tasks', icon: CheckSquare },
+    ],
+    real_estate: [
+      { name: labels?.leads || 'Inquiries', href: '/leads', icon: Users },
+      { name: labels?.contacts || 'Clients', href: '/contacts', icon: UserCircle },
+      { name: labels?.deals || 'Bookings', href: '/deals', icon: Building2 },
+      { name: labels?.tasks || 'Site Visits', href: '/tasks', icon: CheckSquare },
+    ],
+    ecommerce: [
+      { name: labels?.leads || 'Tickets', href: '/leads', icon: Users },
+      { name: labels?.contacts || 'Customers', href: '/contacts', icon: UserCircle },
+      { name: labels?.deals || 'Orders', href: '/deals', icon: ShoppingCart },
+      { name: labels?.tasks || 'Returns', href: '/tasks', icon: CheckSquare },
+    ],
+    banking: [
+      { name: labels?.leads || 'Prospects', href: '/leads', icon: Users },
+      { name: labels?.contacts || 'Accounts', href: '/contacts', icon: UserCircle },
+      { name: labels?.deals || 'Applications', href: '/deals', icon: Landmark },
+      { name: labels?.tasks || 'Follow-ups', href: '/tasks', icon: CheckSquare },
+    ],
+    insurance: [
+      { name: labels?.leads || 'Quotes', href: '/leads', icon: Users },
+      { name: labels?.contacts || 'Policyholders', href: '/contacts', icon: UserCircle },
+      { name: labels?.deals || 'Claims', href: '/deals', icon: Shield },
+      { name: labels?.tasks || 'Renewals', href: '/tasks', icon: CheckSquare },
+    ],
+  };
+
+  const middleNav = industryType ? industryNav[industryType] : industryNav.sales;
+
+  return [...baseNav, ...middleNav, ...endNav];
+};
+
+// Industry accent colors for the logo
+const industryColors: Record<IndustryType, string> = {
+  sales: 'gradient-primary',
+  real_estate: 'bg-gradient-to-br from-emerald-500 to-teal-600',
+  ecommerce: 'bg-gradient-to-br from-orange-500 to-amber-500',
+  banking: 'bg-gradient-to-br from-blue-500 to-indigo-600',
+  insurance: 'bg-gradient-to-br from-rose-500 to-pink-600',
+};
 
 function SidebarContent({ collapsed, setCollapsed, showCollapseButton = true, onNavigate }: { 
   collapsed: boolean; 
@@ -39,6 +101,7 @@ function SidebarContent({ collapsed, setCollapsed, showCollapseButton = true, on
 }) {
   const location = useLocation();
   const { user } = useAuth();
+  const { workspace, template, workspaces, switchWorkspace } = useWorkspace();
 
   const fullName = user?.user_metadata?.full_name || 'User';
   const email = user?.email || '';
@@ -49,18 +112,30 @@ function SidebarContent({ collapsed, setCollapsed, showCollapseButton = true, on
     .toUpperCase()
     .slice(0, 2);
 
+  const industryType = workspace?.industry_type;
+  const uiLabels = (workspace?.config as { ui_labels?: Record<string, string> })?.ui_labels;
+  const navigation = getNavigation(industryType, uiLabels);
+  const logoGradient = industryType ? industryColors[industryType] : 'gradient-primary';
+
   return (
     <div className="flex h-full flex-col">
-      {/* Logo */}
+      {/* Logo & Workspace */}
       <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
         <Link to="/" className="flex items-center gap-3" onClick={onNavigate}>
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl gradient-primary shadow-glow">
-            <Zap className="h-5 w-5 text-primary-foreground" />
+          <div className={cn('flex h-9 w-9 items-center justify-center rounded-xl shadow-glow', logoGradient)}>
+            <Zap className="h-5 w-5 text-white" />
           </div>
           {!collapsed && (
-            <span className="text-lg font-bold text-sidebar-foreground tracking-tight">
-              Upflo
-            </span>
+            <div className="flex flex-col">
+              <span className="text-lg font-bold text-sidebar-foreground tracking-tight">
+                Upflo
+              </span>
+              {template && (
+                <span className="text-[10px] text-sidebar-foreground/60 -mt-1">
+                  {template.name}
+                </span>
+              )}
+            </div>
           )}
         </Link>
         {showCollapseButton && setCollapsed && (
@@ -78,6 +153,23 @@ function SidebarContent({ collapsed, setCollapsed, showCollapseButton = true, on
           </Button>
         )}
       </div>
+
+      {/* Workspace Switcher (if multiple workspaces) */}
+      {!collapsed && workspaces.length > 1 && (
+        <div className="px-3 py-2 border-b border-sidebar-border">
+          <select
+            value={workspace?.id || ''}
+            onChange={(e) => switchWorkspace(e.target.value)}
+            className="w-full text-xs bg-sidebar-accent text-sidebar-foreground rounded-md px-2 py-1.5 border-0 focus:ring-1 focus:ring-sidebar-ring"
+          >
+            {workspaces.map((ws) => (
+              <option key={ws.id} value={ws.id}>
+                {ws.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 px-3 py-4">

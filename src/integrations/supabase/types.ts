@@ -293,12 +293,81 @@ export type Database = {
           },
         ]
       }
+      workspace_members: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_members_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspaces: {
+        Row: {
+          config: Json | null
+          created_at: string
+          id: string
+          industry_type: Database["public"]["Enums"]["industry_type"]
+          name: string
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string
+          id?: string
+          industry_type: Database["public"]["Enums"]["industry_type"]
+          name: string
+          owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string
+          id?: string
+          industry_type?: Database["public"]["Enums"]["industry_type"]
+          name?: string
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_workspace_member: {
+        Args: { _user_id: string; _workspace_id: string }
+        Returns: boolean
+      }
+      is_workspace_owner: {
+        Args: { _user_id: string; _workspace_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       deal_stage:
@@ -308,6 +377,12 @@ export type Database = {
         | "contract"
         | "closed_won"
         | "closed_lost"
+      industry_type:
+        | "sales"
+        | "real_estate"
+        | "ecommerce"
+        | "banking"
+        | "insurance"
       lead_status: "new" | "contacted" | "qualified" | "lost"
       task_priority: "low" | "medium" | "high"
       task_status: "pending" | "in_progress" | "completed"
@@ -445,6 +520,13 @@ export const Constants = {
         "contract",
         "closed_won",
         "closed_lost",
+      ],
+      industry_type: [
+        "sales",
+        "real_estate",
+        "ecommerce",
+        "banking",
+        "insurance",
       ],
       lead_status: ["new", "contacted", "qualified", "lost"],
       task_priority: ["low", "medium", "high"],
