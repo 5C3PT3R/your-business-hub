@@ -118,8 +118,6 @@ export default function Tasks() {
           label: 'Add Task',
           onClick: () => setIsAddDialogOpen(true),
         }}
-        onSearch={setSearchQuery}
-        searchPlaceholder="Search tasks..."
       />
       
       <div className="p-6 space-y-6">
