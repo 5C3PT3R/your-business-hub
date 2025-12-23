@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { useWorkspace } from './useWorkspace';
 import { useToast } from './use-toast';
 
 export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'lost';
@@ -15,21 +16,24 @@ export interface Lead {
   status: LeadStatus;
   value: number;
   created_at: string;
+  workspace_id: string | null;
 }
 
 export function useLeads() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { workspace } = useWorkspace();
   const { toast } = useToast();
 
   const fetchLeads = async () => {
-    if (!user) return;
+    if (!user || !workspace) return;
     
     setLoading(true);
     const { data, error } = await supabase
       .from('leads')
       .select('*')
+      .eq('workspace_id', workspace.id)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -46,14 +50,14 @@ export function useLeads() {
 
   useEffect(() => {
     fetchLeads();
-  }, [user]);
+  }, [user, workspace?.id]);
 
-  const addLead = async (lead: Omit<Lead, 'id' | 'created_at'>) => {
-    if (!user) return;
+  const addLead = async (lead: Omit<Lead, 'id' | 'created_at' | 'workspace_id'>) => {
+    if (!user || !workspace) return;
 
     const { data, error } = await supabase
       .from('leads')
-      .insert([{ ...lead, user_id: user.id }])
+      .insert([{ ...lead, user_id: user.id, workspace_id: workspace.id }])
       .select()
       .single();
 

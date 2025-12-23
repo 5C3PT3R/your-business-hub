@@ -2,7 +2,6 @@ import { useWorkspace } from '@/hooks/useWorkspace';
 import { SalesDashboard } from './dashboards/SalesDashboard';
 import { RealEstateDashboard } from './dashboards/RealEstateDashboard';
 import { EcommerceDashboard } from './dashboards/EcommerceDashboard';
-import { BankingDashboard } from './dashboards/BankingDashboard';
 import { InsuranceDashboard } from './dashboards/InsuranceDashboard';
 
 export function IndustryDashboard() {
@@ -14,8 +13,6 @@ export function IndustryDashboard() {
       return <RealEstateDashboard />;
     case 'ecommerce':
       return <EcommerceDashboard />;
-    case 'banking':
-      return <BankingDashboard />;
     case 'insurance':
       return <InsuranceDashboard />;
     case 'sales':
