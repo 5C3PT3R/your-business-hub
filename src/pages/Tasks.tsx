@@ -120,23 +120,23 @@ export default function Tasks() {
         }}
       />
       
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-4 md:space-y-6">
         {/* Toolbar */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between animate-fade-in">
-          <div className="flex items-center gap-3">
-            <div className="relative max-w-sm">
+        <div className="flex flex-col gap-3 animate-fade-in">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="relative flex-1 sm:flex-none">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="search"
                 placeholder="Search tasks..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 w-64"
+                className="pl-9 w-full sm:w-64"
               />
             </div>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" className="w-full sm:w-auto">
                   <Filter className="mr-2 h-4 w-4" />
                   Filters
                 </Button>
@@ -173,12 +173,13 @@ export default function Tasks() {
           <Tabs
             value={filter}
             onValueChange={(value) => setFilter(value as typeof filter)}
+            className="w-full overflow-x-auto"
           >
-            <TabsList>
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="pending">Pending</TabsTrigger>
-              <TabsTrigger value="in_progress">In Progress</TabsTrigger>
-              <TabsTrigger value="completed">Completed</TabsTrigger>
+            <TabsList className="w-full sm:w-auto">
+              <TabsTrigger value="all" className="flex-1 sm:flex-none">All</TabsTrigger>
+              <TabsTrigger value="pending" className="flex-1 sm:flex-none">Pending</TabsTrigger>
+              <TabsTrigger value="in_progress" className="flex-1 sm:flex-none">Progress</TabsTrigger>
+              <TabsTrigger value="completed" className="flex-1 sm:flex-none">Done</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>

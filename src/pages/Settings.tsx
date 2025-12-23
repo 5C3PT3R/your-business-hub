@@ -161,43 +161,43 @@ export default function Settings() {
         subtitle="Manage your account and preferences"
       />
       
-      <div className="p-6 max-w-4xl">
-        <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="animate-fade-in">
-            <TabsTrigger value="profile" className="gap-2">
+      <div className="p-4 md:p-6 max-w-4xl">
+        <Tabs defaultValue="profile" className="space-y-4 md:space-y-6">
+          <TabsList className="animate-fade-in w-full overflow-x-auto flex-wrap h-auto gap-1 p-1">
+            <TabsTrigger value="profile" className="gap-1.5 text-xs sm:text-sm">
               <User className="h-4 w-4" />
-              Profile
+              <span className="hidden sm:inline">Profile</span>
             </TabsTrigger>
-            <TabsTrigger value="notifications" className="gap-2">
+            <TabsTrigger value="notifications" className="gap-1.5 text-xs sm:text-sm">
               <Bell className="h-4 w-4" />
-              Notifications
+              <span className="hidden sm:inline">Alerts</span>
             </TabsTrigger>
-            <TabsTrigger value="security" className="gap-2">
+            <TabsTrigger value="security" className="gap-1.5 text-xs sm:text-sm">
               <Shield className="h-4 w-4" />
-              Security
+              <span className="hidden sm:inline">Security</span>
             </TabsTrigger>
-            <TabsTrigger value="team" className="gap-2">
+            <TabsTrigger value="team" className="gap-1.5 text-xs sm:text-sm">
               <Users className="h-4 w-4" />
-              Team
+              <span className="hidden sm:inline">Team</span>
             </TabsTrigger>
-            <TabsTrigger value="billing" className="gap-2">
+            <TabsTrigger value="billing" className="gap-1.5 text-xs sm:text-sm">
               <CreditCard className="h-4 w-4" />
-              Billing
+              <span className="hidden sm:inline">Billing</span>
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="profile" className="animate-slide-up">
-            <div className="rounded-xl border border-border bg-card p-6 shadow-card space-y-6">
+            <div className="rounded-xl border border-border bg-card p-4 md:p-6 shadow-card space-y-4 md:space-y-6">
               <div>
-                <h3 className="text-lg font-semibold text-foreground">Profile Information</h3>
-                <p className="text-sm text-muted-foreground">Update your personal details</p>
+                <h3 className="text-base md:text-lg font-semibold text-foreground">Profile Information</h3>
+                <p className="text-xs md:text-sm text-muted-foreground">Update your personal details</p>
               </div>
 
-              <div className="flex items-center gap-6">
-                <div className="flex h-20 w-20 items-center justify-center rounded-full gradient-primary text-primary-foreground text-2xl font-semibold">
+              <div className="flex flex-col sm:flex-row items-center gap-4 md:gap-6">
+                <div className="flex h-16 w-16 md:h-20 md:w-20 items-center justify-center rounded-full gradient-primary text-primary-foreground text-xl md:text-2xl font-semibold">
                   {initials}
                 </div>
-                <Button variant="outline">Change Photo</Button>
+                <Button variant="outline" size="sm">Change Photo</Button>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
