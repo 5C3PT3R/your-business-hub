@@ -2,13 +2,27 @@ import { useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
-export type TranscriptionLanguage = 'auto' | 'en' | 'hi';
+interface CallAnalysis {
+  summary: string;
+  sentiment: 'positive' | 'neutral' | 'negative';
+  sentimentScore: number;
+  followUps: Array<{
+    description: string;
+    suggestedDate: string | null;
+    suggestedTime: string | null;
+    rawText: string;
+  }>;
+  actionItems: string[];
+  keyTopics: string[];
+  nextSteps: string;
+}
 
 export const useVoiceRecorder = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
-  const [language, setLanguage] = useState<TranscriptionLanguage>('auto');
+  const [lastAnalysis, setLastAnalysis] = useState<CallAnalysis | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -39,6 +53,7 @@ export const useVoiceRecorder = () => {
       mediaRecorder.start(1000);
       setIsRecording(true);
       setRecordingDuration(0);
+      setLastAnalysis(null);
       
       timerRef.current = setInterval(() => {
         setRecordingDuration(prev => prev + 1);
@@ -54,10 +69,10 @@ export const useVoiceRecorder = () => {
     }
   }, []);
 
-  const stopRecording = useCallback(async (): Promise<string | null> => {
+  const stopRecording = useCallback(async (leadName?: string, leadCompany?: string): Promise<{ transcription: string | null; analysis: CallAnalysis | null }> => {
     return new Promise((resolve) => {
       if (!mediaRecorderRef.current) {
-        resolve(null);
+        resolve({ transcription: null, analysis: null });
         return;
       }
 
@@ -67,7 +82,6 @@ export const useVoiceRecorder = () => {
       }
 
       const mediaRecorder = mediaRecorderRef.current;
-      const currentLanguage = language;
       
       mediaRecorder.onstop = async () => {
         setIsRecording(false);
@@ -85,44 +99,65 @@ export const useVoiceRecorder = () => {
             const base64Audio = (reader.result as string).split(',')[1];
             
             try {
-              const { data, error } = await supabase.functions.invoke('transcribe-audio', {
-                body: { audio: base64Audio, language: currentLanguage }
+              // Step 1: Transcribe (auto-detect Hindi/English)
+              const { data: transcribeData, error: transcribeError } = await supabase.functions.invoke('transcribe-audio', {
+                body: { audio: base64Audio }
               });
               
-              if (error) throw error;
+              if (transcribeError) throw transcribeError;
               
-              if (data?.text) {
-                const langLabel = currentLanguage === 'hi' ? 'Hindi' : currentLanguage === 'en' ? 'English' : 'Auto-detect';
-                toast({
-                  title: 'Transcription Complete',
-                  description: `Transcribed in ${langLabel} mode.`
-                });
-                resolve(data.text);
-              } else {
+              if (!transcribeData?.text) {
                 throw new Error('No transcription returned');
               }
-            } catch (error) {
-              console.error('Transcription error:', error);
+
+              const transcription = transcribeData.text;
+              setIsTranscribing(false);
+              setIsAnalyzing(true);
+
+              // Step 2: Analyze the transcription
+              const { data: analysisData, error: analysisError } = await supabase.functions.invoke('analyze-call', {
+                body: { 
+                  transcription,
+                  leadName,
+                  leadCompany
+                }
+              });
+
+              if (analysisError) throw analysisError;
+
+              const analysis = analysisData as CallAnalysis;
+              setLastAnalysis(analysis);
+
               toast({
-                title: 'Transcription Failed',
-                description: 'Could not transcribe audio. Please try again.',
+                title: 'Call Analysis Complete',
+                description: `Sentiment: ${analysis.sentiment}. ${analysis.followUps.length} follow-up(s) detected.`
+              });
+
+              resolve({ transcription, analysis });
+            } catch (error) {
+              console.error('Processing error:', error);
+              toast({
+                title: 'Processing Failed',
+                description: 'Could not process audio. Please try again.',
                 variant: 'destructive'
               });
-              resolve(null);
+              resolve({ transcription: null, analysis: null });
             } finally {
               setIsTranscribing(false);
+              setIsAnalyzing(false);
             }
           };
         } catch (error) {
           console.error('Error processing audio:', error);
           setIsTranscribing(false);
-          resolve(null);
+          setIsAnalyzing(false);
+          resolve({ transcription: null, analysis: null });
         }
       };
       
       mediaRecorder.stop();
     });
-  }, [language]);
+  }, []);
 
   const cancelRecording = useCallback(() => {
     if (mediaRecorderRef.current) {
@@ -147,10 +182,10 @@ export const useVoiceRecorder = () => {
   return {
     isRecording,
     isTranscribing,
+    isAnalyzing,
     recordingDuration,
     formattedDuration: formatDuration(recordingDuration),
-    language,
-    setLanguage,
+    lastAnalysis,
     startRecording,
     stopRecording,
     cancelRecording

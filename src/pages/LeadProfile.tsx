@@ -5,6 +5,7 @@ import { Header } from '@/components/layout/Header';
 import { useLeads, LeadStatus, Lead } from '@/hooks/useLeads';
 import { useTasks } from '@/hooks/useTasks';
 import { useAgent } from '@/hooks/useAgent';
+import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,6 +59,7 @@ export default function LeadProfile() {
   const { leads, loading: leadsLoading, updateLead } = useLeads();
   const { tasks, addTask, updateTask } = useTasks();
   const { sendInstruction, isLoading: agentLoading } = useAgent();
+  const { toast } = useToast();
   
   const [lead, setLead] = useState<Lead | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -66,15 +68,48 @@ export default function LeadProfile() {
   const [isCallDialogOpen, setIsCallDialogOpen] = useState(false);
   const [newTask, setNewTask] = useState({ title: '', description: '', due_date: '', priority: 'medium' as 'low' | 'medium' | 'high' });
 
-  const handleCallTranscription = async (transcription: string) => {
+  const handleCallComplete = async (transcription: string, analysis: any) => {
     setIsCallDialogOpen(false);
-    if (lead) {
-      // Send to AI agent to analyze the call
+    if (lead && analysis) {
+      // Send to AI agent to analyze the call with the analysis results
       await sendInstruction(
-        `Call transcription with ${lead.name} (${lead.company || 'No company'}): "${transcription}". 
-        Please analyze this conversation and suggest appropriate CRM actions like updating lead status, creating tasks, or adding notes.`
+        `Call completed with ${lead.name} (${lead.company || 'No company'}). 
+        Transcription: "${transcription}"
+        Sentiment: ${analysis.sentiment}
+        Summary: ${analysis.summary}
+        Action Items: ${analysis.actionItems?.join(', ') || 'None'}
+        Please suggest appropriate CRM actions based on this call.`
       );
     }
+  };
+
+  const handleScheduleFollowUp = async (followUp: { description: string; suggestedDate: string | null; suggestedTime: string | null }) => {
+    if (!lead) return;
+    
+    // Parse the suggested date/time to create a due date
+    let dueDate = new Date();
+    if (followUp.suggestedDate) {
+      dueDate = new Date(followUp.suggestedDate);
+    } else {
+      // Default to tomorrow if no specific date
+      dueDate.setDate(dueDate.getDate() + 1);
+    }
+
+    await addTask({
+      title: `Follow up: ${followUp.description}`,
+      description: `Scheduled from call with ${lead.name}`,
+      due_date: dueDate.toISOString().split('T')[0],
+      priority: 'high',
+      status: 'pending',
+      related_lead_id: lead.id,
+      related_contact_id: null,
+      related_deal_id: null,
+    });
+
+    toast({
+      title: 'Follow-up Scheduled',
+      description: `Task created for ${dueDate.toLocaleDateString()}`,
+    });
   };
 
   useEffect(() => {
@@ -284,7 +319,13 @@ export default function LeadProfile() {
                     <DialogHeader>
                       <DialogTitle>Call {lead.name}</DialogTitle>
                     </DialogHeader>
-                    <DialerRecorder onTranscriptionComplete={handleCallTranscription} />
+                    <DialerRecorder 
+                      leadName={lead.name}
+                      leadCompany={lead.company || undefined}
+                      leadPhone={lead.phone || undefined}
+                      onTranscriptionComplete={handleCallComplete}
+                      onScheduleFollowUp={handleScheduleFollowUp}
+                    />
                   </DialogContent>
                 </Dialog>
               </div>
