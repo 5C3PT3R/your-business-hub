@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Square, X, Phone, PhoneCall, Loader2, CheckCircle2, Calendar, ThumbsUp, ThumbsDown, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,20 +18,37 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+interface CallAnalysis {
+  summary: string;
+  sentiment: 'positive' | 'neutral' | 'negative';
+  sentimentScore: number;
+  followUps: Array<{
+    description: string;
+    suggestedDate: string | null;
+    suggestedTime: string | null;
+    rawText: string;
+  }>;
+  actionItems: string[];
+  keyTopics: string[];
+  nextSteps: string;
+}
+
 interface DialerRecorderProps {
+  leadId: string;
   leadName?: string;
   leadCompany?: string;
   leadPhone?: string;
-  onTranscriptionComplete: (text: string, analysis: any) => void;
+  onCallComplete: (transcription: string, analysis: CallAnalysis, durationSeconds: number) => void;
   onScheduleFollowUp?: (followUp: { description: string; suggestedDate: string | null; suggestedTime: string | null }) => void;
   className?: string;
 }
 
 export function DialerRecorder({ 
+  leadId,
   leadName, 
   leadCompany, 
   leadPhone,
-  onTranscriptionComplete, 
+  onCallComplete, 
   onScheduleFollowUp,
   className 
 }: DialerRecorderProps) {
@@ -38,33 +57,91 @@ export function DialerRecorder({
     isTranscribing,
     isAnalyzing,
     formattedDuration,
+    recordingDuration,
     lastAnalysis,
     startRecording,
     stopRecording,
     cancelRecording
   } = useVoiceRecorder();
 
+  const { toast } = useToast();
   const [followUpToSchedule, setFollowUpToSchedule] = useState<any>(null);
-  const [callStarted, setCallStarted] = useState(false);
+  const [callState, setCallState] = useState<'idle' | 'connecting' | 'connected' | 'ended'>('idle');
+  const [twilioCallSid, setTwilioCallSid] = useState<string | null>(null);
 
-  // Auto-start recording when component mounts (call initiated)
+  // Initiate Twilio call and start recording when component mounts
   useEffect(() => {
-    if (!callStarted && leadPhone) {
-      setCallStarted(true);
-      startRecording();
+    if (callState === 'idle' && leadPhone) {
+      initiateCall();
     }
-  }, [leadPhone, callStarted, startRecording]);
+  }, []);
 
-  const handleStop = async () => {
+  const initiateCall = async () => {
+    if (!leadPhone) {
+      toast({
+        title: 'No Phone Number',
+        description: 'This lead does not have a phone number.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setCallState('connecting');
+
+    try {
+      // Call Twilio edge function to initiate the call
+      const { data, error } = await supabase.functions.invoke('twilio-call', {
+        body: {
+          to: leadPhone,
+          leadName,
+          leadId,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.callId) {
+        setTwilioCallSid(data.callId);
+        setCallState('connected');
+        // Start recording the call audio
+        startRecording();
+        
+        toast({
+          title: 'Call Connected',
+          description: data.message || `Connected to ${leadName || leadPhone}`,
+        });
+      } else {
+        throw new Error(data?.error || 'Failed to initiate call');
+      }
+    } catch (error) {
+      console.error('Error initiating call:', error);
+      setCallState('idle');
+      toast({
+        title: 'Call Failed',
+        description: error instanceof Error ? error.message : 'Could not connect the call',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleEndCall = async () => {
+    const duration = recordingDuration;
     const result = await stopRecording(leadName, leadCompany);
+    setCallState('ended');
+    
     if (result.transcription && result.analysis) {
-      onTranscriptionComplete(result.transcription, result.analysis);
+      onCallComplete(result.transcription, result.analysis, duration);
       
       // If there are follow-ups, prompt user to schedule
       if (result.analysis.followUps?.length > 0) {
         setFollowUpToSchedule(result.analysis.followUps[0]);
       }
     }
+  };
+
+  const handleCancelCall = () => {
+    cancelRecording();
+    setCallState('idle');
   };
 
   const handleScheduleFollowUp = () => {
@@ -121,7 +198,7 @@ export function DialerRecorder({
   }
 
   // Show analysis results if available
-  if (lastAnalysis) {
+  if (lastAnalysis && callState === 'ended') {
     return (
       <div className={cn("flex flex-col gap-4 p-4", className)}>
         <Card>
@@ -173,12 +250,12 @@ export function DialerRecorder({
                 </ul>
               </div>
             )}
+
+            <div className="pt-2 text-xs text-muted-foreground text-center">
+              Call saved to lead history
+            </div>
           </CardContent>
         </Card>
-
-        <Button onClick={() => window.location.reload()} variant="outline" className="w-full">
-          Make Another Call
-        </Button>
 
         {/* Follow-up scheduling dialog */}
         <AlertDialog open={!!followUpToSchedule} onOpenChange={() => setFollowUpToSchedule(null)}>
@@ -206,8 +283,8 @@ export function DialerRecorder({
     );
   }
 
-  // Recording state - active call UI
-  if (isRecording) {
+  // Connected/Recording state - active call UI
+  if (callState === 'connected' && isRecording) {
     return (
       <div className={cn("flex flex-col items-center gap-4 p-4", className)}>
         {/* Active Call Animation */}
@@ -251,14 +328,14 @@ export function DialerRecorder({
           <Button
             variant="outline"
             size="lg"
-            onClick={cancelRecording}
+            onClick={handleCancelCall}
             className="rounded-full h-14 w-14 p-0 border-destructive/50 text-destructive hover:bg-destructive/10"
           >
             <X className="h-6 w-6" />
           </Button>
           <Button
             size="lg"
-            onClick={handleStop}
+            onClick={handleEndCall}
             className="rounded-full h-14 w-14 p-0 bg-red-500 hover:bg-red-600"
           >
             <Square className="h-5 w-5" />
@@ -269,19 +346,57 @@ export function DialerRecorder({
     );
   }
 
-  // Connecting state - before recording starts
+  // Connecting state
+  if (callState === 'connecting') {
+    return (
+      <div className={cn("flex flex-col items-center gap-4 p-6", className)}>
+        <div className="relative">
+          <div className="h-24 w-24 rounded-full bg-emerald-500/10 flex items-center justify-center">
+            <Phone className="h-12 w-12 text-emerald-500 animate-bounce" />
+          </div>
+        </div>
+        <div className="text-center">
+          <p className="font-medium">{leadName || 'Calling...'}</p>
+          {leadPhone && <p className="text-sm text-muted-foreground">{leadPhone}</p>}
+        </div>
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Connecting via Twilio...</p>
+        </div>
+        <Button variant="outline" onClick={handleCancelCall} className="mt-2">
+          Cancel
+        </Button>
+      </div>
+    );
+  }
+
+  // Idle state - show call button
   return (
     <div className={cn("flex flex-col items-center gap-4 p-6", className)}>
-      <div className="relative">
-        <div className="h-24 w-24 rounded-full bg-emerald-500/10 flex items-center justify-center">
-          <Loader2 className="h-12 w-12 text-emerald-500 animate-spin" />
-        </div>
+      <div className="text-center mb-2">
+        <p className="font-medium">{leadName || 'Unknown'}</p>
+        {leadPhone ? (
+          <p className="text-sm text-muted-foreground">{leadPhone}</p>
+        ) : (
+          <p className="text-sm text-destructive">No phone number</p>
+        )}
       </div>
-      <div className="text-center">
-        <p className="font-medium">{leadName || 'Calling...'}</p>
-        {leadPhone && <p className="text-sm text-muted-foreground">{leadPhone}</p>}
-      </div>
-      <p className="text-sm text-muted-foreground">Connecting...</p>
+
+      <button
+        onClick={initiateCall}
+        disabled={!leadPhone}
+        className={cn(
+          "h-20 w-20 rounded-full flex items-center justify-center shadow-lg transition-all",
+          leadPhone 
+            ? "bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 shadow-emerald-500/30 hover:scale-105 active:scale-95"
+            : "bg-muted cursor-not-allowed"
+        )}
+      >
+        <Phone className={cn("h-8 w-8", leadPhone ? "text-white" : "text-muted-foreground")} />
+      </button>
+      <p className="text-xs text-muted-foreground">
+        {leadPhone ? "Tap to call" : "Add phone number to call"}
+      </p>
     </div>
   );
 }
