@@ -51,12 +51,25 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
       const memberWorkspaceIds = memberWorkspaces?.map(m => m.workspace_id) || [];
 
-      const { data: allWorkspaces, error: workspacesError } = await supabase
-        .from('workspaces')
-        .select('*')
-        .or(`owner_id.eq.${user.id},id.in.(${memberWorkspaceIds.join(',')})`);
-
-      if (workspacesError) throw workspacesError;
+      let allWorkspaces = [];
+      
+      if (memberWorkspaceIds.length > 0) {
+        const { data, error } = await supabase
+          .from('workspaces')
+          .select('*')
+          .or(`owner_id.eq.${user.id},id.in.(${memberWorkspaceIds.join(',')})`);
+        
+        if (error) throw error;
+        allWorkspaces = data || [];
+      } else {
+        const { data, error } = await supabase
+          .from('workspaces')
+          .select('*')
+          .eq('owner_id', user.id);
+        
+        if (error) throw error;
+        allWorkspaces = data || [];
+      }
 
       const typedWorkspaces = (allWorkspaces || []).map(w => ({
         ...w,
