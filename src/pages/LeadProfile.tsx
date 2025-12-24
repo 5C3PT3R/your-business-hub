@@ -74,15 +74,16 @@ export default function LeadProfile() {
   const [isCallDialogOpen, setIsCallDialogOpen] = useState(false);
   const [newTask, setNewTask] = useState({ title: '', description: '', due_date: '', priority: 'medium' as 'low' | 'medium' | 'high' });
 
-  const handleCallComplete = async (transcription: string, analysis: any, durationSeconds: number) => {
+  const handleCallComplete = async (transcription: string, analysis: any, durationSeconds: number, twilioCallSid?: string) => {
     if (lead && analysis) {
-      // Save call log to database
+      // Save call log to database with Twilio call SID
       await saveCallLog({
         leadId: lead.id,
         phoneNumber: lead.phone || '',
         durationSeconds,
         transcription,
         analysis,
+        twilioCallSid,
       });
 
       // Update lead status to contacted if new
