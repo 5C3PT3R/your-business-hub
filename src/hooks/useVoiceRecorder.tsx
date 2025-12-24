@@ -2,10 +2,13 @@ import { useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
+export type TranscriptionLanguage = 'auto' | 'en' | 'hi';
+
 export const useVoiceRecorder = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [language, setLanguage] = useState<TranscriptionLanguage>('auto');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -33,11 +36,10 @@ export const useVoiceRecorder = () => {
         }
       };
       
-      mediaRecorder.start(1000); // Collect data every second
+      mediaRecorder.start(1000);
       setIsRecording(true);
       setRecordingDuration(0);
       
-      // Start duration timer
       timerRef.current = setInterval(() => {
         setRecordingDuration(prev => prev + 1);
       }, 1000);
@@ -59,26 +61,23 @@ export const useVoiceRecorder = () => {
         return;
       }
 
-      // Clear timer
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
 
       const mediaRecorder = mediaRecorderRef.current;
+      const currentLanguage = language;
       
       mediaRecorder.onstop = async () => {
         setIsRecording(false);
         setIsTranscribing(true);
         
         try {
-          // Stop all tracks
           mediaRecorder.stream.getTracks().forEach(track => track.stop());
           
-          // Create audio blob
           const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
           
-          // Convert to base64
           const reader = new FileReader();
           reader.readAsDataURL(audioBlob);
           
@@ -86,17 +85,17 @@ export const useVoiceRecorder = () => {
             const base64Audio = (reader.result as string).split(',')[1];
             
             try {
-              // Send to transcription edge function
               const { data, error } = await supabase.functions.invoke('transcribe-audio', {
-                body: { audio: base64Audio }
+                body: { audio: base64Audio, language: currentLanguage }
               });
               
               if (error) throw error;
               
               if (data?.text) {
+                const langLabel = currentLanguage === 'hi' ? 'Hindi' : currentLanguage === 'en' ? 'English' : 'Auto-detect';
                 toast({
                   title: 'Transcription Complete',
-                  description: 'Your voice message has been transcribed.'
+                  description: `Transcribed in ${langLabel} mode.`
                 });
                 resolve(data.text);
               } else {
@@ -123,7 +122,7 @@ export const useVoiceRecorder = () => {
       
       mediaRecorder.stop();
     });
-  }, []);
+  }, [language]);
 
   const cancelRecording = useCallback(() => {
     if (mediaRecorderRef.current) {
@@ -150,6 +149,8 @@ export const useVoiceRecorder = () => {
     isTranscribing,
     recordingDuration,
     formattedDuration: formatDuration(recordingDuration),
+    language,
+    setLanguage,
     startRecording,
     stopRecording,
     cancelRecording

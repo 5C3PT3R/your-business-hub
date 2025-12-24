@@ -16,6 +16,7 @@ export interface Task {
   due_date: string | null;
   related_deal_id: string | null;
   related_contact_id: string | null;
+  related_lead_id?: string | null;
   created_at: string;
   workspace_id: string | null;
 }
@@ -53,7 +54,7 @@ export function useTasks() {
     fetchTasks();
   }, [user, workspace?.id]);
 
-  const addTask = async (task: Omit<Task, 'id' | 'created_at' | 'workspace_id'>) => {
+  const addTask = async (task: Omit<Task, 'id' | 'created_at' | 'workspace_id' | 'related_lead_id'> & { related_lead_id?: string | null }) => {
     if (!user || !workspace) return;
 
     const { data, error } = await supabase
