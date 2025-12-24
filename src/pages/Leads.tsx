@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { useLeads, LeadStatus } from '@/hooks/useLeads';
@@ -59,7 +60,7 @@ const countryCodes = [
 ];
 
 export default function Leads() {
-  const [searchQuery, setSearchQuery] = useState('');
+  const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const { leads, loading, addLead, updateLead, deleteLead } = useLeads();
@@ -315,7 +316,11 @@ export default function Leads() {
               </TableHeader>
               <TableBody>
                 {filteredLeads.map((lead) => (
-                  <TableRow key={lead.id} className="hover:bg-muted/30">
+                  <TableRow 
+                    key={lead.id} 
+                    className="hover:bg-muted/30 cursor-pointer"
+                    onClick={() => navigate(`/leads/${lead.id}`)}
+                  >
                     <TableCell className="font-medium">{lead.name}</TableCell>
                     <TableCell className="hidden md:table-cell">{lead.company || '-'}</TableCell>
                     <TableCell className="hidden lg:table-cell">{lead.email || '-'}</TableCell>
@@ -342,7 +347,7 @@ export default function Leads() {
                     <TableCell className="hidden md:table-cell text-muted-foreground">
                       {format(new Date(lead.created_at), 'MMM d, yyyy')}
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
