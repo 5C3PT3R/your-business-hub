@@ -68,13 +68,20 @@ export function DialerRecorder({
   const [followUpToSchedule, setFollowUpToSchedule] = useState<any>(null);
   const [callState, setCallState] = useState<'idle' | 'connecting' | 'ringing' | 'connected' | 'ended'>('idle');
   const [twilioCallSid, setTwilioCallSid] = useState<string | null>(null);
+  const [callDuration, setCallDuration] = useState(0);
   const callStatusIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+  const callDurationIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+  const hasConnectedRef = React.useRef(false);
+  const hasEndedRef = React.useRef(false);
 
-  // Cleanup interval on unmount
+  // Cleanup intervals on unmount
   useEffect(() => {
     return () => {
       if (callStatusIntervalRef.current) {
         clearInterval(callStatusIntervalRef.current);
+      }
+      if (callDurationIntervalRef.current) {
+        clearInterval(callDurationIntervalRef.current);
       }
     };
   }, []);
@@ -82,9 +89,26 @@ export function DialerRecorder({
   // Initiate Twilio call when component mounts
   useEffect(() => {
     if (callState === 'idle' && leadPhone) {
+      hasConnectedRef.current = false;
+      hasEndedRef.current = false;
       initiateCall();
     }
   }, []);
+
+  // Start duration timer when connected
+  useEffect(() => {
+    if (callState === 'connected' && !callDurationIntervalRef.current) {
+      setCallDuration(0);
+      callDurationIntervalRef.current = setInterval(() => {
+        setCallDuration(prev => prev + 1);
+      }, 1000);
+    }
+    
+    if (callState === 'ended' && callDurationIntervalRef.current) {
+      clearInterval(callDurationIntervalRef.current);
+      callDurationIntervalRef.current = null;
+    }
+  }, [callState]);
 
   const checkCallStatus = async (callSid: string) => {
     try {
@@ -99,8 +123,9 @@ export function DialerRecorder({
 
       console.log('Call status:', data?.status);
 
-      if (data?.status === 'in-progress' && callState !== 'connected') {
-        // Call is now connected - start recording
+      if (data?.status === 'in-progress' && !hasConnectedRef.current) {
+        // Call is now connected - start recording (only once)
+        hasConnectedRef.current = true;
         setCallState('connected');
         if (!isRecording) {
           startRecording();
@@ -109,12 +134,14 @@ export function DialerRecorder({
           title: 'Call Connected',
           description: `Connected to ${leadName || leadPhone}`,
         });
-      } else if (data?.status === 'ringing' && callState !== 'ringing') {
+      } else if (data?.status === 'ringing') {
         setCallState('ringing');
-      } else if (['completed', 'busy', 'no-answer', 'canceled', 'failed'].includes(data?.status)) {
-        // Call ended - stop recording
+      } else if (['completed', 'busy', 'no-answer', 'canceled', 'failed'].includes(data?.status) && !hasEndedRef.current) {
+        // Call ended - stop polling and recording (only once)
+        hasEndedRef.current = true;
         if (callStatusIntervalRef.current) {
           clearInterval(callStatusIntervalRef.current);
+          callStatusIntervalRef.current = null;
         }
         if (isRecording) {
           handleEndCall();
@@ -183,12 +210,17 @@ export function DialerRecorder({
   };
 
   const handleEndCall = async () => {
-    // Stop polling
+    // Stop polling and duration timer
     if (callStatusIntervalRef.current) {
       clearInterval(callStatusIntervalRef.current);
+      callStatusIntervalRef.current = null;
+    }
+    if (callDurationIntervalRef.current) {
+      clearInterval(callDurationIntervalRef.current);
+      callDurationIntervalRef.current = null;
     }
     
-    const duration = recordingDuration;
+    const duration = callDuration;
     const currentCallSid = twilioCallSid;
     const result = await stopRecording(leadName, leadCompany);
     setCallState('ended');
@@ -376,7 +408,9 @@ export function DialerRecorder({
 
         {/* Duration */}
         <div className="text-center">
-          <p className="text-2xl font-mono font-bold text-emerald-500">{formattedDuration}</p>
+          <p className="text-2xl font-mono font-bold text-emerald-500">
+            {Math.floor(callDuration / 60)}:{(callDuration % 60).toString().padStart(2, '0')}
+          </p>
           <p className="text-sm text-muted-foreground mt-1">
             {leadName ? `On call with ${leadName}` : 'Call in progress...'}
           </p>
