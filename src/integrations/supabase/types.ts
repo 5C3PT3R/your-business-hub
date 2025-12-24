@@ -79,6 +79,84 @@ export type Database = {
           },
         ]
       }
+      call_logs: {
+        Row: {
+          action_items: Json | null
+          call_status: string | null
+          created_at: string
+          duration_seconds: number | null
+          follow_ups: Json | null
+          id: string
+          key_topics: Json | null
+          lead_id: string | null
+          phone_number: string | null
+          recording_url: string | null
+          sentiment: string | null
+          sentiment_score: number | null
+          summary: string | null
+          transcription: string | null
+          twilio_call_sid: string | null
+          updated_at: string
+          user_id: string
+          workspace_id: string | null
+        }
+        Insert: {
+          action_items?: Json | null
+          call_status?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          follow_ups?: Json | null
+          id?: string
+          key_topics?: Json | null
+          lead_id?: string | null
+          phone_number?: string | null
+          recording_url?: string | null
+          sentiment?: string | null
+          sentiment_score?: number | null
+          summary?: string | null
+          transcription?: string | null
+          twilio_call_sid?: string | null
+          updated_at?: string
+          user_id: string
+          workspace_id?: string | null
+        }
+        Update: {
+          action_items?: Json | null
+          call_status?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          follow_ups?: Json | null
+          id?: string
+          key_topics?: Json | null
+          lead_id?: string | null
+          phone_number?: string | null
+          recording_url?: string | null
+          sentiment?: string | null
+          sentiment_score?: number | null
+          summary?: string | null
+          transcription?: string | null
+          twilio_call_sid?: string | null
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_logs_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_logs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           avatar_url: string | null
