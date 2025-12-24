@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { Square, X, Phone, PhoneCall, Loader2, CheckCircle2, AlertCircle, Calendar, ThumbsUp, ThumbsDown, Minus } from 'lucide-react';
+import { Square, X, Phone, PhoneCall, Loader2, CheckCircle2, Calendar, ThumbsUp, ThumbsDown, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 import { Card, CardContent } from '@/components/ui/card';
@@ -45,6 +45,15 @@ export function DialerRecorder({
   } = useVoiceRecorder();
 
   const [followUpToSchedule, setFollowUpToSchedule] = useState<any>(null);
+  const [callStarted, setCallStarted] = useState(false);
+
+  // Auto-start recording when component mounts (call initiated)
+  useEffect(() => {
+    if (!callStarted && leadPhone) {
+      setCallStarted(true);
+      startRecording();
+    }
+  }, [leadPhone, callStarted, startRecording]);
 
   const handleStop = async () => {
     const result = await stopRecording(leadName, leadCompany);
@@ -64,21 +73,6 @@ export function DialerRecorder({
     }
     setFollowUpToSchedule(null);
   };
-
-  const dialerButtons = [
-    { digit: '1', letters: '' },
-    { digit: '2', letters: 'ABC' },
-    { digit: '3', letters: 'DEF' },
-    { digit: '4', letters: 'GHI' },
-    { digit: '5', letters: 'JKL' },
-    { digit: '6', letters: 'MNO' },
-    { digit: '7', letters: 'PQRS' },
-    { digit: '8', letters: 'TUV' },
-    { digit: '9', letters: 'WXYZ' },
-    { digit: '*', letters: '' },
-    { digit: '0', letters: '+' },
-    { digit: '#', letters: '' },
-  ];
 
   const getSentimentIcon = (sentiment: string) => {
     switch (sentiment) {
@@ -155,7 +149,7 @@ export function DialerRecorder({
                   Follow-ups Detected
                 </h4>
                 <div className="space-y-2">
-                  {lastAnalysis.followUps.map((followUp, i) => (
+                  {lastAnalysis.followUps.map((followUp: any, i: number) => (
                     <div key={i} className="text-sm p-2 rounded bg-muted/50">
                       <p>{followUp.description}</p>
                       <p className="text-xs text-muted-foreground italic">"{followUp.rawText}"</p>
@@ -170,7 +164,7 @@ export function DialerRecorder({
               <div>
                 <h4 className="text-sm font-medium mb-2">Action Items</h4>
                 <ul className="text-sm space-y-1">
-                  {lastAnalysis.actionItems.map((item, i) => (
+                  {lastAnalysis.actionItems.map((item: string, i: number) => (
                     <li key={i} className="flex items-start gap-2">
                       <CheckCircle2 className="h-3 w-3 mt-1 text-primary" />
                       {item}
@@ -212,7 +206,7 @@ export function DialerRecorder({
     );
   }
 
-  // Recording state
+  // Recording state - active call UI
   if (isRecording) {
     return (
       <div className={cn("flex flex-col items-center gap-4 p-4", className)}>
@@ -239,14 +233,17 @@ export function DialerRecorder({
         <div className="text-center">
           <p className="text-2xl font-mono font-bold text-emerald-500">{formattedDuration}</p>
           <p className="text-sm text-muted-foreground mt-1">
-            {leadName ? `On call with ${leadName}` : 'Recording call...'}
+            {leadName ? `On call with ${leadName}` : 'Call in progress...'}
           </p>
+          {leadPhone && (
+            <p className="text-xs text-muted-foreground">{leadPhone}</p>
+          )}
         </div>
 
-        {/* Auto-detect indicator */}
+        {/* Recording indicator */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Auto-detecting Hindi + English</span>
+          <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+          <span>Recording</span>
         </div>
 
         {/* Controls */}
@@ -267,44 +264,24 @@ export function DialerRecorder({
             <Square className="h-5 w-5" />
           </Button>
         </div>
+        <p className="text-xs text-muted-foreground">End Call</p>
       </div>
     );
   }
 
-  // Default state - dialer
+  // Connecting state - before recording starts
   return (
-    <div className={cn("flex flex-col items-center gap-4 p-4", className)}>
-      {/* Lead info */}
-      {leadName && (
-        <div className="text-center mb-2">
-          <p className="font-medium">{leadName}</p>
-          {leadPhone && <p className="text-sm text-muted-foreground">{leadPhone}</p>}
+    <div className={cn("flex flex-col items-center gap-4 p-6", className)}>
+      <div className="relative">
+        <div className="h-24 w-24 rounded-full bg-emerald-500/10 flex items-center justify-center">
+          <Loader2 className="h-12 w-12 text-emerald-500 animate-spin" />
         </div>
-      )}
-
-      {/* Dialer Grid */}
-      <div className="grid grid-cols-3 gap-2 w-full max-w-[240px]">
-        {dialerButtons.map(({ digit, letters }) => (
-          <button
-            key={digit}
-            className="h-14 rounded-full bg-muted/50 hover:bg-muted transition-colors flex flex-col items-center justify-center"
-            disabled
-          >
-            <span className="text-lg font-medium">{digit}</span>
-            {letters && <span className="text-[10px] text-muted-foreground tracking-widest">{letters}</span>}
-          </button>
-        ))}
       </div>
-
-      {/* Call Button */}
-      <button
-        onClick={startRecording}
-        className="mt-2 h-16 w-16 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/30 transition-all hover:scale-105 active:scale-95"
-      >
-        <Phone className="h-7 w-7 text-white" />
-      </button>
-      <p className="text-xs text-muted-foreground">Tap to start recording</p>
-      <p className="text-xs text-muted-foreground/70">Auto-detects Hindi + English</p>
+      <div className="text-center">
+        <p className="font-medium">{leadName || 'Calling...'}</p>
+        {leadPhone && <p className="text-sm text-muted-foreground">{leadPhone}</p>}
+      </div>
+      <p className="text-sm text-muted-foreground">Connecting...</p>
     </div>
   );
 }
