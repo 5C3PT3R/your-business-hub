@@ -34,15 +34,10 @@ serve(async (req) => {
       formattedTo = '+' + formattedTo;
     }
 
-    // Create TwiML URL that connects both parties
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    
-    // Use Twilio's built-in Dial verb via a TwiML Bin or generate inline
-    // For now, use a TwiML response that dials the number
-    const twimlContent = encodeURIComponent(`<?xml version="1.0" encoding="UTF-8"?><Response><Dial record="record-from-ringing-dual" recordingStatusCallback="${supabaseUrl}/functions/v1/twilio-webhook">${formattedTo}</Dial></Response>`);
-    const twimlUrl = `http://twimlets.com/echo?Twiml=${twimlContent}`;
 
-    // Create the call using Twilio REST API
+    // Create the call directly to the lead's phone number
+    // The call is recorded automatically via Twilio's Record parameter
     const response = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls.json`,
       {
@@ -52,11 +47,14 @@ serve(async (req) => {
           'Authorization': 'Basic ' + btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`),
         },
         body: new URLSearchParams({
-          To: TWILIO_PHONE_NUMBER, // Call your own Twilio number first
-          From: TWILIO_PHONE_NUMBER,
-          Url: twimlUrl, // This will then dial the lead
+          To: formattedTo, // Call the lead's phone number directly
+          From: TWILIO_PHONE_NUMBER, // From your Twilio number
+          Record: 'true', // Record the call
+          RecordingStatusCallback: `${supabaseUrl}/functions/v1/twilio-webhook`,
+          RecordingStatusCallbackEvent: 'completed',
           StatusCallback: `${supabaseUrl}/functions/v1/twilio-webhook`,
           StatusCallbackEvent: 'initiated ringing answered completed',
+          Twiml: '<Response><Say>Connecting your call.</Say><Pause length="60"/></Response>', // Simple TwiML
         }).toString(),
       }
     );
