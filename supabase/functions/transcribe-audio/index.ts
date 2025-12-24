@@ -62,7 +62,8 @@ serve(async (req) => {
     const blob = new Blob([arrayBuffer], { type: 'audio/webm' });
     formData.append('file', blob, 'audio.webm');
     formData.append('model', 'whisper-1');
-    // Don't specify language - let Whisper auto-detect for mixed Hindi/English
+    // Use prompt to help Whisper handle Hinglish (Hindi + English mixed)
+    formData.append('prompt', 'This is a bilingual conversation in Hindi and English (Hinglish). Transcribe exactly as spoken, mixing both languages naturally. Include Hindi words in Devanagari or romanized form as heard.');
 
     // Send to OpenAI
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {

@@ -66,15 +66,70 @@ export function DialerRecorder({
 
   const { toast } = useToast();
   const [followUpToSchedule, setFollowUpToSchedule] = useState<any>(null);
-  const [callState, setCallState] = useState<'idle' | 'connecting' | 'connected' | 'ended'>('idle');
+  const [callState, setCallState] = useState<'idle' | 'connecting' | 'ringing' | 'connected' | 'ended'>('idle');
   const [twilioCallSid, setTwilioCallSid] = useState<string | null>(null);
+  const callStatusIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  // Initiate Twilio call and start recording when component mounts
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (callStatusIntervalRef.current) {
+        clearInterval(callStatusIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // Initiate Twilio call when component mounts
   useEffect(() => {
     if (callState === 'idle' && leadPhone) {
       initiateCall();
     }
   }, []);
+
+  const checkCallStatus = async (callSid: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('twilio-status', {
+        body: { callSid },
+      });
+
+      if (error) {
+        console.error('Error checking call status:', error);
+        return;
+      }
+
+      console.log('Call status:', data?.status);
+
+      if (data?.status === 'in-progress' && callState !== 'connected') {
+        // Call is now connected - start recording
+        setCallState('connected');
+        if (!isRecording) {
+          startRecording();
+        }
+        toast({
+          title: 'Call Connected',
+          description: `Connected to ${leadName || leadPhone}`,
+        });
+      } else if (data?.status === 'ringing' && callState !== 'ringing') {
+        setCallState('ringing');
+      } else if (['completed', 'busy', 'no-answer', 'canceled', 'failed'].includes(data?.status)) {
+        // Call ended - stop recording
+        if (callStatusIntervalRef.current) {
+          clearInterval(callStatusIntervalRef.current);
+        }
+        if (isRecording) {
+          handleEndCall();
+        } else {
+          setCallState('ended');
+          toast({
+            title: 'Call Ended',
+            description: `Call status: ${data?.status}`,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error checking call status:', error);
+    }
+  };
 
   const initiateCall = async () => {
     if (!leadPhone) {
@@ -102,13 +157,16 @@ export function DialerRecorder({
 
       if (data?.callId) {
         setTwilioCallSid(data.callId);
-        setCallState('connected');
-        // Start recording the call audio
-        startRecording();
+        setCallState('ringing');
+        
+        // Start polling for call status
+        callStatusIntervalRef.current = setInterval(() => {
+          checkCallStatus(data.callId);
+        }, 2000);
         
         toast({
-          title: 'Call Connected',
-          description: data.message || `Connected to ${leadName || leadPhone}`,
+          title: 'Calling...',
+          description: `Dialing ${leadName || leadPhone}`,
         });
       } else {
         throw new Error(data?.error || 'Failed to initiate call');
@@ -125,6 +183,11 @@ export function DialerRecorder({
   };
 
   const handleEndCall = async () => {
+    // Stop polling
+    if (callStatusIntervalRef.current) {
+      clearInterval(callStatusIntervalRef.current);
+    }
+    
     const duration = recordingDuration;
     const result = await stopRecording(leadName, leadCompany);
     setCallState('ended');
@@ -139,7 +202,11 @@ export function DialerRecorder({
     }
   };
 
-  const handleCancelCall = () => {
+  const handleCancelCall = async () => {
+    // Stop polling
+    if (callStatusIntervalRef.current) {
+      clearInterval(callStatusIntervalRef.current);
+    }
     cancelRecording();
     setCallState('idle');
   };
@@ -346,6 +413,34 @@ export function DialerRecorder({
     );
   }
 
+  // Ringing state
+  if (callState === 'ringing') {
+    return (
+      <div className={cn("flex flex-col items-center gap-4 p-6", className)}>
+        <div className="relative">
+          {/* Ringing animation */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="h-28 w-28 rounded-full bg-amber-500/20 animate-ping" style={{ animationDuration: '1s' }} />
+          </div>
+          <div className="h-24 w-24 rounded-full bg-amber-500/20 flex items-center justify-center">
+            <Phone className="h-12 w-12 text-amber-500 animate-[shake_0.5s_ease-in-out_infinite]" />
+          </div>
+        </div>
+        <div className="text-center">
+          <p className="font-medium">{leadName || 'Calling...'}</p>
+          {leadPhone && <p className="text-sm text-muted-foreground">{leadPhone}</p>}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-lg">📞</span>
+          <p className="text-sm text-amber-600 font-medium">Ringing...</p>
+        </div>
+        <Button variant="outline" onClick={handleCancelCall} className="mt-2 border-destructive text-destructive hover:bg-destructive/10">
+          Cancel Call
+        </Button>
+      </div>
+    );
+  }
+
   // Connecting state
   if (callState === 'connecting') {
     return (
@@ -361,7 +456,7 @@ export function DialerRecorder({
         </div>
         <div className="flex items-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Connecting via Twilio...</p>
+          <p className="text-sm text-muted-foreground">Initiating call...</p>
         </div>
         <Button variant="outline" onClick={handleCancelCall} className="mt-2">
           Cancel
