@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, ReactNode } from 'react';
 import { Bell, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,46 +16,50 @@ interface HeaderProps {
     label: string;
     onClick: () => void;
   };
+  actions?: ReactNode;
 }
 
-export function Header({ title, subtitle, action }: HeaderProps) {
+export function Header({ title, subtitle, action, actions }: HeaderProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearNotification } = useNotifications();
   const isMobile = useIsMobile();
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-card/80 backdrop-blur-sm">
-      <div className="flex h-14 md:h-16 items-center justify-between px-4 md:px-6">
+    <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-sm">
+      <div className="flex h-14 items-center justify-between px-4 md:px-6 gap-4">
         <div className={isMobile ? 'ml-12' : ''}>
-          <h1 className="text-lg md:text-xl font-semibold text-foreground">{title}</h1>
+          <h1 className="text-lg font-semibold">{title}</h1>
           {subtitle && (
-            <p className="text-xs md:text-sm text-muted-foreground line-clamp-1">{subtitle}</p>
+            <p className="text-sm text-muted-foreground">{subtitle}</p>
           )}
         </div>
 
-        <div className="flex items-center gap-2 md:gap-4">
+        <div className="flex items-center gap-2">
+          {/* Custom actions */}
+          {actions}
+
           {/* Notifications */}
           <Popover open={notificationsOpen} onOpenChange={setNotificationsOpen}>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative h-9 w-9 md:h-10 md:w-10">
-                <Bell className="h-4 w-4 md:h-5 md:w-5" />
+              <Button variant="ghost" size="icon" className="relative h-8 w-8">
+                <Bell className="h-4 w-4" />
                 {unreadCount > 0 && (
-                  <span className="absolute right-1 top-1 md:right-1.5 md:top-1.5 h-2 w-2 rounded-full bg-destructive" />
+                  <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-destructive" />
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-72 md:w-80 p-0">
+            <PopoverContent align="end" className="w-72 p-0">
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                <h4 className="font-semibold text-foreground">Notifications</h4>
+                <h4 className="font-medium text-sm">Notifications</h4>
                 {unreadCount > 0 && (
-                  <Button variant="ghost" size="sm" onClick={markAllAsRead} className="text-xs">
+                  <Button variant="ghost" size="sm" onClick={markAllAsRead} className="text-xs h-7">
                     Mark all as read
                   </Button>
                 )}
               </div>
               <div className="max-h-80 overflow-y-auto">
                 {notifications.length === 0 ? (
-                  <div className="py-8 text-center text-muted-foreground">
+                  <div className="py-8 text-center text-sm text-muted-foreground">
                     No notifications
                   </div>
                 ) : (
@@ -66,17 +70,17 @@ export function Header({ title, subtitle, action }: HeaderProps) {
                       onClick={() => markAsRead(notification.id)}
                     >
                       {!notification.read && (
-                        <span className="mt-2 h-2 w-2 rounded-full bg-primary shrink-0" />
+                        <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
                       )}
-                      <div className={`flex-1 ${notification.read ? 'ml-5' : ''}`}>
-                        <p className="text-sm font-medium text-foreground">{notification.title}</p>
+                      <div className={`flex-1 ${notification.read ? 'ml-4' : ''}`}>
+                        <p className="text-sm font-medium">{notification.title}</p>
                         <p className="text-xs text-muted-foreground">{notification.message}</p>
                         <p className="text-xs text-muted-foreground mt-1">{notification.time}</p>
                       </div>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6 opacity-0 group-hover:opacity-100 hover:opacity-100"
+                        className="h-6 w-6"
                         onClick={(e) => {
                           e.stopPropagation();
                           clearNotification(notification.id);
@@ -93,7 +97,7 @@ export function Header({ title, subtitle, action }: HeaderProps) {
 
           {/* Action button */}
           {action && (
-            <Button onClick={action.onClick} variant="gradient" size={isMobile ? "sm" : "default"} className="gap-1">
+            <Button onClick={action.onClick} size="sm" className="gap-1.5">
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">{action.label}</span>
             </Button>

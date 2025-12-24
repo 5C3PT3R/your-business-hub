@@ -4,6 +4,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { useLeads, LeadStatus, Lead } from '@/hooks/useLeads';
 import { useTasks } from '@/hooks/useTasks';
+import { useAgent } from '@/hooks/useAgent';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,14 +37,13 @@ import {
   Plus,
   CheckCircle2,
   Clock,
-  AlertCircle,
-  User,
   FileText,
   Activity,
   Loader2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { DialerRecorder } from '@/components/voice/DialerRecorder';
 
 const statusColors: Record<LeadStatus, string> = {
   new: 'bg-info/10 text-info border-info/20',
@@ -57,12 +57,25 @@ export default function LeadProfile() {
   const navigate = useNavigate();
   const { leads, loading: leadsLoading, updateLead } = useLeads();
   const { tasks, addTask, updateTask } = useTasks();
+  const { sendInstruction, isLoading: agentLoading } = useAgent();
   
   const [lead, setLead] = useState<Lead | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Lead>>({});
   const [isAddingTask, setIsAddingTask] = useState(false);
+  const [isCallDialogOpen, setIsCallDialogOpen] = useState(false);
   const [newTask, setNewTask] = useState({ title: '', description: '', due_date: '', priority: 'medium' as 'low' | 'medium' | 'high' });
+
+  const handleCallTranscription = async (transcription: string) => {
+    setIsCallDialogOpen(false);
+    if (lead) {
+      // Send to AI agent to analyze the call
+      await sendInstruction(
+        `Call transcription with ${lead.name} (${lead.company || 'No company'}): "${transcription}". 
+        Please analyze this conversation and suggest appropriate CRM actions like updating lead status, creating tasks, or adding notes.`
+      );
+    }
+  };
 
   useEffect(() => {
     if (leads.length > 0 && id) {
@@ -260,12 +273,20 @@ export default function LeadProfile() {
                     Send Email
                   </a>
                 </Button>
-                <Button variant="outline" className="w-full justify-start gap-2" asChild>
-                  <a href={`tel:${lead.phone}`}>
-                    <Phone className="h-4 w-4" />
-                    Call
-                  </a>
-                </Button>
+                <Dialog open={isCallDialogOpen} onOpenChange={setIsCallDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start gap-2">
+                      <Phone className="h-4 w-4" />
+                      Record Call
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Call {lead.name}</DialogTitle>
+                    </DialogHeader>
+                    <DialerRecorder onTranscriptionComplete={handleCallTranscription} />
+                  </DialogContent>
+                </Dialog>
               </div>
             </CardContent>
           </Card>
