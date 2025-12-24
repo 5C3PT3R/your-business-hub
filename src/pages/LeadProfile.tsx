@@ -312,7 +312,7 @@ export default function LeadProfile() {
                   <DialogTrigger asChild>
                     <Button variant="outline" className="w-full justify-start gap-2">
                       <Phone className="h-4 w-4" />
-                      Record Call
+                      Call
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-md">
