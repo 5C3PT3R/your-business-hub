@@ -238,11 +238,21 @@ export function DialerRecorder({
     setCallState('ended');
     
     if (result.transcription && result.analysis) {
-      // Show toast if tasks were created
+      // Show toast if tasks were created - keep it visible longer
       if (result.analysis.createdTasks && result.analysis.createdTasks.length > 0) {
         toast({
           title: 'Tasks Created',
           description: `${result.analysis.createdTasks.length} task(s) automatically created from call`,
+          duration: 10000, // 10 seconds
+          action: (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.location.href = '/tasks'}
+            >
+              View Tasks
+            </Button>
+          ),
         });
       }
       
