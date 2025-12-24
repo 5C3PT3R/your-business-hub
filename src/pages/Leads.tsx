@@ -61,6 +61,7 @@ const countryCodes = [
 
 export default function Leads() {
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const { leads, loading, addLead, updateLead, deleteLead } = useLeads();
