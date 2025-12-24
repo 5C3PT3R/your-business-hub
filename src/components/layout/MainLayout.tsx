@@ -26,9 +26,9 @@ export function MainLayout({ children }: MainLayoutProps) {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 rounded-xl gradient-primary animate-pulse" />
-          <p className="text-muted-foreground">Loading...</p>
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 rounded-lg bg-foreground animate-pulse" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
     );
@@ -42,8 +42,8 @@ export function MainLayout({ children }: MainLayoutProps) {
     <div className="min-h-screen bg-background">
       <Sidebar />
       <main className={cn(
-        'transition-all duration-300',
-        isMobile ? 'pl-0' : collapsed ? 'pl-20' : 'pl-64'
+        'min-h-screen transition-all duration-200',
+        isMobile ? 'pl-0' : collapsed ? 'pl-16' : 'pl-60'
       )}>
         {children}
       </main>
