@@ -824,6 +824,7 @@ export type Database = {
           priority: Database["public"]["Enums"]["task_priority"] | null
           related_contact_id: string | null
           related_deal_id: string | null
+          related_lead_id: string | null
           status: Database["public"]["Enums"]["task_status"] | null
           title: string
           updated_at: string | null
@@ -838,6 +839,7 @@ export type Database = {
           priority?: Database["public"]["Enums"]["task_priority"] | null
           related_contact_id?: string | null
           related_deal_id?: string | null
+          related_lead_id?: string | null
           status?: Database["public"]["Enums"]["task_status"] | null
           title: string
           updated_at?: string | null
@@ -852,6 +854,7 @@ export type Database = {
           priority?: Database["public"]["Enums"]["task_priority"] | null
           related_contact_id?: string | null
           related_deal_id?: string | null
+          related_lead_id?: string | null
           status?: Database["public"]["Enums"]["task_status"] | null
           title?: string
           updated_at?: string | null
@@ -871,6 +874,13 @@ export type Database = {
             columns: ["related_deal_id"]
             isOneToOne: false
             referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_related_lead_id_fkey"
+            columns: ["related_lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
             referencedColumns: ["id"]
           },
           {
