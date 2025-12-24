@@ -15,6 +15,13 @@ interface CallAnalysis {
   actionItems: string[];
   keyTopics: string[];
   nextSteps: string;
+  tasksToCreate?: Array<{
+    title: string;
+    description: string;
+    priority: 'high' | 'medium' | 'low';
+    dueDate: string | null;
+  }>;
+  createdTasks?: any[];
 }
 
 export const useVoiceRecorder = () => {
@@ -69,7 +76,7 @@ export const useVoiceRecorder = () => {
     }
   }, []);
 
-  const stopRecording = useCallback(async (leadName?: string, leadCompany?: string): Promise<{ transcription: string | null; analysis: CallAnalysis | null }> => {
+  const stopRecording = useCallback(async (leadName?: string, leadCompany?: string, leadId?: string, userId?: string, workspaceId?: string): Promise<{ transcription: string | null; analysis: CallAnalysis | null }> => {
     return new Promise((resolve) => {
       if (!mediaRecorderRef.current) {
         resolve({ transcription: null, analysis: null });
@@ -114,12 +121,16 @@ export const useVoiceRecorder = () => {
               setIsTranscribing(false);
               setIsAnalyzing(true);
 
-              // Step 2: Analyze the transcription
+              // Step 2: Analyze the transcription and auto-create tasks
               const { data: analysisData, error: analysisError } = await supabase.functions.invoke('analyze-call', {
                 body: { 
                   transcription,
                   leadName,
-                  leadCompany
+                  leadCompany,
+                  leadId,
+                  userId,
+                  workspaceId,
+                  autoCreateTasks: true
                 }
               });
 
