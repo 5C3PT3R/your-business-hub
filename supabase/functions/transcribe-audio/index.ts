@@ -42,13 +42,13 @@ serve(async (req) => {
   }
 
   try {
-    const { audio } = await req.json();
+    const { audio, language } = await req.json();
     
     if (!audio) {
       throw new Error('No audio data provided');
     }
 
-    console.log('Received audio data, processing...');
+    console.log('Received audio data, processing... Language:', language || 'auto');
 
     // Process audio in chunks
     const binaryAudio = processBase64Chunks(audio);
@@ -61,6 +61,11 @@ serve(async (req) => {
     const blob = new Blob([arrayBuffer], { type: 'audio/webm' });
     formData.append('file', blob, 'audio.webm');
     formData.append('model', 'whisper-1');
+    
+    // Add language parameter if specified (hi for Hindi, en for English)
+    if (language && language !== 'auto') {
+      formData.append('language', language);
+    }
 
     // Send to OpenAI
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {

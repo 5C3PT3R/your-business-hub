@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import SelectCRM from "./pages/SelectCRM";
 import Leads from "./pages/Leads";
+import LeadProfile from "./pages/LeadProfile";
 import Contacts from "./pages/Contacts";
 import Deals from "./pages/Deals";
 import Tasks from "./pages/Tasks";
@@ -89,6 +90,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Leads />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/leads/:id"
+        element={
+          <ProtectedRoute>
+            <LeadProfile />
           </ProtectedRoute>
         }
       />
