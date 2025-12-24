@@ -3,9 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { useAuth } from '@/hooks/useAuth';
 import { getAllIndustries, IndustryType } from '@/config/industryTemplates';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Zap, ArrowRight, Loader2, ArrowLeft, Check } from 'lucide-react';
+import { ArrowRight, Loader2, ArrowLeft, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -19,7 +18,6 @@ export default function SelectCRM() {
 
   const industries = getAllIndustries();
   
-  // Get list of industry types that already have workspaces
   const existingIndustryTypes = useMemo(() => {
     return new Set(workspaces.map(w => w.industry_type));
   }, [workspaces]);
@@ -52,147 +50,119 @@ export default function SelectCRM() {
   };
 
   return (
-    <div className="min-h-screen gradient-hero flex flex-col">
-      {/* Background decorations */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-primary/20 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-accent/20 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/10 rounded-full blur-3xl" />
-      </div>
-
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="relative z-10 p-6 md:p-8 flex items-center justify-between">
+      <header className="border-b border-border px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary shadow-glow">
-            <Zap className="h-5 w-5 text-primary-foreground" />
+          <div className="h-8 w-8 rounded-lg bg-foreground flex items-center justify-center">
+            <span className="text-background font-bold text-sm">U</span>
           </div>
-          <span className="text-xl font-bold text-white">Upflo</span>
+          <span className="text-lg font-semibold">Upflo</span>
         </div>
         {hasWorkspace && (
           <Link to="/">
-            <Button variant="ghost" className="text-white/70 hover:text-white hover:bg-white/10">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Dashboard
+            <Button variant="ghost" size="sm" className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back
             </Button>
           </Link>
         )}
       </header>
 
       {/* Main content */}
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 pb-12">
-        <div className="text-center mb-10 max-w-2xl">
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-4 animate-fade-in">
-            {hasWorkspace ? 'Create New Workspace' : 'Choose Your CRM'}
-          </h1>
-          <p className="text-lg md:text-xl text-white/70 animate-fade-in" style={{ animationDelay: '0.1s' }}>
-            {hasWorkspace 
-              ? 'Add another CRM workspace to your account. Each workspace is independent with its own data.'
-              : 'Select the CRM tailored for your industry. Each version is optimized with AI features specific to your workflow.'
-            }
-          </p>
-        </div>
+      <main className="flex-1 flex flex-col items-center justify-center px-4 py-12">
+        <div className="w-full max-w-4xl">
+          {/* Title */}
+          <div className="text-center mb-12">
+            <h1 className="text-2xl md:text-3xl font-semibold mb-3">
+              {hasWorkspace ? 'Create New Workspace' : 'Choose Your CRM'}
+            </h1>
+            <p className="text-muted-foreground max-w-md mx-auto">
+              {hasWorkspace 
+                ? 'Add another workspace to your account'
+                : 'Select the CRM tailored for your industry'
+              }
+            </p>
+          </div>
 
-        {/* CRM Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 max-w-5xl w-full mb-10">
-{industries.map((industry, index) => {
-            const Icon = industry.icon;
-            const isSelected = selectedIndustry === industry.id;
-            const alreadyExists = existingIndustryTypes.has(industry.id);
-            
-            return (
-              <Card
-                key={industry.id}
-                className={cn(
-                  'relative transition-all duration-300 border-2 bg-white/10 backdrop-blur-sm',
-                  'animate-slide-up',
-                  alreadyExists
-                    ? 'opacity-60 cursor-not-allowed border-white/10'
-                    : 'cursor-pointer hover:bg-white/15',
-                  isSelected && !alreadyExists
-                    ? 'border-white shadow-lg shadow-white/20 scale-[1.02]'
-                    : !alreadyExists && 'border-white/20 hover:border-white/40'
-                )}
-                style={{ animationDelay: `${0.1 + index * 0.05}s` }}
-                onClick={() => !alreadyExists && setSelectedIndustry(industry.id)}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div
-                      className={cn(
-                        'flex h-12 w-12 items-center justify-center rounded-xl transition-all',
-                        `bg-gradient-to-br ${industry.gradient}`,
-                        alreadyExists && 'opacity-50'
-                      )}
-                    >
-                      <Icon className="h-6 w-6 text-white" />
-                    </div>
-                    {alreadyExists ? (
-                      <div className="flex items-center gap-1 text-xs text-emerald-400 bg-emerald-400/20 px-2 py-1 rounded-full">
-                        <Check className="h-3 w-3" />
-                        Created
-                      </div>
-                    ) : isSelected && (
-                      <div className="h-6 w-6 rounded-full bg-white flex items-center justify-center animate-scale-in">
-                        <div className="h-3 w-3 rounded-full bg-primary" />
-                      </div>
+          {/* CRM Grid - 4 equal columns */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+            {industries.map((industry) => {
+              const Icon = industry.icon;
+              const isSelected = selectedIndustry === industry.id;
+              const alreadyExists = existingIndustryTypes.has(industry.id);
+              
+              return (
+                <button
+                  key={industry.id}
+                  disabled={alreadyExists}
+                  onClick={() => setSelectedIndustry(industry.id)}
+                  className={cn(
+                    'relative p-6 rounded-xl border-2 transition-all text-left',
+                    'hover:border-foreground/20 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+                    alreadyExists
+                      ? 'opacity-50 cursor-not-allowed border-border bg-muted/30'
+                      : 'cursor-pointer bg-card',
+                    isSelected && !alreadyExists
+                      ? 'border-foreground shadow-lg'
+                      : 'border-border'
+                  )}
+                >
+                  {/* Icon */}
+                  <div
+                    className={cn(
+                      'h-12 w-12 rounded-xl flex items-center justify-center mb-4',
+                      `bg-gradient-to-br ${industry.gradient}`
                     )}
+                  >
+                    <Icon className="h-6 w-6 text-white" />
                   </div>
-                  <CardTitle className={cn("text-lg text-white mt-3", alreadyExists && "opacity-70")}>
-                    {industry.name}
-                  </CardTitle>
-                  <CardDescription className={cn("text-white/60", alreadyExists && "opacity-70")}>
+
+                  {/* Content */}
+                  <h3 className="font-medium mb-1">{industry.name}</h3>
+                  <p className="text-sm text-muted-foreground line-clamp-2">
                     {industry.description}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="flex flex-wrap gap-2">
-                    {industry.enabledModules.slice(0, 3).map((module) => (
-                      <span
-                        key={module}
-                        className={cn(
-                          "text-xs px-2 py-1 rounded-full bg-white/10 text-white/70",
-                          alreadyExists && "opacity-60"
-                        )}
-                      >
-                        {module.replace('_', ' ')}
-                      </span>
-                    ))}
-                    {industry.enabledModules.length > 3 && (
-                      <span className={cn(
-                        "text-xs px-2 py-1 rounded-full bg-white/10 text-white/70",
-                        alreadyExists && "opacity-60"
-                      )}>
-                        +{industry.enabledModules.length - 3} more
-                      </span>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                  </p>
 
-        {/* Get Started Button */}
-        <Button
-          size="lg"
-          variant="gradient"
-          className="min-w-[200px] h-12 text-base font-semibold animate-fade-in"
-          style={{ animationDelay: '0.4s' }}
-          disabled={!selectedIndustry || loading}
-          onClick={handleSelectCRM}
-        >
-          {loading ? (
-            <>
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Setting up...
-            </>
-          ) : (
-            <>
-              Get Started
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </>
-          )}
-        </Button>
+                  {/* Status badges */}
+                  {alreadyExists && (
+                    <div className="absolute top-3 right-3 flex items-center gap-1 text-xs text-success bg-success/10 px-2 py-1 rounded-full">
+                      <Check className="h-3 w-3" />
+                      Active
+                    </div>
+                  )}
+                  {isSelected && !alreadyExists && (
+                    <div className="absolute top-3 right-3 h-5 w-5 rounded-full bg-foreground flex items-center justify-center">
+                      <Check className="h-3 w-3 text-background" />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Get Started Button */}
+          <div className="flex justify-center">
+            <Button
+              size="lg"
+              className="min-w-[200px] gap-2"
+              disabled={!selectedIndustry || loading}
+              onClick={handleSelectCRM}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Setting up...
+                </>
+              ) : (
+                <>
+                  Get Started
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
       </main>
     </div>
   );
