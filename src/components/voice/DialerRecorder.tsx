@@ -38,7 +38,7 @@ interface DialerRecorderProps {
   leadName?: string;
   leadCompany?: string;
   leadPhone?: string;
-  onCallComplete: (transcription: string, analysis: CallAnalysis, durationSeconds: number) => void;
+  onCallComplete: (transcription: string, analysis: CallAnalysis, durationSeconds: number, twilioCallSid?: string) => void;
   onScheduleFollowUp?: (followUp: { description: string; suggestedDate: string | null; suggestedTime: string | null }) => void;
   className?: string;
 }
@@ -189,11 +189,12 @@ export function DialerRecorder({
     }
     
     const duration = recordingDuration;
+    const currentCallSid = twilioCallSid;
     const result = await stopRecording(leadName, leadCompany);
     setCallState('ended');
     
     if (result.transcription && result.analysis) {
-      onCallComplete(result.transcription, result.analysis, duration);
+      onCallComplete(result.transcription, result.analysis, duration, currentCallSid || undefined);
       
       // If there are follow-ups, prompt user to schedule
       if (result.analysis.followUps?.length > 0) {
