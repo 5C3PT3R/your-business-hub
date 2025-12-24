@@ -73,6 +73,12 @@ export function DialerRecorder({
   const callDurationIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
   const hasConnectedRef = React.useRef(false);
   const hasEndedRef = React.useRef(false);
+  const isRecordingRef = React.useRef(false);
+
+  // Keep recording ref in sync
+  React.useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
 
   // Cleanup intervals on unmount
   useEffect(() => {
@@ -121,15 +127,14 @@ export function DialerRecorder({
         return;
       }
 
-      console.log('Call status:', data?.status);
+      console.log('Call status:', data?.status, 'isRecording:', isRecordingRef.current);
 
       if (data?.status === 'in-progress' && !hasConnectedRef.current) {
         // Call is now connected - start recording (only once)
         hasConnectedRef.current = true;
         setCallState('connected');
-        if (!isRecording) {
-          startRecording();
-        }
+        console.log('Starting recording...');
+        startRecording();
         toast({
           title: 'Call Connected',
           description: `Connected to ${leadName || leadPhone}`,
@@ -139,11 +144,13 @@ export function DialerRecorder({
       } else if (['completed', 'busy', 'no-answer', 'canceled', 'failed'].includes(data?.status) && !hasEndedRef.current) {
         // Call ended - stop polling and recording (only once)
         hasEndedRef.current = true;
+        console.log('Call ended, isRecording:', isRecordingRef.current);
         if (callStatusIntervalRef.current) {
           clearInterval(callStatusIntervalRef.current);
           callStatusIntervalRef.current = null;
         }
-        if (isRecording) {
+        // Always try to end the call if we had connected
+        if (hasConnectedRef.current) {
           handleEndCall();
         } else {
           setCallState('ended');
