@@ -5,6 +5,7 @@ import { Header } from '@/components/layout/Header';
 import { useLeads, LeadStatus, Lead } from '@/hooks/useLeads';
 import { useTasks } from '@/hooks/useTasks';
 import { useAgent } from '@/hooks/useAgent';
+import { useCallLogs } from '@/hooks/useCallLogs';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -40,7 +41,11 @@ import {
   Clock,
   FileText,
   Activity,
-  Loader2
+  Loader2,
+  PhoneCall,
+  ThumbsUp,
+  ThumbsDown,
+  Minus
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -59,6 +64,7 @@ export default function LeadProfile() {
   const { leads, loading: leadsLoading, updateLead } = useLeads();
   const { tasks, addTask, updateTask } = useTasks();
   const { sendInstruction, isLoading: agentLoading } = useAgent();
+  const { callLogs, saveCallLog, refetch: refetchCallLogs } = useCallLogs(id);
   const { toast } = useToast();
   
   const [lead, setLead] = useState<Lead | null>(null);
@@ -68,10 +74,26 @@ export default function LeadProfile() {
   const [isCallDialogOpen, setIsCallDialogOpen] = useState(false);
   const [newTask, setNewTask] = useState({ title: '', description: '', due_date: '', priority: 'medium' as 'low' | 'medium' | 'high' });
 
-  const handleCallComplete = async (transcription: string, analysis: any) => {
-    setIsCallDialogOpen(false);
+  const handleCallComplete = async (transcription: string, analysis: any, durationSeconds: number) => {
     if (lead && analysis) {
-      // Send to AI agent to analyze the call with the analysis results
+      // Save call log to database
+      await saveCallLog({
+        leadId: lead.id,
+        phoneNumber: lead.phone || '',
+        durationSeconds,
+        transcription,
+        analysis,
+      });
+
+      // Update lead status to contacted if new
+      if (lead.status === 'new') {
+        await updateLead(lead.id, { status: 'contacted' });
+      }
+
+      // Refetch call logs
+      refetchCallLogs();
+
+      // Send to AI agent to analyze the call
       await sendInstruction(
         `Call completed with ${lead.name} (${lead.company || 'No company'}). 
         Transcription: "${transcription}"
@@ -81,6 +103,7 @@ export default function LeadProfile() {
         Please suggest appropriate CRM actions based on this call.`
       );
     }
+    setIsCallDialogOpen(false);
   };
 
   const handleScheduleFollowUp = async (followUp: { description: string; suggestedDate: string | null; suggestedTime: string | null }) => {
@@ -320,10 +343,11 @@ export default function LeadProfile() {
                       <DialogTitle>Call {lead.name}</DialogTitle>
                     </DialogHeader>
                     <DialerRecorder 
+                      leadId={lead.id}
                       leadName={lead.name}
                       leadCompany={lead.company || undefined}
                       leadPhone={lead.phone || undefined}
-                      onTranscriptionComplete={handleCallComplete}
+                      onCallComplete={handleCallComplete}
                       onScheduleFollowUp={handleScheduleFollowUp}
                     />
                   </DialogContent>
@@ -334,8 +358,12 @@ export default function LeadProfile() {
 
           {/* Tabs Section */}
           <div className="lg:col-span-2">
-            <Tabs defaultValue="tasks" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+            <Tabs defaultValue="calls" className="w-full">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="calls" className="gap-2">
+                  <PhoneCall className="h-4 w-4" />
+                  Calls
+                </TabsTrigger>
                 <TabsTrigger value="tasks" className="gap-2">
                   <CheckCircle2 className="h-4 w-4" />
                   Tasks
@@ -349,6 +377,73 @@ export default function LeadProfile() {
                   Notes
                 </TabsTrigger>
               </TabsList>
+
+              <TabsContent value="calls" className="mt-4">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Call History</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {callLogs.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <PhoneCall className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>No calls recorded yet</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {callLogs.map((log) => (
+                          <div key={log.id} className="p-4 rounded-lg border space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <PhoneCall className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-sm font-medium">
+                                  {format(new Date(log.created_at), 'MMM d, yyyy h:mm a')}
+                                </span>
+                              </div>
+                              <Badge variant="outline" className={cn(
+                                log.sentiment === 'positive' && 'bg-success/10 text-success border-success/20',
+                                log.sentiment === 'negative' && 'bg-destructive/10 text-destructive border-destructive/20',
+                                log.sentiment === 'neutral' && 'bg-muted text-muted-foreground'
+                              )}>
+                                {log.sentiment === 'positive' && <ThumbsUp className="h-3 w-3 mr-1" />}
+                                {log.sentiment === 'negative' && <ThumbsDown className="h-3 w-3 mr-1" />}
+                                {log.sentiment === 'neutral' && <Minus className="h-3 w-3 mr-1" />}
+                                {log.sentiment || 'Unknown'}
+                              </Badge>
+                            </div>
+                            {log.summary && (
+                              <p className="text-sm text-muted-foreground">{log.summary}</p>
+                            )}
+                            {log.transcription && (
+                              <details className="text-xs">
+                                <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                                  View transcription
+                                </summary>
+                                <p className="mt-2 p-2 bg-muted/50 rounded text-muted-foreground">
+                                  {log.transcription}
+                                </p>
+                              </details>
+                            )}
+                            {log.action_items?.length > 0 && (
+                              <div className="text-xs space-y-1">
+                                <p className="font-medium">Action Items:</p>
+                                <ul className="space-y-1">
+                                  {log.action_items.map((item, i) => (
+                                    <li key={i} className="flex items-start gap-1 text-muted-foreground">
+                                      <CheckCircle2 className="h-3 w-3 mt-0.5 text-primary" />
+                                      {item}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
               <TabsContent value="tasks" className="mt-4">
                 <Card>
