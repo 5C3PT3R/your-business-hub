@@ -16,7 +16,6 @@ import {
   Shield,
   LucideIcon,
   Plus,
-  Search,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
@@ -26,7 +25,7 @@ import { useWorkspace } from '@/hooks/useWorkspace';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useState } from 'react';
 import { IndustryType } from '@/config/industryTemplates';
-import { Input } from '@/components/ui/input';
+
 
 interface NavItem {
   name: string;
@@ -122,18 +121,6 @@ function SidebarContent({ collapsed, setCollapsed, showCollapseButton = true, on
         )}
       </div>
 
-      {/* Search (when expanded) */}
-      {!collapsed && (
-        <div className="px-3 py-3 border-b border-border">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search..." 
-              className="h-8 pl-8 text-sm bg-muted/50 border-0"
-            />
-          </div>
-        </div>
-      )}
 
       {/* Workspace Switcher */}
       {!collapsed && workspaces.length > 1 && (
