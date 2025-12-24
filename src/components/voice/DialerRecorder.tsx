@@ -1,39 +1,68 @@
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Mic, Square, X, Phone, PhoneCall, Languages } from 'lucide-react';
+import { Square, X, Phone, PhoneCall, Loader2, CheckCircle2, AlertCircle, Calendar, ThumbsUp, ThumbsDown, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useVoiceRecorder, TranscriptionLanguage } from '@/hooks/useVoiceRecorder';
+import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Loader2 } from 'lucide-react';
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface DialerRecorderProps {
-  onTranscriptionComplete: (text: string) => void;
+  leadName?: string;
+  leadCompany?: string;
+  leadPhone?: string;
+  onTranscriptionComplete: (text: string, analysis: any) => void;
+  onScheduleFollowUp?: (followUp: { description: string; suggestedDate: string | null; suggestedTime: string | null }) => void;
   className?: string;
 }
 
-export function DialerRecorder({ onTranscriptionComplete, className }: DialerRecorderProps) {
+export function DialerRecorder({ 
+  leadName, 
+  leadCompany, 
+  leadPhone,
+  onTranscriptionComplete, 
+  onScheduleFollowUp,
+  className 
+}: DialerRecorderProps) {
   const {
     isRecording,
     isTranscribing,
+    isAnalyzing,
     formattedDuration,
-    language,
-    setLanguage,
+    lastAnalysis,
     startRecording,
     stopRecording,
     cancelRecording
   } = useVoiceRecorder();
 
+  const [followUpToSchedule, setFollowUpToSchedule] = useState<any>(null);
+
   const handleStop = async () => {
-    const transcription = await stopRecording();
-    if (transcription) {
-      onTranscriptionComplete(transcription);
+    const result = await stopRecording(leadName, leadCompany);
+    if (result.transcription && result.analysis) {
+      onTranscriptionComplete(result.transcription, result.analysis);
+      
+      // If there are follow-ups, prompt user to schedule
+      if (result.analysis.followUps?.length > 0) {
+        setFollowUpToSchedule(result.analysis.followUps[0]);
+      }
     }
+  };
+
+  const handleScheduleFollowUp = () => {
+    if (followUpToSchedule && onScheduleFollowUp) {
+      onScheduleFollowUp(followUpToSchedule);
+    }
+    setFollowUpToSchedule(null);
   };
 
   const dialerButtons = [
@@ -51,6 +80,38 @@ export function DialerRecorder({ onTranscriptionComplete, className }: DialerRec
     { digit: '#', letters: '' },
   ];
 
+  const getSentimentIcon = (sentiment: string) => {
+    switch (sentiment) {
+      case 'positive': return <ThumbsUp className="h-4 w-4 text-success" />;
+      case 'negative': return <ThumbsDown className="h-4 w-4 text-destructive" />;
+      default: return <Minus className="h-4 w-4 text-muted-foreground" />;
+    }
+  };
+
+  const getSentimentColor = (sentiment: string) => {
+    switch (sentiment) {
+      case 'positive': return 'bg-success/10 text-success border-success/20';
+      case 'negative': return 'bg-destructive/10 text-destructive border-destructive/20';
+      default: return 'bg-muted text-muted-foreground';
+    }
+  };
+
+  // Analyzing state
+  if (isAnalyzing) {
+    return (
+      <div className={cn("flex flex-col items-center gap-4 p-6", className)}>
+        <div className="relative">
+          <div className="h-24 w-24 rounded-full bg-primary/10 flex items-center justify-center">
+            <Loader2 className="h-12 w-12 text-primary animate-spin" />
+          </div>
+        </div>
+        <p className="text-sm text-muted-foreground">Analyzing your call...</p>
+        <p className="text-xs text-muted-foreground">Detecting sentiment & follow-ups</p>
+      </div>
+    );
+  }
+
+  // Transcribing state
   if (isTranscribing) {
     return (
       <div className={cn("flex flex-col items-center gap-4 p-6", className)}>
@@ -60,10 +121,98 @@ export function DialerRecorder({ onTranscriptionComplete, className }: DialerRec
           </div>
         </div>
         <p className="text-sm text-muted-foreground">Transcribing your call...</p>
+        <p className="text-xs text-muted-foreground">Hindi + English auto-detect</p>
       </div>
     );
   }
 
+  // Show analysis results if available
+  if (lastAnalysis) {
+    return (
+      <div className={cn("flex flex-col gap-4 p-4", className)}>
+        <Card>
+          <CardContent className="pt-4 space-y-4">
+            {/* Summary */}
+            <div>
+              <h4 className="text-sm font-medium mb-1">Call Summary</h4>
+              <p className="text-sm text-muted-foreground">{lastAnalysis.summary}</p>
+            </div>
+
+            {/* Sentiment */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Sentiment:</span>
+              <Badge variant="outline" className={getSentimentColor(lastAnalysis.sentiment)}>
+                {getSentimentIcon(lastAnalysis.sentiment)}
+                <span className="ml-1 capitalize">{lastAnalysis.sentiment}</span>
+              </Badge>
+            </div>
+
+            {/* Follow-ups */}
+            {lastAnalysis.followUps?.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Follow-ups Detected
+                </h4>
+                <div className="space-y-2">
+                  {lastAnalysis.followUps.map((followUp, i) => (
+                    <div key={i} className="text-sm p-2 rounded bg-muted/50">
+                      <p>{followUp.description}</p>
+                      <p className="text-xs text-muted-foreground italic">"{followUp.rawText}"</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Action Items */}
+            {lastAnalysis.actionItems?.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium mb-2">Action Items</h4>
+                <ul className="text-sm space-y-1">
+                  {lastAnalysis.actionItems.map((item, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <CheckCircle2 className="h-3 w-3 mt-1 text-primary" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Button onClick={() => window.location.reload()} variant="outline" className="w-full">
+          Make Another Call
+        </Button>
+
+        {/* Follow-up scheduling dialog */}
+        <AlertDialog open={!!followUpToSchedule} onOpenChange={() => setFollowUpToSchedule(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Schedule Follow-up?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {leadName && `${leadName} mentioned: `}"{followUpToSchedule?.rawText}"
+                <br /><br />
+                Would you like to schedule this as a task?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Skip</AlertDialogCancel>
+              <AlertDialogAction onClick={handleScheduleFollowUp}>
+                Schedule Task
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    );
+  }
+
+  // Recording state
   if (isRecording) {
     return (
       <div className={cn("flex flex-col items-center gap-4 p-4", className)}>
@@ -89,13 +238,15 @@ export function DialerRecorder({ onTranscriptionComplete, className }: DialerRec
         {/* Duration */}
         <div className="text-center">
           <p className="text-2xl font-mono font-bold text-emerald-500">{formattedDuration}</p>
-          <p className="text-sm text-muted-foreground mt-1">Recording call...</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {leadName ? `On call with ${leadName}` : 'Recording call...'}
+          </p>
         </div>
 
-        {/* Language indicator */}
+        {/* Auto-detect indicator */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Languages className="h-3 w-3" />
-          <span>{language === 'hi' ? 'Hindi' : language === 'en' ? 'English' : 'Auto-detect'}</span>
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>Auto-detecting Hindi + English</span>
         </div>
 
         {/* Controls */}
@@ -120,22 +271,16 @@ export function DialerRecorder({ onTranscriptionComplete, className }: DialerRec
     );
   }
 
+  // Default state - dialer
   return (
     <div className={cn("flex flex-col items-center gap-4 p-4", className)}>
-      {/* Language Selector */}
-      <div className="flex items-center gap-2 w-full max-w-[200px]">
-        <Languages className="h-4 w-4 text-muted-foreground" />
-        <Select value={language} onValueChange={(v) => setLanguage(v as TranscriptionLanguage)}>
-          <SelectTrigger className="flex-1">
-            <SelectValue placeholder="Language" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="auto">Auto Detect</SelectItem>
-            <SelectItem value="en">English</SelectItem>
-            <SelectItem value="hi">हिंदी (Hindi)</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Lead info */}
+      {leadName && (
+        <div className="text-center mb-2">
+          <p className="font-medium">{leadName}</p>
+          {leadPhone && <p className="text-sm text-muted-foreground">{leadPhone}</p>}
+        </div>
+      )}
 
       {/* Dialer Grid */}
       <div className="grid grid-cols-3 gap-2 w-full max-w-[240px]">
@@ -158,7 +303,8 @@ export function DialerRecorder({ onTranscriptionComplete, className }: DialerRec
       >
         <Phone className="h-7 w-7 text-white" />
       </button>
-      <p className="text-xs text-muted-foreground">Tap to record call</p>
+      <p className="text-xs text-muted-foreground">Tap to start recording</p>
+      <p className="text-xs text-muted-foreground/70">Auto-detects Hindi + English</p>
     </div>
   );
 }

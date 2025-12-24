@@ -71,11 +71,11 @@ export function AgentPopup({ open, onOpenChange }: AgentPopupProps) {
   } = useVoiceRecorder();
 
   const handleVoiceRecordStop = async () => {
-    const transcription = await stopRecording();
-    if (transcription) {
-      setVoiceTranscription(transcription);
+    const result = await stopRecording();
+    if (result.transcription) {
+      setVoiceTranscription(result.transcription);
       // Automatically send the transcription to the AI agent
-      setInstruction(`Voice call transcription: "${transcription}". Please analyze this conversation and suggest appropriate CRM actions like creating contacts, leads, deals, or tasks based on the discussion.`);
+      setInstruction(`Voice call transcription: "${result.transcription}". Please analyze this conversation and suggest appropriate CRM actions like creating contacts, leads, deals, or tasks based on the discussion.`);
     }
   };
 
