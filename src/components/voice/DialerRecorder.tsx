@@ -7,6 +7,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
+import { useWorkspace } from '@/hooks/useWorkspace';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,6 +33,7 @@ interface CallAnalysis {
   actionItems: string[];
   keyTopics: string[];
   nextSteps: string;
+  createdTasks?: any[];
 }
 
 interface DialerRecorderProps {
@@ -52,6 +55,8 @@ export function DialerRecorder({
   onScheduleFollowUp,
   className 
 }: DialerRecorderProps) {
+  const { user } = useAuth();
+  const { workspace } = useWorkspace();
   const {
     isRecording,
     isTranscribing,
@@ -229,10 +234,18 @@ export function DialerRecorder({
     
     const duration = callDuration;
     const currentCallSid = twilioCallSid;
-    const result = await stopRecording(leadName, leadCompany);
+    const result = await stopRecording(leadName, leadCompany, leadId, user?.id, workspace?.id);
     setCallState('ended');
     
     if (result.transcription && result.analysis) {
+      // Show toast if tasks were created
+      if (result.analysis.createdTasks && result.analysis.createdTasks.length > 0) {
+        toast({
+          title: 'Tasks Created',
+          description: `${result.analysis.createdTasks.length} task(s) automatically created from call`,
+        });
+      }
+      
       onCallComplete(result.transcription, result.analysis, duration, currentCallSid || undefined);
       
       // If there are follow-ups, prompt user to schedule
