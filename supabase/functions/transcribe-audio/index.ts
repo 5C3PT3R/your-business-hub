@@ -59,8 +59,9 @@ serve(async (req) => {
     const formData = new FormData();
     const arrayBuffer = new ArrayBuffer(binaryAudio.length);
     new Uint8Array(arrayBuffer).set(binaryAudio);
-    const blob = new Blob([arrayBuffer], { type: 'audio/webm' });
-    formData.append('file', blob, 'audio.webm');
+    // Use ogg format which is better supported by OpenAI Whisper
+    const blob = new Blob([arrayBuffer], { type: 'audio/ogg' });
+    formData.append('file', blob, 'audio.ogg');
     formData.append('model', 'whisper-1');
     // Use prompt to help Whisper handle Hinglish (Hindi + English mixed)
     formData.append('prompt', 'This is a bilingual conversation in Hindi and English (Hinglish). Transcribe exactly as spoken, mixing both languages naturally. Include Hindi words in Devanagari or romanized form as heard.');
