@@ -22,19 +22,19 @@ interface DealsTableProps {
   deals: Deal[];
   stages: { id: DealStage; name: string; color: string }[];
   onUpdateDeal: (id: string, updates: Partial<Deal>) => Promise<Deal | null>;
+  onDealClick?: (dealId: string) => void;
 }
 
 const stageColors: Record<DealStage, string> = {
-  discovery: 'bg-muted text-muted-foreground border-muted',
-  proposal: 'bg-info/10 text-info border-info/20',
-  negotiation: 'bg-warning/10 text-warning border-warning/20',
-  contract: 'bg-primary/10 text-primary border-primary/20',
-  closed_won: 'bg-success/10 text-success border-success/20',
-  closed_lost: 'bg-destructive/10 text-destructive border-destructive/20',
+  lead: 'bg-muted text-muted-foreground border-muted',
+  qualified: 'bg-info/10 text-info border-info/20',
+  proposal: 'bg-warning/10 text-warning border-warning/20',
+  closed: 'bg-success/10 text-success border-success/20',
 };
 
-export function DealsTable({ deals, stages, onUpdateDeal }: DealsTableProps) {
-  const handleStageChange = async (id: string, stage: DealStage) => {
+export function DealsTable({ deals, stages, onUpdateDeal, onDealClick }: DealsTableProps) {
+  const handleStageChange = async (id: string, stage: DealStage, e: React.MouseEvent) => {
+    e.stopPropagation();
     await onUpdateDeal(id, { stage });
   };
 
@@ -54,14 +54,18 @@ export function DealsTable({ deals, stages, onUpdateDeal }: DealsTableProps) {
         </TableHeader>
         <TableBody>
           {deals.map((deal) => (
-            <TableRow key={deal.id} className="hover:bg-muted/30">
+            <TableRow 
+              key={deal.id} 
+              className="hover:bg-muted/30 cursor-pointer"
+              onClick={() => onDealClick?.(deal.id)}
+            >
               <TableCell className="font-medium">{deal.title}</TableCell>
               <TableCell>{deal.company || '-'}</TableCell>
               <TableCell className="font-semibold">${deal.value.toLocaleString()}</TableCell>
-              <TableCell>
+              <TableCell onClick={(e) => e.stopPropagation()}>
                 <Select 
                   value={deal.stage} 
-                  onValueChange={(value) => handleStageChange(deal.id, value as DealStage)}
+                  onValueChange={(value) => onUpdateDeal(deal.id, { stage: value as DealStage })}
                 >
                   <SelectTrigger className="h-7 w-32 border-0 p-0">
                     <Badge variant="outline" className={cn(stageColors[deal.stage])}>

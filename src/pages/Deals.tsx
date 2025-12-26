@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Filter, LayoutGrid, Table as TableIcon, Loader2, Plus } from 'lucide-react';
+import { Search, Filter, LayoutGrid, Table as TableIcon, Loader2 } from 'lucide-react';
 import { useDeals, DealStage } from '@/hooks/useDeals';
 import { useContacts } from '@/hooks/useContacts';
 import {
@@ -25,22 +26,20 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Label } from '@/components/ui/label';
-import { cn } from '@/lib/utils';
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { DraggableDealCard } from '@/components/deals/DraggableDealCard';
 import { DroppableColumn } from '@/components/deals/DroppableColumn';
 import { DealsTable } from '@/components/deals/DealsTable';
 
 const stages: { id: DealStage; name: string; color: string }[] = [
-  { id: 'discovery', name: 'Discovery', color: 'bg-muted' },
-  { id: 'proposal', name: 'Proposal', color: 'bg-info' },
-  { id: 'negotiation', name: 'Negotiation', color: 'bg-warning' },
-  { id: 'contract', name: 'Contract', color: 'bg-primary' },
-  { id: 'closed_won', name: 'Closed Won', color: 'bg-success' },
-  { id: 'closed_lost', name: 'Closed Lost', color: 'bg-destructive' },
+  { id: 'lead', name: 'Lead', color: 'bg-muted' },
+  { id: 'qualified', name: 'Qualified', color: 'bg-info' },
+  { id: 'proposal', name: 'Proposal', color: 'bg-warning' },
+  { id: 'closed', name: 'Closed', color: 'bg-success' },
 ];
 
 export default function Deals() {
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'pipeline' | 'table'>('pipeline');
   const [searchQuery, setSearchQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('all');
@@ -53,7 +52,7 @@ export default function Deals() {
     title: '',
     company: '',
     value: '',
-    stage: 'discovery' as DealStage,
+    stage: 'lead' as DealStage,
     probability: '20',
     expected_close_date: '',
     contact_id: '',
@@ -118,12 +117,16 @@ export default function Deals() {
       title: '',
       company: '',
       value: '',
-      stage: 'discovery',
+      stage: 'lead',
       probability: '20',
       expected_close_date: '',
       contact_id: '',
     });
     setIsAddDialogOpen(false);
+  };
+
+  const handleDealClick = (dealId: string) => {
+    navigate(`/deal/${dealId}`);
   };
 
   const activeDeal = activeDealId ? deals.find(d => d.id === activeDealId) : null;
@@ -336,7 +339,11 @@ export default function Deals() {
                     value={totalValue}
                   >
                     {stageDeals.map((deal) => (
-                      <DraggableDealCard key={deal.id} deal={deal} />
+                      <DraggableDealCard 
+                        key={deal.id} 
+                        deal={deal} 
+                        onClick={() => handleDealClick(deal.id)}
+                      />
                     ))}
                   </DroppableColumn>
                 );
@@ -350,7 +357,12 @@ export default function Deals() {
 
         {/* Table View */}
         {!loading && viewMode === 'table' && (
-          <DealsTable deals={filteredDeals} stages={stages} onUpdateDeal={updateDeal} />
+          <DealsTable 
+            deals={filteredDeals} 
+            stages={stages} 
+            onUpdateDeal={updateDeal}
+            onDealClick={handleDealClick}
+          />
         )}
       </div>
     </MainLayout>

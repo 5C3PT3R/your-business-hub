@@ -150,7 +150,7 @@ export function useAgent() {
           await addDeal({
             title: action.params?.title || 'New Deal',
             value: action.params?.value || 0,
-            stage: 'discovery',
+            stage: 'lead',
             company: action.params?.company || null,
             contact_id: action.params?.contact_id || null,
             expected_close_date: action.params?.expected_close_date || null,

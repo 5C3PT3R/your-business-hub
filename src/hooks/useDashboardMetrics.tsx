@@ -21,17 +21,17 @@ export function useDashboardMetrics() {
 
   const metrics = useMemo<DashboardMetrics>(() => {
     const totalLeads = leads.length;
-    const activeDeals = deals.filter(d => !['closed_won', 'closed_lost'].includes(d.stage || ''));
+    const activeDeals = deals.filter(d => d.stage !== 'closed');
     const totalDeals = activeDeals.length;
     
-    // Revenue from closed-won deals
-    const closedWonDeals = deals.filter(d => d.stage === 'closed_won');
-    const revenue = closedWonDeals.reduce((sum, d) => sum + (d.value || 0), 0);
+    // Revenue from closed deals
+    const closedDeals = deals.filter(d => d.stage === 'closed');
+    const revenue = closedDeals.reduce((sum, d) => sum + (d.value || 0), 0);
     
-    // Calculate conversion rate (closed won / total deals with a stage)
-    const totalWithOutcome = deals.filter(d => ['closed_won', 'closed_lost'].includes(d.stage || '')).length;
-    const conversionRate = totalWithOutcome > 0 
-      ? Math.round((closedWonDeals.length / totalWithOutcome) * 100) 
+    // Calculate conversion rate (closed / total deals)
+    const totalWithOutcome = closedDeals.length;
+    const conversionRate = deals.length > 0 
+      ? Math.round((closedDeals.length / deals.length) * 100) 
       : 0;
 
     // For now, using static change values since we don't have historical data
