@@ -2,6 +2,7 @@
  * V1 MODE: Single Sales CRM, conversation-first.
  * Deal detail shows only essential fields.
  * Activity = Conversation in user-facing UI.
+ * AI insights displayed with summary, key points, and stage change evidence.
  */
 
 import { useState, useEffect } from 'react';
@@ -12,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -19,9 +21,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, Building, DollarSign, Loader2, Save, MessageSquare, Plus } from 'lucide-react';
+import { ArrowLeft, Building, DollarSign, Loader2, Save, MessageSquare, Plus, Brain, Sparkles, TrendingUp } from 'lucide-react';
 import { useDeals, Deal, DealStage } from '@/hooks/useDeals';
-import { useActivities } from '@/hooks/useActivities';
+import { useActivities, parseAISummary, AIAnalysis } from '@/hooks/useActivities';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
@@ -33,11 +35,95 @@ const stages: { id: DealStage; name: string }[] = [
   { id: 'closed', name: 'Closed' },
 ];
 
+const intentColors = {
+  low: 'bg-muted text-muted-foreground',
+  medium: 'bg-warning/20 text-warning-foreground border-warning/50',
+  high: 'bg-success/20 text-success-foreground border-success/50',
+};
+
+function AIInsightsCard({ analysis, stageChanged }: { analysis: AIAnalysis; stageChanged?: boolean }) {
+  const confidencePercent = Math.round(analysis.confidence * 100);
+  
+  return (
+    <div className="mt-3 space-y-3">
+      {/* AI Summary */}
+      <div className="p-3 rounded-md bg-primary/5 border border-primary/10">
+        <div className="flex items-center gap-2 mb-2">
+          <Brain className="h-4 w-4 text-primary" />
+          <span className="text-sm font-medium text-primary">AI Summary</span>
+          <Badge variant="outline" className={intentColors[analysis.intent_level]}>
+            {analysis.intent_level} intent
+          </Badge>
+        </div>
+        <p className="text-sm text-foreground">{analysis.summary}</p>
+      </div>
+
+      {/* Stage Change Notice */}
+      {stageChanged && analysis.confidence >= 0.7 && analysis.recommended_stage !== 'closed' && (
+        <div className="p-3 rounded-md bg-success/10 border border-success/30">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles className="h-4 w-4 text-success" />
+            <span className="text-sm font-medium text-success">
+              AI updated deal stage → {analysis.recommended_stage.charAt(0).toUpperCase() + analysis.recommended_stage.slice(1)}
+            </span>
+          </div>
+          <div className="text-xs text-muted-foreground mb-2">
+            Why did the AI do this?
+          </div>
+          {analysis.evidence_quote && (
+            <blockquote className="text-sm text-foreground italic border-l-2 border-success/50 pl-3">
+              "{analysis.evidence_quote}"
+            </blockquote>
+          )}
+          <div className="mt-2 flex items-center gap-2">
+            <TrendingUp className="h-3 w-3 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">
+              Confidence: {confidencePercent}%
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Key Points */}
+      {analysis.key_points && analysis.key_points.length > 0 && (
+        <div className="p-3 rounded-md bg-muted/50">
+          <p className="text-xs font-medium text-muted-foreground mb-2">Key Points</p>
+          <ul className="list-disc list-inside space-y-1">
+            {analysis.key_points.map((point, idx) => (
+              <li key={idx} className="text-sm text-foreground">{point}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Next Actions */}
+      {analysis.next_actions && analysis.next_actions.length > 0 && (
+        <div className="p-3 rounded-md bg-muted/50">
+          <p className="text-xs font-medium text-muted-foreground mb-2">Suggested Next Actions</p>
+          <ul className="space-y-1">
+            {analysis.next_actions.map((action, idx) => (
+              <li key={idx} className="text-sm text-foreground flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                {action.action}
+                {action.due_in_days > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    (in {action.due_in_days} days)
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DealDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { getDealById, updateDeal } = useDeals();
-  const { activities, loading: activitiesLoading, addActivity } = useActivities(id);
+  const { activities, loading: activitiesLoading, addActivity, fetchActivities } = useActivities(id);
   const { toast } = useToast();
   
   const [deal, setDeal] = useState<Deal | null>(null);
@@ -74,6 +160,19 @@ export default function DealDetail() {
     };
     loadDeal();
   }, [id]);
+
+  // Refresh activities periodically to catch AI updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Only refresh if there are unprocessed activities
+      const hasUnprocessed = activities.some(a => !a.ai_processed);
+      if (hasUnprocessed) {
+        fetchActivities();
+      }
+    }, 5000); // Check every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [activities, fetchActivities]);
 
   const handleSave = async () => {
     if (!id || !formData.title) return;
@@ -236,7 +335,6 @@ export default function DealDetail() {
                 </div>
               </div>
             </div>
-            {/* V1: probability, expected_close_date, contact_id hidden */}
             
             <div className="flex justify-end pt-4">
               <Button onClick={handleSave} disabled={saving}>
@@ -290,7 +388,7 @@ export default function DealDetail() {
           </CardContent>
         </Card>
 
-        {/* Conversations (V1: Activity = Conversation in UI) */}
+        {/* Conversations */}
         <Card className="animate-slide-up" style={{ animationDelay: '200ms' }}>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -315,35 +413,55 @@ export default function DealDetail() {
               </div>
             ) : (
               <div className="space-y-4">
-                {activities.map((activity) => (
-                  <div
-                    key={activity.id}
-                    className="rounded-lg border border-border bg-card p-4 shadow-sm"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <MessageSquare className="h-4 w-4 text-primary" />
-                        <span className="font-medium text-foreground">
-                          Conversation
+                {activities.map((activity) => {
+                  const aiAnalysis = parseAISummary(activity.ai_summary);
+                  const isProcessing = !activity.ai_processed && activity.raw_text;
+                  
+                  return (
+                    <div
+                      key={activity.id}
+                      className="rounded-lg border border-border bg-card p-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <MessageSquare className="h-4 w-4 text-primary" />
+                          <span className="font-medium text-foreground">
+                            Conversation
+                          </span>
+                          {isProcessing && (
+                            <Badge variant="outline" className="text-xs">
+                              <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                              AI analyzing...
+                            </Badge>
+                          )}
+                          {activity.ai_processed && aiAnalysis && (
+                            <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30">
+                              <Brain className="h-3 w-3 mr-1" />
+                              AI analyzed
+                            </Badge>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(activity.created_at), 'MMM d, yyyy h:mm a')}
                         </span>
                       </div>
-                      <span className="text-xs text-muted-foreground">
-                        {format(new Date(activity.created_at), 'MMM d, yyyy h:mm a')}
-                      </span>
+                      
+                      {activity.raw_text && (
+                        <div className="mt-3 p-3 rounded-md bg-muted/50 text-sm text-foreground whitespace-pre-wrap max-h-48 overflow-y-auto">
+                          {activity.raw_text}
+                        </div>
+                      )}
+                      
+                      {/* AI Insights */}
+                      {aiAnalysis && activity.ai_processed && (
+                        <AIInsightsCard 
+                          analysis={aiAnalysis} 
+                          stageChanged={aiAnalysis.confidence >= 0.7 && aiAnalysis.recommended_stage !== 'closed'}
+                        />
+                      )}
                     </div>
-                    {activity.raw_text && (
-                      <div className="mt-3 p-3 rounded-md bg-muted/50 text-sm text-foreground whitespace-pre-wrap">
-                        {activity.raw_text}
-                      </div>
-                    )}
-                    {activity.ai_summary && (
-                      <div className="mt-3 p-3 rounded-md bg-primary/5 border border-primary/10">
-                        <p className="text-xs font-medium text-primary mb-1">AI Summary</p>
-                        <p className="text-sm text-foreground">{activity.ai_summary}</p>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
