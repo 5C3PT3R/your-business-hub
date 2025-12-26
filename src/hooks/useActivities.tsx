@@ -1,8 +1,23 @@
+/**
+ * V1 MODE: Activities hook - manages conversations
+ * Auto-triggers AI analysis after conversation creation
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useWorkspace } from './useWorkspace';
 import { useToast } from './use-toast';
+
+export interface AIAnalysis {
+  summary: string;
+  intent_level: 'low' | 'medium' | 'high';
+  key_points: string[];
+  evidence_quote: string;
+  next_actions: Array<{ action: string; due_in_days: number }>;
+  recommended_stage: string;
+  confidence: number;
+}
 
 export interface Activity {
   id: string;
@@ -17,6 +32,25 @@ export interface Activity {
   created_at: string;
   user_id: string;
   workspace_id: string | null;
+}
+
+// Parse the AI summary JSON stored in the database
+export function parseAISummary(aiSummary: string | null): AIAnalysis | null {
+  if (!aiSummary) return null;
+  try {
+    return JSON.parse(aiSummary) as AIAnalysis;
+  } catch {
+    // If it's not JSON, return a simple summary object
+    return {
+      summary: aiSummary,
+      intent_level: 'medium',
+      key_points: [],
+      evidence_quote: '',
+      next_actions: [],
+      recommended_stage: '',
+      confidence: 0,
+    };
+  }
 }
 
 export function useActivities(dealId?: string) {
@@ -57,6 +91,53 @@ export function useActivities(dealId?: string) {
   useEffect(() => {
     fetchActivities();
   }, [fetchActivities]);
+
+  // Trigger AI analysis in background (non-blocking)
+  const triggerAIAnalysis = async (activityId: string) => {
+    try {
+      console.log('Triggering AI analysis for activity:', activityId);
+      
+      const { data, error } = await supabase.functions.invoke('analyze-conversation', {
+        body: { activity_id: activityId },
+      });
+
+      if (error) {
+        console.error('AI analysis error:', error);
+        toast({
+          title: "AI Analysis",
+          description: "Analysis is processing. Refresh to see results.",
+        });
+        return;
+      }
+
+      if (data?.success) {
+        console.log('AI analysis completed:', data);
+        
+        // Show toast about stage update if applicable
+        if (data.stage_updated) {
+          toast({
+            title: "AI Updated Deal Stage",
+            description: `Stage changed to ${data.analysis.recommended_stage} (${Math.round(data.analysis.confidence * 100)}% confidence)`,
+          });
+        } else {
+          toast({
+            title: "AI Analysis Complete",
+            description: "Conversation has been analyzed.",
+          });
+        }
+
+        // Refresh activities to get the updated data
+        await fetchActivities();
+      }
+    } catch (error) {
+      console.error('Error triggering AI analysis:', error);
+      // Non-blocking error - don't show destructive toast
+      toast({
+        title: "AI Analysis",
+        description: "Analysis will complete in the background.",
+      });
+    }
+  };
 
   const addActivity = async (activity: {
     type: string;
@@ -104,12 +185,18 @@ export function useActivities(dealId?: string) {
     }
 
     toast({
-      title: "Activity added",
-      description: "Your conversation has been saved.",
+      title: "Conversation saved",
+      description: "AI is now analyzing your conversation...",
     });
     
-    setActivities(prev => [(data as Activity), ...prev]);
-    return data as Activity;
+    const newActivity = data as Activity;
+    setActivities(prev => [newActivity, ...prev]);
+
+    // V1: Automatically trigger AI analysis (non-blocking)
+    // Don't await - let it run in background
+    triggerAIAnalysis(newActivity.id);
+
+    return newActivity;
   };
 
   const deleteActivity = async (id: string) => {
