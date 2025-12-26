@@ -4,9 +4,10 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Filter, LayoutGrid, Table as TableIcon, Loader2 } from 'lucide-react';
+import { Search, Filter, LayoutGrid, Table as TableIcon, Loader2, MessageSquare, Plus } from 'lucide-react';
 import { useDeals, DealStage } from '@/hooks/useDeals';
 import { useContacts } from '@/hooks/useContacts';
+import { useActivities } from '@/hooks/useActivities';
 import {
   Dialog,
   DialogContent,
@@ -30,6 +31,8 @@ import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, P
 import { DraggableDealCard } from '@/components/deals/DraggableDealCard';
 import { DroppableColumn } from '@/components/deals/DroppableColumn';
 import { DealsTable } from '@/components/deals/DealsTable';
+import { AddConversationModal } from '@/components/deals/AddConversationModal';
+import { useToast } from '@/hooks/use-toast';
 
 const stages: { id: DealStage; name: string; color: string }[] = [
   { id: 'lead', name: 'Lead', color: 'bg-muted' },
@@ -40,13 +43,16 @@ const stages: { id: DealStage; name: string; color: string }[] = [
 
 export default function Deals() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [viewMode, setViewMode] = useState<'pipeline' | 'table'>('pipeline');
   const [searchQuery, setSearchQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isConversationModalOpen, setIsConversationModalOpen] = useState(false);
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
   const { deals, loading, addDeal, updateDeal } = useDeals();
   const { contacts } = useContacts();
+  const { addActivity } = useActivities();
 
   const [newDeal, setNewDeal] = useState({
     title: '',
@@ -129,6 +135,61 @@ export default function Deals() {
     navigate(`/deal/${dealId}`);
   };
 
+  const handleAddConversation = async (dealId: string, rawText: string): Promise<boolean> => {
+    const result = await addActivity({
+      type: 'conversation',
+      description: 'Conversation added',
+      raw_text: rawText,
+      related_deal_id: dealId,
+    });
+    return !!result;
+  };
+
+  const handleCreateDealWithConversation = async (
+    dealTitle: string,
+    company: string,
+    rawText: string
+  ): Promise<boolean> => {
+    // First create the deal
+    const newDealData = await addDeal({
+      title: dealTitle,
+      company: company || null,
+      value: 0,
+      stage: 'lead',
+      probability: 20,
+      expected_close_date: null,
+      contact_id: null,
+    });
+
+    if (!newDealData) {
+      toast({
+        title: "Error",
+        description: "Failed to create deal.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    // Then add the conversation activity
+    const activityResult = await addActivity({
+      type: 'conversation',
+      description: 'Conversation added',
+      raw_text: rawText,
+      related_deal_id: newDealData.id,
+    });
+
+    if (!activityResult) {
+      toast({
+        title: "Warning",
+        description: "Deal created but failed to save conversation.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    return true;
+  };
+
   const activeDeal = activeDealId ? deals.find(d => d.id === activeDealId) : null;
 
   return (
@@ -192,6 +253,15 @@ export default function Deals() {
                 </div>
               </PopoverContent>
             </Popover>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full sm:w-auto"
+              onClick={() => setIsConversationModalOpen(true)}
+            >
+              <MessageSquare className="mr-2 h-4 w-4" />
+              Add Conversation
+            </Button>
           </div>
           
           <div className="flex items-center gap-1 rounded-lg border border-border p-1 self-start">
@@ -308,6 +378,15 @@ export default function Deals() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Add Conversation Modal */}
+        <AddConversationModal
+          open={isConversationModalOpen}
+          onOpenChange={setIsConversationModalOpen}
+          deals={deals}
+          onAddConversation={handleAddConversation}
+          onCreateDealWithConversation={handleCreateDealWithConversation}
+        />
 
         {/* Loading State */}
         {loading && (

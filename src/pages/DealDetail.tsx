@@ -4,6 +4,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
@@ -12,9 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, Building, DollarSign, Loader2, Save, Clock } from 'lucide-react';
+import { ArrowLeft, Building, DollarSign, Loader2, Save, Clock, MessageSquare, Plus } from 'lucide-react';
 import { useDeals, Deal, DealStage } from '@/hooks/useDeals';
+import { useActivities } from '@/hooks/useActivities';
 import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
 
 const stages: { id: DealStage; name: string }[] = [
   { id: 'lead', name: 'Lead' },
@@ -27,11 +30,13 @@ export default function DealDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { getDealById, updateDeal } = useDeals();
+  const { activities, loading: activitiesLoading, addActivity } = useActivities(id);
   const { toast } = useToast();
   
   const [deal, setDeal] = useState<Deal | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingConversation, setSavingConversation] = useState(false);
   
   const [formData, setFormData] = useState({
     title: '',
@@ -39,6 +44,9 @@ export default function DealDetail() {
     value: '',
     stage: 'lead' as DealStage,
   });
+
+  const [conversationText, setConversationText] = useState('');
+  const [conversationError, setConversationError] = useState('');
 
   useEffect(() => {
     const loadDeal = async () => {
@@ -76,6 +84,36 @@ export default function DealDetail() {
         title: "Deal updated",
         description: "Your changes have been saved.",
       });
+    }
+  };
+
+  const handleSaveConversation = async () => {
+    // Validation
+    const trimmedText = conversationText.trim();
+    if (!trimmedText) {
+      setConversationError('Conversation text cannot be empty.');
+      return;
+    }
+
+    if (!id) {
+      setConversationError('No deal selected.');
+      return;
+    }
+
+    setConversationError('');
+    setSavingConversation(true);
+
+    const result = await addActivity({
+      type: 'conversation',
+      description: 'Conversation added',
+      raw_text: trimmedText,
+      related_deal_id: id,
+    });
+
+    setSavingConversation(false);
+
+    if (result) {
+      setConversationText('');
     }
   };
 
@@ -205,6 +243,45 @@ export default function DealDetail() {
           </CardContent>
         </Card>
 
+        {/* Add Conversation */}
+        <Card className="animate-slide-up" style={{ animationDelay: '150ms' }}>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              Add Conversation
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Textarea
+                value={conversationText}
+                onChange={(e) => {
+                  setConversationText(e.target.value);
+                  if (conversationError) setConversationError('');
+                }}
+                placeholder="Paste call transcript, meeting notes, or chat here…"
+                className="min-h-[150px] resize-y"
+              />
+              {conversationError && (
+                <p className="text-sm text-destructive">{conversationError}</p>
+              )}
+            </div>
+            <div className="flex justify-end">
+              <Button 
+                onClick={handleSaveConversation} 
+                disabled={savingConversation}
+              >
+                {savingConversation ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <MessageSquare className="mr-2 h-4 w-4" />
+                )}
+                Save Conversation
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Activity Timeline */}
         <Card className="animate-slide-up" style={{ animationDelay: '200ms' }}>
           <CardHeader>
@@ -214,15 +291,53 @@ export default function DealDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
-                <Clock className="h-6 w-6 text-muted-foreground" />
+            {activitiesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
               </div>
-              <p className="text-muted-foreground">No activities yet</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Activities will appear here as you interact with this deal.
-              </p>
-            </div>
+            ) : activities.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
+                  <Clock className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <p className="text-muted-foreground">No activities yet</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Add a conversation above to start tracking activity.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {activities.map((activity) => (
+                  <div
+                    key={activity.id}
+                    className="rounded-lg border border-border bg-card p-4 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="h-4 w-4 text-primary" />
+                        <span className="font-medium text-foreground capitalize">
+                          {activity.type}
+                        </span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {format(new Date(activity.created_at), 'MMM d, yyyy h:mm a')}
+                      </span>
+                    </div>
+                    {activity.raw_text && (
+                      <div className="mt-3 p-3 rounded-md bg-muted/50 text-sm text-foreground whitespace-pre-wrap">
+                        {activity.raw_text}
+                      </div>
+                    )}
+                    {activity.ai_summary && (
+                      <div className="mt-3 p-3 rounded-md bg-primary/5 border border-primary/10">
+                        <p className="text-xs font-medium text-primary mb-1">AI Summary</p>
+                        <p className="text-sm text-foreground">{activity.ai_summary}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
