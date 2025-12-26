@@ -41,7 +41,7 @@ const Landing = () => {
                 Sign In
               </Button>
               <Button 
-                onClick={() => navigate('/auth?demo=true')}
+                onClick={() => navigate('/demo')}
               >
                 Try Demo
               </Button>
@@ -69,7 +69,7 @@ const Landing = () => {
             <Button 
               size="lg" 
               className="text-lg px-8 py-6"
-              onClick={() => navigate('/auth?demo=true')}
+              onClick={() => navigate('/demo')}
             >
               Try the Live Demo
               <ArrowRight className="ml-2 h-5 w-5" />
@@ -324,7 +324,7 @@ const Landing = () => {
           <Button 
             size="lg" 
             className="text-lg px-8 py-6"
-            onClick={() => navigate('/auth?demo=true')}
+            onClick={() => navigate('/demo')}
           >
             Try the Live Demo
             <ArrowRight className="ml-2 h-5 w-5" />
