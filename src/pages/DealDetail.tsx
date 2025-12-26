@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, Building, DollarSign, Loader2, Save, MessageSquare, Plus, Brain, Sparkles, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Building, DollarSign, Loader2, Save, MessageSquare, Plus, Brain, Sparkles, TrendingUp, Copy, Check } from 'lucide-react';
 import { useDeals, Deal, DealStage } from '@/hooks/useDeals';
 import { useActivities, parseAISummary, AIAnalysis } from '@/hooks/useActivities';
 import { useToast } from '@/hooks/use-toast';
@@ -43,6 +43,15 @@ const intentColors = {
 
 function AIInsightsCard({ analysis, stageChanged }: { analysis: AIAnalysis; stageChanged?: boolean }) {
   const confidencePercent = Math.round(analysis.confidence * 100);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyFollowUp = async () => {
+    if (analysis.follow_up_message) {
+      await navigator.clipboard.writeText(analysis.follow_up_message);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
   
   return (
     <div className="mt-3 space-y-3">
@@ -58,7 +67,7 @@ function AIInsightsCard({ analysis, stageChanged }: { analysis: AIAnalysis; stag
         <p className="text-sm text-foreground">{analysis.summary}</p>
       </div>
 
-      {/* Stage Change Notice */}
+      {/* Stage Change Notice - Agent 8: Explainability */}
       {stageChanged && analysis.confidence >= 0.7 && analysis.recommended_stage !== 'closed' && (
         <div className="p-3 rounded-md bg-success/10 border border-success/30">
           <div className="flex items-center gap-2 mb-2">
@@ -68,7 +77,7 @@ function AIInsightsCard({ analysis, stageChanged }: { analysis: AIAnalysis; stag
             </span>
           </div>
           <div className="text-xs text-muted-foreground mb-2">
-            Why did the AI do this?
+            Why AI did this:
           </div>
           {analysis.evidence_quote && (
             <blockquote className="text-sm text-foreground italic border-l-2 border-success/50 pl-3">
@@ -81,6 +90,23 @@ function AIInsightsCard({ analysis, stageChanged }: { analysis: AIAnalysis; stag
               Confidence: {confidencePercent}%
             </span>
           </div>
+        </div>
+      )}
+
+      {/* Agent 4: Suggested Follow-Up Message */}
+      {analysis.follow_up_message && (
+        <div className="p-3 rounded-md bg-primary/5 border border-primary/20">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium text-primary">Suggested Follow-Up</span>
+            </div>
+            <Button variant="ghost" size="sm" onClick={handleCopyFollowUp}>
+              {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+              <span className="ml-1 text-xs">{copied ? 'Copied' : 'Copy'}</span>
+            </Button>
+          </div>
+          <p className="text-sm text-foreground italic">"{analysis.follow_up_message}"</p>
         </div>
       )}
 

@@ -1,7 +1,14 @@
 /**
  * V1 MODE: AI Conversation Analysis Edge Function
  * Analyzes sales conversations and extracts structured CRM insights.
- * Uses OpenAI API to generate summaries and stage recommendations.
+ * Uses Lovable AI Gateway (Gemini 2.5 Flash) for analysis.
+ * 
+ * AGENTS IMPLEMENTED:
+ * - Agent 2: AI Analysis & Structuring
+ * - Agent 3: Stage Movement
+ * - Agent 5: Risk Detection
+ * - Agent 9: Failure Safety
+ * - Agent 12: Memory/Context (passes prior conversations)
  */
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
@@ -13,20 +20,30 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SYSTEM_PROMPT = `You are an AI CRM assistant.
+const SYSTEM_PROMPT = `You are an AI CRM assistant for Upflo, a conversation-first sales CRM.
 
 Your job:
 Analyze a sales conversation and extract structured CRM insights.
 
+PHILOSOPHY:
+- AI suggests, humans approve
+- Conservative > aggressive
+- Explain everything
+- No hallucination
+
 Rules:
-- Be conservative. If unsure, say "unknown".
+- Be conservative. If unsure, lower the confidence score.
 - Only use evidence from the conversation.
-- Do NOT hallucinate facts.
-- Never recommend "Closed" stage unless the conversation explicitly states a deal has been won or closed.
+- Do NOT hallucinate facts, pricing, budgets, or timelines.
+- Never recommend "closed" stage unless the conversation explicitly states a deal has been won/lost.
+- If information is insufficient, set confidence < 0.4 and provide a safe summary.
+
+PRIOR CONTEXT:
+{prior_context}
 
 Return STRICT JSON in this exact format (no markdown, no code blocks, just JSON):
 {
-  "summary": "Brief 2–3 sentence summary",
+  "summary": "Brief 2–3 sentence factual summary",
   "intent_level": "low" | "medium" | "high",
   "recommended_stage": "lead" | "qualified" | "proposal" | "closed",
   "confidence": 0.0 - 1.0,
@@ -40,7 +57,8 @@ Return STRICT JSON in this exact format (no markdown, no code blocks, just JSON)
       "action": "What should happen next",
       "due_in_days": number
     }
-  ]
+  ],
+  "follow_up_message": "A polite, professional follow-up message the sales rep could send (1-3 sentences)"
 }`;
 
 interface AnalysisResult {
@@ -51,7 +69,20 @@ interface AnalysisResult {
   key_points: string[];
   evidence_quote: string;
   next_actions: Array<{ action: string; due_in_days: number }>;
+  follow_up_message?: string;
 }
+
+// Agent 9: Failure Safety - Default safe response
+const SAFE_ANALYSIS: AnalysisResult = {
+  summary: "Insufficient information to make a recommendation. Please add more conversation context.",
+  intent_level: "low",
+  recommended_stage: "lead",
+  confidence: 0.3,
+  key_points: ["Unable to extract clear insights from the provided text"],
+  evidence_quote: "",
+  next_actions: [],
+  follow_up_message: ""
+};
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -104,68 +135,141 @@ serve(async (req) => {
     // Check if there's text to analyze
     if (!activity.raw_text || activity.raw_text.trim() === '') {
       console.log("No raw_text to analyze");
+      // Agent 9: Save safe analysis instead of erroring
+      await supabase
+        .from('activities')
+        .update({ 
+          ai_summary: JSON.stringify(SAFE_ANALYSIS),
+          ai_processed: true 
+        })
+        .eq('id', activity_id);
+      
       return new Response(
-        JSON.stringify({ error: "No conversation text to analyze" }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: true, analysis: SAFE_ANALYSIS, activity_id }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Step 3: Send activity.raw_text to OpenAI with system prompt
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openAIApiKey) {
-      console.error("OPENAI_API_KEY not configured");
+    // Agent 12: Memory/Context - Fetch prior conversations for this deal
+    let priorContext = "No prior conversations available.";
+    if (activity.related_deal_id) {
+      const { data: priorActivities } = await supabase
+        .from('activities')
+        .select('raw_text, ai_summary, created_at')
+        .eq('related_deal_id', activity.related_deal_id)
+        .eq('ai_processed', true)
+        .neq('id', activity_id)
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      if (priorActivities && priorActivities.length > 0) {
+        const summaries = priorActivities.map((a, idx) => {
+          try {
+            const parsed = JSON.parse(a.ai_summary || '{}');
+            return `Conversation ${idx + 1}: ${parsed.summary || 'No summary'}`;
+          } catch {
+            return `Conversation ${idx + 1}: ${a.ai_summary?.substring(0, 200) || 'No summary'}`;
+          }
+        });
+        priorContext = `Previous conversations (most recent first):\n${summaries.join('\n')}`;
+      }
+    }
+
+    // Prepare system prompt with context
+    const systemPromptWithContext = SYSTEM_PROMPT.replace('{prior_context}', priorContext);
+
+    // Step 3: Call Lovable AI Gateway
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+    if (!lovableApiKey) {
+      console.error("LOVABLE_API_KEY not configured");
+      // Agent 9: Fallback to safe analysis
+      await supabase
+        .from('activities')
+        .update({ 
+          ai_summary: JSON.stringify(SAFE_ANALYSIS),
+          ai_processed: true 
+        })
+        .eq('id', activity_id);
+      
       return new Response(
-        JSON.stringify({ error: "OpenAI API key not configured" }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: true, analysis: SAFE_ANALYSIS, activity_id, error: "API key not configured" }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log("Calling OpenAI API...");
-    const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    console.log("Calling Lovable AI Gateway...");
+    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
+        'Authorization': `Bearer ${lovableApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'google/gemini-2.5-flash',
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: systemPromptWithContext },
           { role: 'user', content: `Analyze this sales conversation:\n\n${activity.raw_text}` }
         ],
-        max_tokens: 1000,
-        temperature: 0.3,
       }),
     });
 
-    if (!openAIResponse.ok) {
-      const errorText = await openAIResponse.text();
-      console.error("OpenAI API error:", openAIResponse.status, errorText);
+    // Handle rate limits and payment errors
+    if (aiResponse.status === 429) {
+      console.error("Rate limit exceeded");
+      return new Response(
+        JSON.stringify({ error: "Rate limits exceeded, please try again later." }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (aiResponse.status === 402) {
+      console.error("Payment required");
+      return new Response(
+        JSON.stringify({ error: "AI credits depleted. Please add credits in workspace settings." }),
+        { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!aiResponse.ok) {
+      const errorText = await aiResponse.text();
+      console.error("AI Gateway error:", aiResponse.status, errorText);
       
-      // Mark as not processed so it can be retried
+      // Agent 9: Save safe analysis on API failure
       await supabase
         .from('activities')
-        .update({ ai_processed: false })
+        .update({ 
+          ai_summary: JSON.stringify(SAFE_ANALYSIS),
+          ai_processed: true 
+        })
         .eq('id', activity_id);
 
       return new Response(
-        JSON.stringify({ error: "Failed to analyze conversation", details: errorText }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: true, analysis: SAFE_ANALYSIS, activity_id, error: "AI analysis failed" }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const openAIData = await openAIResponse.json();
-    const aiContent = openAIData.choices?.[0]?.message?.content;
+    const aiData = await aiResponse.json();
+    const aiContent = aiData.choices?.[0]?.message?.content;
 
     if (!aiContent) {
-      console.error("No content in OpenAI response");
+      console.error("No content in AI response");
+      // Agent 9: Save safe analysis
+      await supabase
+        .from('activities')
+        .update({ 
+          ai_summary: JSON.stringify(SAFE_ANALYSIS),
+          ai_processed: true 
+        })
+        .eq('id', activity_id);
+      
       return new Response(
-        JSON.stringify({ error: "No analysis generated" }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: true, analysis: SAFE_ANALYSIS, activity_id }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log("OpenAI response received, parsing JSON...");
+    console.log("AI response received, parsing JSON...");
 
     // Step 4: Parse JSON safely
     let analysis: AnalysisResult;
@@ -179,21 +283,35 @@ serve(async (req) => {
       }
       
       analysis = JSON.parse(cleanedContent);
-    } catch (parseError) {
-      console.error("Failed to parse OpenAI response as JSON:", parseError, aiContent);
       
-      // Still save what we can
+      // Validate required fields exist
+      if (!analysis.summary || !analysis.intent_level || !analysis.recommended_stage) {
+        throw new Error("Missing required fields in analysis");
+      }
+      
+      // Ensure confidence is within bounds
+      analysis.confidence = Math.max(0, Math.min(1, analysis.confidence || 0.5));
+      
+    } catch (parseError) {
+      console.error("Failed to parse AI response as JSON:", parseError, aiContent);
+      
+      // Agent 9: Save safe analysis on parse failure
       await supabase
         .from('activities')
         .update({ 
-          ai_summary: aiContent.substring(0, 500),
+          ai_summary: JSON.stringify({
+            ...SAFE_ANALYSIS,
+            summary: aiContent.substring(0, 500)
+          }),
           ai_processed: true 
         })
         .eq('id', activity_id);
 
       return new Response(
         JSON.stringify({ 
-          error: "Failed to parse AI response", 
+          success: true,
+          analysis: SAFE_ANALYSIS,
+          activity_id,
           partial_summary: aiContent.substring(0, 500) 
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -206,11 +324,12 @@ serve(async (req) => {
     const fullSummary = JSON.stringify({
       summary: analysis.summary,
       intent_level: analysis.intent_level,
-      key_points: analysis.key_points,
-      evidence_quote: analysis.evidence_quote,
-      next_actions: analysis.next_actions,
+      key_points: analysis.key_points || [],
+      evidence_quote: analysis.evidence_quote || '',
+      next_actions: analysis.next_actions || [],
       recommended_stage: analysis.recommended_stage,
       confidence: analysis.confidence,
+      follow_up_message: analysis.follow_up_message || '',
     });
 
     // Step 5: Update activity
@@ -232,29 +351,63 @@ serve(async (req) => {
 
     console.log("Activity updated with AI summary");
 
-    // Step 6: If confidence >= 0.7, update linked deal.stage
+    // Agent 3: Stage Movement - Only if confidence >= 0.7
     let stageUpdated = false;
-    if (analysis.confidence >= 0.7 && activity.related_deal_id) {
-      // GUARDRAIL: Never auto-close a deal
-      if (analysis.recommended_stage !== 'closed') {
-        console.log(`Updating deal ${activity.related_deal_id} to stage: ${analysis.recommended_stage}`);
-        
-        const { error: updateDealError } = await supabase
-          .from('deals')
-          .update({ stage: analysis.recommended_stage })
-          .eq('id', activity.related_deal_id);
+    
+    // Agent 5: Risk Detection - Check for at-risk deals
+    let riskUpdated = false;
+    
+    if (activity.related_deal_id) {
+      // Fetch current deal state
+      const { data: deal } = await supabase
+        .from('deals')
+        .select('stage')
+        .eq('id', activity.related_deal_id)
+        .single();
 
-        if (updateDealError) {
-          console.error("Error updating deal stage:", updateDealError);
-        } else {
-          stageUpdated = true;
-          console.log("Deal stage updated successfully");
+      const currentStage = deal?.stage;
+
+      // Agent 3: Stage Movement
+      if (analysis.confidence >= 0.7 && analysis.recommended_stage !== 'closed') {
+        if (currentStage !== analysis.recommended_stage) {
+          console.log(`Updating deal ${activity.related_deal_id} to stage: ${analysis.recommended_stage}`);
+          
+          const { error: updateDealError } = await supabase
+            .from('deals')
+            .update({ 
+              stage: analysis.recommended_stage,
+              ai_stage_suggestion: analysis.recommended_stage,
+            })
+            .eq('id', activity.related_deal_id);
+
+          if (updateDealError) {
+            console.error("Error updating deal stage:", updateDealError);
+          } else {
+            stageUpdated = true;
+            console.log("Deal stage updated successfully");
+          }
         }
-      } else {
-        console.log("Skipping stage update: AI recommended 'closed' but auto-close is disabled");
+      } else if (analysis.confidence < 0.7) {
+        console.log(`Confidence ${analysis.confidence} < 0.7, skipping stage update`);
       }
-    } else if (analysis.confidence < 0.7) {
-      console.log(`Confidence ${analysis.confidence} < 0.7, skipping stage update`);
+
+      // Agent 5: Risk Detection
+      // Mark as at_risk if intent is low AND deal is in Qualified or Proposal stage
+      const isAtRisk = analysis.intent_level === 'low' && 
+        (currentStage === 'qualified' || currentStage === 'proposal');
+      
+      const { error: riskError } = await supabase
+        .from('deals')
+        .update({ 
+          at_risk: isAtRisk,
+          follow_up_completed: false, // Reset follow-up status on new conversation
+        })
+        .eq('id', activity.related_deal_id);
+
+      if (!riskError && isAtRisk) {
+        riskUpdated = true;
+        console.log("Deal marked as at-risk");
+      }
     }
 
     return new Response(
@@ -266,8 +419,10 @@ serve(async (req) => {
           recommended_stage: analysis.recommended_stage,
           confidence: analysis.confidence,
           key_points: analysis.key_points,
+          follow_up_message: analysis.follow_up_message,
         },
         stage_updated: stageUpdated,
+        risk_updated: riskUpdated,
         activity_id,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -275,9 +430,15 @@ serve(async (req) => {
 
   } catch (error) {
     console.error("Error in analyze-conversation:", error);
+    
+    // Agent 9: Never crash - return safe response
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ 
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+        analysis: SAFE_ANALYSIS
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
