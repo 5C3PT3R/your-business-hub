@@ -8,9 +8,10 @@ import { format } from 'date-fns';
 interface DraggableDealCardProps {
   deal: Deal;
   isDragging?: boolean;
+  onClick?: () => void;
 }
 
-export function DraggableDealCard({ deal, isDragging }: DraggableDealCardProps) {
+export function DraggableDealCard({ deal, isDragging, onClick }: DraggableDealCardProps) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: deal.id,
   });
@@ -21,12 +22,21 @@ export function DraggableDealCard({ deal, isDragging }: DraggableDealCardProps) 
       }
     : undefined;
 
+  const handleClick = (e: React.MouseEvent) => {
+    // Only trigger click if we haven't been dragging
+    if (!transform && onClick) {
+      e.stopPropagation();
+      onClick();
+    }
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...listeners}
       {...attributes}
+      onClick={handleClick}
       className={cn(
         'group relative rounded-lg border border-border bg-card p-4 shadow-sm transition-all duration-200 hover:shadow-md hover:border-primary/30 cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-50 shadow-lg scale-105'

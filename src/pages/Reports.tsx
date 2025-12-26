@@ -32,14 +32,14 @@ export default function Reports() {
 
   const metrics = useMemo(() => {
     const totalRevenue = deals
-      .filter(d => d.stage === 'closed_won')
+      .filter(d => d.stage === 'closed')
       .reduce((sum, d) => sum + d.value, 0);
     
     const totalDeals = deals.length;
-    const wonDeals = deals.filter(d => d.stage === 'closed_won').length;
-    const winRate = totalDeals > 0 ? Math.round((wonDeals / totalDeals) * 100) : 0;
+    const closedDeals = deals.filter(d => d.stage === 'closed').length;
+    const winRate = totalDeals > 0 ? Math.round((closedDeals / totalDeals) * 100) : 0;
     
-    const activeDeals = deals.filter(d => !['closed_won', 'closed_lost'].includes(d.stage)).length;
+    const activeDeals = deals.filter(d => d.stage !== 'closed').length;
     
     const newLeads = leads.length;
     
@@ -52,9 +52,9 @@ export default function Reports() {
   }, [leads, deals]);
 
   const performanceMetrics = useMemo(() => {
-    const wonDeals = deals.filter(d => d.stage === 'closed_won');
-    const avgDealSize = wonDeals.length > 0 
-      ? Math.round(wonDeals.reduce((sum, d) => sum + d.value, 0) / wonDeals.length)
+    const closedDeals = deals.filter(d => d.stage === 'closed');
+    const avgDealSize = closedDeals.length > 0 
+      ? Math.round(closedDeals.reduce((sum, d) => sum + d.value, 0) / closedDeals.length)
       : 0;
     
     const completedTasks = tasks.filter(t => t.status === 'completed').length;

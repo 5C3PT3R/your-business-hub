@@ -16,9 +16,11 @@ export type Database = {
     Tables: {
       activities: {
         Row: {
+          ai_summary: string | null
           created_at: string | null
           description: string | null
           id: string
+          raw_text: string | null
           related_contact_id: string | null
           related_deal_id: string | null
           related_lead_id: string | null
@@ -27,9 +29,11 @@ export type Database = {
           workspace_id: string | null
         }
         Insert: {
+          ai_summary?: string | null
           created_at?: string | null
           description?: string | null
           id?: string
+          raw_text?: string | null
           related_contact_id?: string | null
           related_deal_id?: string | null
           related_lead_id?: string | null
@@ -38,9 +42,11 @@ export type Database = {
           workspace_id?: string | null
         }
         Update: {
+          ai_summary?: string | null
           created_at?: string | null
           description?: string | null
           id?: string
+          raw_text?: string | null
           related_contact_id?: string | null
           related_deal_id?: string | null
           related_lead_id?: string | null
@@ -978,13 +984,7 @@ export type Database = {
         | "closed_won"
         | "closed_lost"
       client_type: "buyer" | "seller" | "both"
-      deal_stage:
-        | "discovery"
-        | "proposal"
-        | "negotiation"
-        | "contract"
-        | "closed_won"
-        | "closed_lost"
+      deal_stage: "lead" | "qualified" | "proposal" | "closed"
       industry_type:
         | "sales"
         | "real_estate"
@@ -1158,14 +1158,7 @@ export const Constants = {
         "closed_lost",
       ],
       client_type: ["buyer", "seller", "both"],
-      deal_stage: [
-        "discovery",
-        "proposal",
-        "negotiation",
-        "contract",
-        "closed_won",
-        "closed_lost",
-      ],
+      deal_stage: ["lead", "qualified", "proposal", "closed"],
       industry_type: [
         "sales",
         "real_estate",
