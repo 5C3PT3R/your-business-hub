@@ -1,14 +1,28 @@
 /**
  * V1 MODE: Next Actions page
  * Daily inbox answering "What should I do today?"
- * Derived, opinionated - not stored data
+ * 
+ * AGENTS IMPLEMENTED:
+ * - Agent 7: Next Actions aggregation
+ * - Agent 14: Demo Guardrail (conservative behavior)
+ * - Agent 15: User Confidence (explanations)
  */
 
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { useNextActions, type ActionType } from '@/hooks/useNextActions';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Brain, Clock, ArrowRight, PartyPopper } from 'lucide-react';
+import { 
+  AlertTriangle, 
+  Brain, 
+  Clock, 
+  ArrowRight, 
+  PartyPopper, 
+  AlertCircle,
+  Timer,
+  Copy as CopyIcon,
+  Check
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Tooltip,
@@ -16,6 +30,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
 
 const actionConfig: Record<ActionType, {
   icon: typeof AlertTriangle;
@@ -37,11 +53,48 @@ const actionConfig: Record<ActionType, {
     iconClass: 'text-warning',
     labelClass: 'bg-warning/10 text-warning-foreground',
   },
+  stuck_stage: {
+    icon: Timer,
+    iconClass: 'text-muted-foreground',
+    labelClass: 'bg-muted text-muted-foreground',
+  },
+  missing_info: {
+    icon: AlertCircle,
+    iconClass: 'text-muted-foreground',
+    labelClass: 'bg-muted text-muted-foreground',
+  },
+  possible_duplicate: {
+    icon: CopyIcon,
+    iconClass: 'text-muted-foreground',
+    labelClass: 'bg-muted text-muted-foreground',
+  },
 };
 
 export default function Actions() {
-  const { actions, loading } = useNextActions();
+  const { actions, loading, markFollowUpCompleted } = useNextActions();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopyFollowUp = async (id: string, message: string) => {
+    await navigator.clipboard.writeText(message);
+    setCopiedId(id);
+    toast({
+      title: "Copied to clipboard",
+      description: "Follow-up message ready to paste.",
+    });
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleMarkDone = async (dealId: string) => {
+    const success = await markFollowUpCompleted(dealId);
+    if (success) {
+      toast({
+        title: "Marked as done",
+        description: "Follow-up completed.",
+      });
+    }
+  };
 
   return (
     <MainLayout>
@@ -83,56 +136,105 @@ export default function Actions() {
                   return (
                     <div
                       key={action.id}
-                      className="group flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:border-primary/30 hover:shadow-sm transition-all cursor-pointer"
-                      onClick={() => navigate(`/deal/${action.dealId}`)}
+                      className="group rounded-lg border border-border bg-card hover:border-primary/30 hover:shadow-sm transition-all"
                     >
-                      {/* Icon */}
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="shrink-0">
-                            <Icon className={cn('h-4 w-4', config.iconClass)} />
-                          </div>
-                        </TooltipTrigger>
-                        {action.tooltip && (
-                          <TooltipContent side="left">
-                            <p className="max-w-xs text-xs">{action.tooltip}</p>
-                          </TooltipContent>
-                        )}
-                      </Tooltip>
+                      {/* Main row */}
+                      <div 
+                        className="flex items-center gap-3 p-3 cursor-pointer"
+                        onClick={() => navigate(`/deal/${action.dealId}`)}
+                      >
+                        {/* Icon */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="shrink-0">
+                              <Icon className={cn('h-4 w-4', config.iconClass)} />
+                            </div>
+                          </TooltipTrigger>
+                          {action.tooltip && (
+                            <TooltipContent side="left">
+                              <p className="max-w-xs text-xs">{action.tooltip}</p>
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
 
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm truncate">
-                            {action.dealTitle}
-                          </span>
-                          <span className={cn(
-                            'shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded',
-                            config.labelClass
-                          )}>
-                            {action.label}
-                          </span>
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm truncate">
+                              {action.dealTitle}
+                            </span>
+                            <span className={cn(
+                              'shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded',
+                              config.labelClass
+                            )}>
+                              {action.label}
+                            </span>
+                          </div>
+                          {action.company && (
+                            <p className="text-xs text-muted-foreground truncate">
+                              {action.company}
+                            </p>
+                          )}
                         </div>
-                        {action.company && (
-                          <p className="text-xs text-muted-foreground truncate">
-                            {action.company}
-                          </p>
-                        )}
+
+                        {/* Action */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/deal/${action.dealId}`);
+                          }}
+                        >
+                          View Deal
+                          <ArrowRight className="h-3 w-3 ml-1" />
+                        </Button>
                       </div>
 
-                      {/* Action */}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/deal/${action.dealId}`);
-                        }}
-                      >
-                        View Deal
-                        <ArrowRight className="h-3 w-3 ml-1" />
-                      </Button>
+                      {/* AI Follow-up message panel */}
+                      {action.type === 'ai_follow_up' && action.followUpMessage && (
+                        <div className="px-3 pb-3">
+                          <div className="p-3 rounded-md bg-primary/5 border border-primary/10">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Brain className="h-3 w-3 text-primary" />
+                              <span className="text-xs font-medium text-primary">
+                                Suggested Follow-Up
+                              </span>
+                            </div>
+                            <p className="text-sm text-foreground mb-3">
+                              "{action.followUpMessage}"
+                            </p>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCopyFollowUp(action.id, action.followUpMessage!);
+                                }}
+                              >
+                                {copiedId === action.id ? (
+                                  <Check className="h-3 w-3 mr-1" />
+                                ) : (
+                                  <CopyIcon className="h-3 w-3 mr-1" />
+                                )}
+                                {copiedId === action.id ? 'Copied' : 'Copy'}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMarkDone(action.dealId);
+                                }}
+                              >
+                                Mark as Done
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

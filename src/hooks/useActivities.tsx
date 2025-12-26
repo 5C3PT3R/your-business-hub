@@ -17,6 +17,7 @@ export interface AIAnalysis {
   next_actions: Array<{ action: string; due_in_days: number }>;
   recommended_stage: string;
   confidence: number;
+  follow_up_message?: string;
 }
 
 export interface Activity {

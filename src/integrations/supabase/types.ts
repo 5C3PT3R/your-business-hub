@@ -221,13 +221,17 @@ export type Database = {
       }
       deals: {
         Row: {
+          ai_stage_suggestion: string | null
+          at_risk: boolean | null
           company: string | null
           contact_id: string | null
           created_at: string | null
           expected_close_date: string | null
+          follow_up_completed: boolean | null
           id: string
           probability: number | null
           stage: Database["public"]["Enums"]["deal_stage"] | null
+          stage_changed_at: string | null
           title: string
           updated_at: string | null
           user_id: string
@@ -235,13 +239,17 @@ export type Database = {
           workspace_id: string | null
         }
         Insert: {
+          ai_stage_suggestion?: string | null
+          at_risk?: boolean | null
           company?: string | null
           contact_id?: string | null
           created_at?: string | null
           expected_close_date?: string | null
+          follow_up_completed?: boolean | null
           id?: string
           probability?: number | null
           stage?: Database["public"]["Enums"]["deal_stage"] | null
+          stage_changed_at?: string | null
           title: string
           updated_at?: string | null
           user_id: string
@@ -249,13 +257,17 @@ export type Database = {
           workspace_id?: string | null
         }
         Update: {
+          ai_stage_suggestion?: string | null
+          at_risk?: boolean | null
           company?: string | null
           contact_id?: string | null
           created_at?: string | null
           expected_close_date?: string | null
+          follow_up_completed?: boolean | null
           id?: string
           probability?: number | null
           stage?: Database["public"]["Enums"]["deal_stage"] | null
+          stage_changed_at?: string | null
           title?: string
           updated_at?: string | null
           user_id?: string
