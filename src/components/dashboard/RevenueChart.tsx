@@ -29,7 +29,7 @@ export function RevenueChart() {
 
     // Aggregate deals by month
     deals.forEach((deal) => {
-      if (deal.stage === 'closed_won' && deal.created_at) {
+      if (deal.stage === 'closed' && deal.created_at) {
         const dealDate = parseISO(deal.created_at);
         const monthData = months.find(
           (m) =>
