@@ -13,6 +13,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { WorkspaceProvider, useWorkspace } from "@/hooks/useWorkspace";
 import Landing from "./pages/Landing";
 import Demo from "./pages/Demo";
+import Actions from "./pages/Actions";
 import Leads from "./pages/Leads";
 import LeadProfile from "./pages/LeadProfile";
 import Contacts from "./pages/Contacts";
@@ -85,6 +86,14 @@ function AppRoutes() {
       <Route path="/demo" element={<Demo />} />
 
       {/* PROTECTED ROUTES - Auth required */}
+      <Route
+        path="/actions"
+        element={
+          <ProtectedRoute>
+            <Actions />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/leads"
         element={
