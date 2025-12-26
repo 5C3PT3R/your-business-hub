@@ -1,3 +1,9 @@
+/**
+ * V1 MODE: Single Sales CRM, conversation-first.
+ * Deal detail shows only essential fields.
+ * Activity = Conversation in user-facing UI.
+ */
+
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -13,12 +19,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, Building, DollarSign, Loader2, Save, Clock, MessageSquare, Plus } from 'lucide-react';
+import { ArrowLeft, Building, DollarSign, Loader2, Save, MessageSquare, Plus } from 'lucide-react';
 import { useDeals, Deal, DealStage } from '@/hooks/useDeals';
 import { useActivities } from '@/hooks/useActivities';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
+// V1: Stages are locked - not editable
 const stages: { id: DealStage; name: string }[] = [
   { id: 'lead', name: 'Lead' },
   { id: 'qualified', name: 'Qualified' },
@@ -38,6 +45,7 @@ export default function DealDetail() {
   const [saving, setSaving] = useState(false);
   const [savingConversation, setSavingConversation] = useState(false);
   
+  // V1: Simplified form - only essential fields
   const [formData, setFormData] = useState({
     title: '',
     company: '',
@@ -88,7 +96,6 @@ export default function DealDetail() {
   };
 
   const handleSaveConversation = async () => {
-    // Validation
     const trimmedText = conversationText.trim();
     if (!trimmedText) {
       setConversationError('Conversation text cannot be empty.');
@@ -168,7 +175,7 @@ export default function DealDetail() {
           </div>
         </div>
 
-        {/* Edit Form */}
+        {/* V1: Simplified Edit Form - essential fields only */}
         <Card className="animate-slide-up" style={{ animationDelay: '100ms' }}>
           <CardHeader>
             <CardTitle className="text-lg">Deal Details</CardTitle>
@@ -229,6 +236,7 @@ export default function DealDetail() {
                 </div>
               </div>
             </div>
+            {/* V1: probability, expected_close_date, contact_id hidden */}
             
             <div className="flex justify-end pt-4">
               <Button onClick={handleSave} disabled={saving}>
@@ -282,12 +290,12 @@ export default function DealDetail() {
           </CardContent>
         </Card>
 
-        {/* Activity Timeline */}
+        {/* Conversations (V1: Activity = Conversation in UI) */}
         <Card className="animate-slide-up" style={{ animationDelay: '200ms' }}>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Activity Timeline
+              <MessageSquare className="h-5 w-5" />
+              Conversations
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -298,11 +306,11 @@ export default function DealDetail() {
             ) : activities.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
-                  <Clock className="h-6 w-6 text-muted-foreground" />
+                  <MessageSquare className="h-6 w-6 text-muted-foreground" />
                 </div>
-                <p className="text-muted-foreground">No activities yet</p>
+                <p className="text-muted-foreground">No conversations yet</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Add a conversation above to start tracking activity.
+                  Add a conversation above to start tracking.
                 </p>
               </div>
             ) : (
@@ -315,8 +323,8 @@ export default function DealDetail() {
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <MessageSquare className="h-4 w-4 text-primary" />
-                        <span className="font-medium text-foreground capitalize">
-                          {activity.type}
+                        <span className="font-medium text-foreground">
+                          Conversation
                         </span>
                       </div>
                       <span className="text-xs text-muted-foreground">
