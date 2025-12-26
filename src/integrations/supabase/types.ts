@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       activities: {
         Row: {
+          ai_processed: boolean | null
           ai_summary: string | null
           created_at: string | null
           description: string | null
@@ -29,6 +30,7 @@ export type Database = {
           workspace_id: string | null
         }
         Insert: {
+          ai_processed?: boolean | null
           ai_summary?: string | null
           created_at?: string | null
           description?: string | null
@@ -42,6 +44,7 @@ export type Database = {
           workspace_id?: string | null
         }
         Update: {
+          ai_processed?: boolean | null
           ai_summary?: string | null
           created_at?: string | null
           description?: string | null
