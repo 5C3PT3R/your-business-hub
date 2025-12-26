@@ -6,16 +6,13 @@ import {
   MessageSquare, 
   Brain, 
   Shield, 
-  Bell, 
   ArrowRight,
-  CheckCircle2,
-  XCircle,
   Sparkles,
-  Users,
-  Building2,
-  Briefcase,
-  Rocket
+  Phone,
+  Lock,
+  Zap
 } from "lucide-react";
+import { BlurText, DecryptedText, Orb, DotGrid } from "@/components/reactbits";
 
 const Landing = () => {
   const navigate = useNavigate();
@@ -41,262 +38,150 @@ const Landing = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass-effect">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl gradient-brand flex items-center justify-center shadow-glow">
-                <Sparkles className="w-5 h-5 text-primary-foreground" />
+    <div className="min-h-screen bg-white overflow-x-hidden">
+      {/* Navigation - Minimal Apple style */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-black/5">
+        <div className="max-w-6xl mx-auto px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-black flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <span className="text-xl font-semibold tracking-tight">Upflo</span>
+              <span className="text-lg font-semibold tracking-tight text-black">Upflo</span>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <Button 
                 variant="ghost" 
                 onClick={() => navigate('/auth')}
-                className="hidden sm:inline-flex text-muted-foreground hover:text-foreground"
+                className="text-sm text-black/60 hover:text-black"
               >
                 Sign In
               </Button>
               <Button 
                 onClick={() => navigate('/demo')}
-                className="gradient-brand text-primary-foreground border-0 btn-glow rounded-xl px-5"
+                className="text-sm bg-black text-white hover:bg-black/90 rounded-full px-5"
               >
                 Try Demo
-                <ArrowRight className="ml-1.5 h-4 w-4" />
               </Button>
             </div>
           </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative pt-32 pb-24 px-4 sm:px-6 lg:px-8 overflow-hidden">
-        {/* Animated background */}
-        <div className="absolute inset-0 gradient-hero" />
-        <div className="absolute top-20 left-1/4 w-[500px] h-[500px] rounded-full bg-primary/10 blur-[100px] animate-pulse-slow" />
-        <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] rounded-full bg-accent/10 blur-[100px] animate-pulse-slow" style={{ animationDelay: '2s' }} />
+      {/* SECTION 1 - Hero with Orb Background */}
+      <section className="relative min-h-screen flex items-center justify-center pt-14 overflow-hidden">
+        {/* Orb Background - Very subtle */}
+        <div className="absolute inset-0 opacity-30">
+          <Orb hue={220} hoverIntensity={0.1} />
+        </div>
         
-        {/* Floating orbs */}
-        <div className="absolute top-40 right-20 w-4 h-4 rounded-full bg-primary/30 animate-float" />
-        <div className="absolute top-60 left-32 w-3 h-3 rounded-full bg-accent/40 animate-float" style={{ animationDelay: '1s' }} />
-        <div className="absolute bottom-40 right-40 w-5 h-5 rounded-full bg-primary/20 animate-float" style={{ animationDelay: '2s' }} />
-        
-        <div className="relative max-w-4xl mx-auto text-center">
-          <div className="animate-fade-in-up">
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 leading-[1.1]">
-              <span className="gradient-text">The CRM that updates itself</span>
-              <br />
-              <span className="text-foreground">from your conversations</span>
-            </h1>
-          </div>
-          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 animate-fade-in-up-delayed">
-            Paste a call, meeting, or chat. Upflo automatically creates deals, updates stages, 
-            suggests follow-ups — and shows you why.
+        <div className="relative max-w-4xl mx-auto text-center px-6 py-20">
+          {/* Main Headline with BlurText */}
+          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-black leading-[1.05] mb-8">
+            <BlurText 
+              text="The CRM that updates itself from your conversations"
+              animateBy="words"
+              direction="top"
+              delay={100}
+              className="inline"
+            />
+          </h1>
+          
+          {/* Subheadline with DecryptedText */}
+          <p className="text-xl sm:text-2xl text-black/50 max-w-2xl mx-auto mb-12 font-normal">
+            <DecryptedText 
+              text="Paste a call, meeting, or chat. AI does the rest."
+              speed={40}
+              maxIterations={15}
+              animateOn="view"
+              className="text-black/60"
+              encryptedClassName="text-black/30"
+            />
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in-up" style={{ animationDelay: '0.4s', opacity: 0 }}>
+          
+          {/* CTA Buttons */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button 
               size="lg" 
-              className="text-lg px-8 py-6 gradient-brand text-primary-foreground border-0 rounded-xl btn-glow group"
+              className="text-base px-8 py-6 bg-black text-white hover:bg-black/90 rounded-full group relative overflow-hidden"
               onClick={() => navigate('/demo')}
             >
-              Try the Live Demo
-              <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+              <span className="relative z-10 flex items-center">
+                Try the Live Demo
+                <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </span>
             </Button>
             <Button 
               variant="outline" 
               size="lg"
-              className="text-lg px-8 py-6 rounded-xl bg-card hover:bg-muted/50"
+              className="text-base px-8 py-6 rounded-full border-black/20 text-black hover:bg-black/5"
             >
               Book a demo
             </Button>
           </div>
         </div>
+      </section>
 
-        {/* Abstract UI Mockup */}
-        <div className="relative max-w-5xl mx-auto mt-20 scroll-reveal">
-          <div className="bg-card border border-border rounded-2xl shadow-xl overflow-hidden animate-glow-pulse">
-            <div className="bg-muted/30 px-4 py-3 border-b border-border flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-destructive/60" />
-              <div className="w-3 h-3 rounded-full bg-warning/60" />
-              <div className="w-3 h-3 rounded-full bg-success/60" />
-              <span className="ml-4 text-sm text-muted-foreground font-medium">Pipeline — Upflo</span>
-            </div>
-            <div className="p-6 grid grid-cols-4 gap-4">
-              {['Lead', 'Qualified', 'Proposal', 'Closed'].map((stage, i) => (
-                <div key={stage} className="space-y-3">
-                  <div className="text-sm font-medium text-muted-foreground">{stage}</div>
-                  {[...Array(3 - i)].map((_, j) => (
-                    <div 
-                      key={j} 
-                      className="bg-muted/20 rounded-xl p-3 space-y-2 border border-border/50"
-                    >
-                      <div className="h-3 bg-muted rounded-full w-3/4" />
-                      <div className="h-2 bg-muted/50 rounded-full w-1/2" />
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
+      {/* SECTION 2 - Problem Statement (No animations) */}
+      <section className="py-32 px-6 bg-neutral-50">
+        <div className="max-w-3xl mx-auto text-center">
+          <p className="text-3xl sm:text-4xl font-medium text-black/80 leading-relaxed scroll-reveal">
+            Every day, your sales team has conversations.
+            <br />
+            <span className="text-black/40">
+              But most of that context never makes it into the CRM.
+            </span>
+          </p>
+          <p className="mt-12 text-lg text-black/50 scroll-reveal">
+            Reps forget to log calls. Pipelines become fiction. Managers stop trusting the data.
+          </p>
+        </div>
+      </section>
+
+      {/* SECTION 3 - How It Works (Bento-style grid) */}
+      <section className="py-32 px-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-20 scroll-reveal">
+            <h2 className="text-4xl sm:text-5xl font-bold text-black tracking-tight mb-4">
+              Three steps. Zero effort.
+            </h2>
+            <p className="text-xl text-black/50">
+              From conversation to updated CRM in seconds.
+            </p>
           </div>
           
-          {/* AI notification card */}
-          <div className="absolute -bottom-6 -right-4 sm:right-8 bg-card border border-border rounded-xl shadow-xl p-4 max-w-xs animate-fade-in" style={{ animationDelay: '0.8s' }}>
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-lg gradient-brand-soft flex items-center justify-center flex-shrink-0">
-                <Brain className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-medium uppercase tracking-wider text-primary bg-primary/10 px-2 py-0.5 rounded-full">AI</span>
-                </div>
-                <p className="text-sm font-medium">Stage → Proposal</p>
-                <p className="text-xs text-muted-foreground mt-1 italic">
-                  "They asked for pricing and timeline"
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Problem Section */}
-      <section className="py-24 px-4 sm:px-6 lg:px-8 gradient-surface">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12 scroll-reveal">
-            CRMs fail because people don't update them
-          </h2>
-          <div className="grid sm:grid-cols-2 gap-4 mb-10">
-            {[
-              "Reps forget to log calls",
-              "Pipelines become fiction",
-              "Follow-ups get missed",
-              "Managers stop trusting the CRM"
-            ].map((problem, i) => (
-              <div 
-                key={problem}
-                className={`scroll-reveal flex items-center gap-3 p-5 bg-card rounded-xl border border-border card-hover stagger-${i + 1}`}
-              >
-                <XCircle className="w-5 h-5 text-destructive flex-shrink-0" />
-                <span className="text-foreground font-medium">{problem}</span>
-              </div>
-            ))}
-          </div>
-          <p className="text-center text-lg text-muted-foreground italic scroll-reveal">
-            "If it's manual, it won't stay accurate."
-          </p>
-        </div>
-      </section>
-
-      {/* Solution Section */}
-      <section className="py-24 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 scroll-reveal">
-            Upflo listens. Your CRM works.
-          </h2>
-          <p className="text-center text-muted-foreground mb-16 max-w-2xl mx-auto scroll-reveal">
-            Three simple steps to a CRM that actually reflects reality.
-          </p>
-          
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              {
-                step: "1",
-                title: "Paste a conversation",
-                description: "Copy any call transcript, meeting notes, or chat log. Drop it into Upflo.",
-                icon: MessageSquare
-              },
-              {
-                step: "2",
-                title: "AI extracts insights",
-                description: "Intent level, deal summary, key points, and recommended next steps — all automatic.",
-                icon: Brain
-              },
-              {
-                step: "3",
-                title: "CRM updates itself",
-                description: "Deals created, stages moved, follow-ups suggested. With evidence for every change.",
-                icon: Sparkles
-              }
-            ].map((item, i) => (
-              <div key={item.step} className={`relative scroll-reveal stagger-${i + 1}`}>
-                <div className="absolute -top-4 -left-4 w-10 h-10 rounded-full gradient-brand text-primary-foreground flex items-center justify-center font-bold text-lg shadow-glow">
-                  {item.step}
-                </div>
-                <Card className="pt-8 h-full border-border card-hover rounded-2xl">
-                  <CardContent className="pt-4">
-                    <div className="w-12 h-12 rounded-xl gradient-brand-soft flex items-center justify-center mb-4">
-                      <item.icon className="w-6 h-6 text-primary" />
-                    </div>
-                    <h3 className="text-xl font-semibold mb-2">{item.title}</h3>
-                    <p className="text-muted-foreground">{item.description}</p>
-                  </CardContent>
-                </Card>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="py-24 px-4 sm:px-6 lg:px-8 gradient-surface">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 scroll-reveal">
-            Built different
-          </h2>
-          <p className="text-center text-muted-foreground mb-16 max-w-2xl mx-auto scroll-reveal">
-            AI that runs your CRM, not the other way around.
-          </p>
-
           <div className="grid md:grid-cols-3 gap-6">
             {[
               {
-                icon: Brain,
-                title: "AI That Runs the CRM",
-                features: [
-                  "Auto-creates and updates deals",
-                  "Smart stage movement",
-                  "Conservative, confidence-based decisions"
-                ]
+                step: "01",
+                title: "Paste a conversation",
+                description: "Drop any call transcript, meeting notes, or chat log.",
+                icon: MessageSquare
               },
               {
-                icon: Shield,
-                title: "Explainable & Trustworthy",
-                features: [
-                  '"Why AI did this" with real quotes',
-                  "Confidence scores",
-                  "Human approval before actions"
-                ]
+                step: "02",
+                title: "AI extracts intent",
+                description: "Understand deals, stages, sentiment, and next steps automatically.",
+                icon: Brain
               },
               {
-                icon: Bell,
-                title: "Follow-Ups Done Right",
-                features: [
-                  "AI suggests next messages",
-                  "Stale deals automatically flagged",
-                  "Nothing sent without your approval"
-                ]
+                step: "03",
+                title: "CRM updates itself",
+                description: "Deals created, stages moved, follow-ups scheduled.",
+                icon: Sparkles
               }
-            ].map((feature, i) => (
+            ].map((item, i) => (
               <Card 
-                key={feature.title}
-                className={`scroll-reveal stagger-${i + 1} border-border card-hover rounded-2xl overflow-hidden`}
+                key={item.step}
+                className={`scroll-reveal stagger-${i + 1} group border-black/5 bg-white hover:shadow-lg hover:shadow-black/5 transition-all duration-500 rounded-3xl overflow-hidden`}
               >
-                <CardContent className="pt-6">
-                  <div className="w-12 h-12 rounded-xl gradient-brand-soft flex items-center justify-center mb-4">
-                    <feature.icon className="w-6 h-6 text-primary" />
+                <CardContent className="p-8">
+                  <div className="text-sm font-mono text-black/30 mb-6">{item.step}</div>
+                  <div className="w-12 h-12 rounded-2xl bg-black/5 flex items-center justify-center mb-6 group-hover:bg-black group-hover:text-white transition-colors duration-300">
+                    <item.icon className="w-6 h-6" />
                   </div>
-                  <h3 className="text-xl font-semibold mb-4">{feature.title}</h3>
-                  <ul className="space-y-3">
-                    {feature.features.map((item) => (
-                      <li key={item} className="flex items-start gap-2.5">
-                        <CheckCircle2 className="w-5 h-5 text-success flex-shrink-0 mt-0.5" />
-                        <span className="text-muted-foreground text-sm">{item}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <h3 className="text-xl font-semibold text-black mb-3">{item.title}</h3>
+                  <p className="text-black/50 leading-relaxed">{item.description}</p>
                 </CardContent>
               </Card>
             ))}
@@ -304,80 +189,152 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Audience Section */}
-      <section className="py-24 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4 scroll-reveal">
-            Built for teams that live in conversations
-          </h2>
-          <p className="text-muted-foreground mb-12 scroll-reveal">
-            If your revenue starts with conversations, Upflo fits.
-          </p>
+      {/* SECTION 4 - Trust & Explainability with DotGrid */}
+      <section className="py-32 px-6 relative overflow-hidden">
+        {/* DotGrid Background - Very subtle */}
+        <div className="absolute inset-0 pointer-events-none">
+          <DotGrid 
+            dotSize={2}
+            gap={30}
+            baseColor="rgba(0, 0, 0, 0.04)"
+            activeColor="rgba(0, 0, 0, 0.12)"
+            proximity={80}
+          />
+        </div>
+        
+        <div className="max-w-4xl mx-auto relative">
+          <div className="text-center mb-16 scroll-reveal">
+            <h2 className="text-4xl sm:text-5xl font-bold text-black tracking-tight mb-4">
+              AI you can trust
+            </h2>
+            <p className="text-xl text-black/50">
+              Every action explained. Every decision justified.
+            </p>
+          </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { icon: Users, label: "Sales teams" },
-              { icon: Building2, label: "Real estate brokers" },
-              { icon: Briefcase, label: "Consultants & agencies" },
-              { icon: Rocket, label: "Founders & operators" }
-            ].map((audience, i) => (
-              <div 
-                key={audience.label}
-                className={`scroll-reveal stagger-${i + 1} flex flex-col items-center gap-3 p-6 bg-card rounded-2xl border border-border card-hover`}
-              >
-                <div className="w-12 h-12 rounded-xl gradient-brand-soft flex items-center justify-center">
-                  <audience.icon className="w-6 h-6 text-primary" />
+          <div className="bg-white border border-black/10 rounded-3xl p-8 sm:p-12 scroll-reveal">
+            <div className="flex items-start gap-4 mb-8">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+                <Brain className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wider text-blue-600 mb-1">
+                  AI Recommendation
                 </div>
-                <span className="font-medium text-sm">{audience.label}</span>
+                <div className="text-lg font-semibold text-black">
+                  Move deal to Proposal stage
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-neutral-50 rounded-2xl p-6 mb-6">
+              <div className="text-sm font-medium text-black/40 mb-2">Why AI did this</div>
+              <p className="text-black/70 italic">
+                "They asked for pricing and a timeline. We discussed implementation scope and they mentioned budget approval is pending."
+              </p>
+            </div>
+            
+            <div className="flex items-center gap-6 text-sm text-black/50">
+              <span className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                Confidence: 87%
+              </span>
+              <span>Based on conversation from Dec 24</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION 5 - Features Navigation (Card Nav style) */}
+      <section className="py-32 px-6 bg-neutral-50">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-16 scroll-reveal">
+            <h2 className="text-4xl sm:text-5xl font-bold text-black tracking-tight mb-4">
+              Everything you need
+            </h2>
+            <p className="text-xl text-black/50">
+              Built for teams that close deals through conversations.
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-4">
+            {[
+              {
+                icon: Brain,
+                title: "AI CRM",
+                description: "Auto-updates from calls, meetings, and chats"
+              },
+              {
+                icon: Phone,
+                title: "Call Intelligence",
+                description: "Transcription, sentiment, and key points extraction"
+              },
+              {
+                icon: Shield,
+                title: "Trust & Transparency",
+                description: "Every AI action explained with evidence"
+              },
+              {
+                icon: Lock,
+                title: "Enterprise Security",
+                description: "SOC 2 compliant, encrypted, and private"
+              }
+            ].map((feature, i) => (
+              <div 
+                key={feature.title}
+                className={`scroll-reveal stagger-${i + 1} group flex items-center gap-6 p-6 bg-white rounded-2xl border border-black/5 hover:border-black/10 hover:shadow-md transition-all duration-300 cursor-pointer`}
+              >
+                <div className="w-14 h-14 rounded-2xl bg-black/5 flex items-center justify-center flex-shrink-0 group-hover:bg-black group-hover:text-white transition-colors duration-300">
+                  <feature.icon className="w-6 h-6" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-black mb-1">{feature.title}</h3>
+                  <p className="text-black/50 text-sm">{feature.description}</p>
+                </div>
+                <ArrowRight className="w-5 h-5 text-black/20 group-hover:text-black group-hover:translate-x-1 transition-all" />
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Final CTA Section */}
-      <section className="py-24 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        <div className="absolute inset-0 gradient-hero" />
-        <div className="absolute top-0 left-1/3 w-[600px] h-[600px] rounded-full bg-primary/10 blur-[120px] animate-pulse-slow" />
-        
-        <div className="relative max-w-3xl mx-auto text-center scroll-reveal">
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-            See your CRM update itself
+      {/* SECTION 6 - Final CTA (Simple, gentle fade) */}
+      <section className="py-32 px-6 scroll-reveal">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 className="text-4xl sm:text-5xl font-bold text-black tracking-tight mb-6">
+            Ready to see it in action?
           </h2>
-          <p className="text-lg text-muted-foreground mb-8">
-            No setup. No credit card. 2-minute demo.
+          <p className="text-xl text-black/50 mb-12">
+            No signup required. See your CRM update itself in 2 minutes.
           </p>
           <Button 
             size="lg" 
-            className="text-lg px-10 py-6 gradient-brand text-primary-foreground border-0 rounded-xl btn-glow group"
+            className="text-base px-10 py-6 bg-black text-white hover:bg-black/90 rounded-full group"
             onClick={() => navigate('/demo')}
           >
             Try the Live Demo
-            <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+            <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
           </Button>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="py-12 px-4 sm:px-6 lg:px-8 border-t border-border bg-card/50">
+      {/* Footer - Minimal */}
+      <footer className="py-12 px-6 border-t border-black/5">
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl gradient-brand flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-primary-foreground" />
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-black flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <div>
-                <span className="text-lg font-semibold">Upflo</span>
-                <p className="text-sm text-muted-foreground">The self-updating CRM</p>
-              </div>
+              <span className="font-semibold text-black">Upflo</span>
             </div>
-            <div className="flex items-center gap-6 text-sm text-muted-foreground">
-              <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
-              <a href="#" className="hover:text-foreground transition-colors">Terms</a>
-              <a href="#" className="hover:text-foreground transition-colors">Contact</a>
+            <div className="flex items-center gap-6 text-sm text-black/40">
+              <a href="#" className="hover:text-black transition-colors">Privacy</a>
+              <a href="#" className="hover:text-black transition-colors">Terms</a>
+              <a href="#" className="hover:text-black transition-colors">Contact</a>
             </div>
           </div>
-          <div className="mt-8 pt-8 border-t border-border text-center text-sm text-muted-foreground">
+          <div className="mt-8 text-center text-sm text-black/30">
             © {new Date().getFullYear()} Upflo. All rights reserved.
           </div>
         </div>
