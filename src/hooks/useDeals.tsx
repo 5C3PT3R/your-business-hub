@@ -4,7 +4,7 @@ import { useAuth } from './useAuth';
 import { useWorkspace } from './useWorkspace';
 import { useToast } from './use-toast';
 
-export type DealStage = 'discovery' | 'proposal' | 'negotiation' | 'contract' | 'closed_won' | 'closed_lost';
+export type DealStage = 'lead' | 'qualified' | 'proposal' | 'closed';
 
 export interface Deal {
   id: string;
@@ -43,7 +43,7 @@ export function useDeals() {
         variant: "destructive",
       });
     } else {
-      setDeals(data || []);
+      setDeals((data as Deal[]) || []);
     }
     setLoading(false);
   };
@@ -75,8 +75,8 @@ export function useDeals() {
       description: `${deal.title} has been added to your pipeline.`,
     });
     
-    setDeals(prev => [data, ...prev]);
-    return data;
+    setDeals(prev => [(data as Deal), ...prev]);
+    return data as Deal;
   };
 
   const updateDeal = async (id: string, updates: Partial<Deal>) => {
@@ -96,8 +96,8 @@ export function useDeals() {
       return null;
     }
 
-    setDeals(prev => prev.map(d => d.id === id ? data : d));
-    return data;
+    setDeals(prev => prev.map(d => d.id === id ? (data as Deal) : d));
+    return data as Deal;
   };
 
   const deleteDeal = async (id: string) => {
@@ -124,5 +124,24 @@ export function useDeals() {
     return true;
   };
 
-  return { deals, loading, fetchDeals, addDeal, updateDeal, deleteDeal };
+  const getDealById = async (id: string): Promise<Deal | null> => {
+    const { data, error } = await supabase
+      .from('deals')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) {
+      toast({
+        title: "Error fetching deal",
+        description: error.message,
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    return data as Deal | null;
+  };
+
+  return { deals, loading, fetchDeals, addDeal, updateDeal, deleteDeal, getDealById };
 }
