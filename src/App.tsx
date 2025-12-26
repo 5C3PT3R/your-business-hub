@@ -1,7 +1,7 @@
 /**
  * V1 MODE: Single Sales CRM, conversation-first.
  * Other CRM types intentionally disabled until V2.
- * User flow: Login → Pipeline → Deal → Conversation
+ * User flow: Landing → Auth → Pipeline → Deal → Conversation
  */
 
 import { Toaster } from "@/components/ui/toaster";
@@ -12,6 +12,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { WorkspaceProvider, useWorkspace } from "@/hooks/useWorkspace";
 import Landing from "./pages/Landing";
+import Demo from "./pages/Demo";
 import Leads from "./pages/Leads";
 import LeadProfile from "./pages/LeadProfile";
 import Contacts from "./pages/Contacts";
@@ -75,34 +76,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   );
 }
 
-// V1: Redirect authenticated users to /deals (Pipeline is home)
-function AuthenticatedRedirect() {
-  return <Navigate to="/deals" replace />;
-}
-
 function AppRoutes() {
-  const { user, loading } = useAuth();
-
   return (
     <Routes>
+      {/* PUBLIC ROUTES - No auth required */}
+      <Route path="/" element={<Landing />} />
       <Route path="/auth" element={<AuthPage />} />
-      {/* V1: Public landing page at "/" for unauthenticated users */}
-      <Route
-        path="/"
-        element={
-          loading ? (
-            <div className="min-h-screen flex items-center justify-center bg-background">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : user ? (
-            <ProtectedRoute>
-              <AuthenticatedRedirect />
-            </ProtectedRoute>
-          ) : (
-            <Landing />
-          )
-        }
-      />
+      <Route path="/demo" element={<Demo />} />
+
+      {/* PROTECTED ROUTES - Auth required */}
       <Route
         path="/leads"
         element={

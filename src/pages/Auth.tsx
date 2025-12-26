@@ -17,16 +17,17 @@ export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // V1: Redirect authenticated users to /deals (not /)
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
-        navigate('/');
+        navigate('/deals');
       }
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        navigate('/');
+        navigate('/deals');
       }
     });
 
@@ -61,7 +62,7 @@ export default function Auth() {
     e.preventDefault();
     setLoading(true);
 
-    const redirectUrl = `${window.location.origin}/`;
+    const redirectUrl = `${window.location.origin}/deals`;
 
     const { error } = await supabase.auth.signUp({
       email,
