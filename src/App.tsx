@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { WorkspaceProvider, useWorkspace } from "@/hooks/useWorkspace";
+import Landing from "./pages/Landing";
 import Leads from "./pages/Leads";
 import LeadProfile from "./pages/LeadProfile";
 import Contacts from "./pages/Contacts";
@@ -74,22 +75,32 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   );
 }
 
-// V1: Redirect Index to /deals (Pipeline is home)
-function IndexRedirect() {
+// V1: Redirect authenticated users to /deals (Pipeline is home)
+function AuthenticatedRedirect() {
   return <Navigate to="/deals" replace />;
 }
 
 function AppRoutes() {
+  const { user, loading } = useAuth();
+
   return (
     <Routes>
       <Route path="/auth" element={<AuthPage />} />
-      {/* V1: / redirects to /deals (Pipeline is home) */}
+      {/* V1: Public landing page at "/" for unauthenticated users */}
       <Route
         path="/"
         element={
-          <ProtectedRoute>
-            <IndexRedirect />
-          </ProtectedRoute>
+          loading ? (
+            <div className="min-h-screen flex items-center justify-center bg-background">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : user ? (
+            <ProtectedRoute>
+              <AuthenticatedRedirect />
+            </ProtectedRoute>
+          ) : (
+            <Landing />
+          )
         }
       />
       <Route
