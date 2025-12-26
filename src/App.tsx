@@ -1,3 +1,9 @@
+/**
+ * V1 MODE: Single Sales CRM, conversation-first.
+ * Other CRM types intentionally disabled until V2.
+ * User flow: Login → Pipeline → Deal → Conversation
+ */
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -5,9 +11,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { WorkspaceProvider, useWorkspace } from "@/hooks/useWorkspace";
-import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import SelectCRM from "./pages/SelectCRM";
 import Leads from "./pages/Leads";
 import LeadProfile from "./pages/LeadProfile";
 import Contacts from "./pages/Contacts";
@@ -18,15 +21,25 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
+import { useEffect } from "react";
 
 const queryClient = new QueryClient();
 
-// Protected route that requires authentication
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading: authLoading } = useAuth();
-  const { hasWorkspace, loading: workspaceLoading } = useWorkspace();
+// V1: Auto-create sales workspace if user has none
+function AutoCreateSalesWorkspace({ children }: { children: React.ReactNode }) {
+  const { hasWorkspace, loading, createWorkspace } = useWorkspace();
 
-  if (authLoading || workspaceLoading) {
+  useEffect(() => {
+    const autoCreate = async () => {
+      if (!loading && !hasWorkspace) {
+        // V1 MODE: Automatically create a Sales CRM workspace
+        await createWorkspace('Sales CRM', 'sales');
+      }
+    };
+    autoCreate();
+  }, [loading, hasWorkspace, createWorkspace]);
+
+  if (loading || !hasWorkspace) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -34,19 +47,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
-
-  if (!hasWorkspace) {
-    return <Navigate to="/select-crm" replace />;
-  }
-
   return <>{children}</>;
 }
 
-// Route for CRM selection (requires auth, accessible always)
-function CRMSelectionRoute({ children }: { children: React.ReactNode }) {
+// Protected route that requires authentication
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const { loading: workspaceLoading } = useWorkspace();
 
@@ -62,27 +67,28 @@ function CRMSelectionRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/auth" replace />;
   }
 
-  // Allow access even if user has workspaces (they can create more)
-  return <>{children}</>;
+  return (
+    <AutoCreateSalesWorkspace>
+      {children}
+    </AutoCreateSalesWorkspace>
+  );
+}
+
+// V1: Redirect Index to /deals (Pipeline is home)
+function IndexRedirect() {
+  return <Navigate to="/deals" replace />;
 }
 
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/auth" element={<Auth />} />
-      <Route
-        path="/select-crm"
-        element={
-          <CRMSelectionRoute>
-            <SelectCRM />
-          </CRMSelectionRoute>
-        }
-      />
+      <Route path="/auth" element={<AuthPage />} />
+      {/* V1: / redirects to /deals (Pipeline is home) */}
       <Route
         path="/"
         element={
           <ProtectedRoute>
-            <Index />
+            <IndexRedirect />
           </ProtectedRoute>
         }
       />
@@ -150,10 +156,16 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      {/* V1: SelectCRM route disabled - redirect to deals */}
+      <Route path="/select-crm" element={<Navigate to="/deals" replace />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }
+
+// Lazy import to avoid circular deps
+import Auth from "./pages/Auth";
+const AuthPage = Auth;
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

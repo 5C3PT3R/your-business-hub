@@ -1,12 +1,17 @@
+/**
+ * V1 MODE: Single Sales CRM, conversation-first.
+ * Pipeline is the primary home screen.
+ * Stages locked: Lead → Qualified → Proposal → Closed
+ */
+
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Filter, LayoutGrid, Table as TableIcon, Loader2, MessageSquare, Plus } from 'lucide-react';
+import { Search, Filter, LayoutGrid, Table as TableIcon, Loader2, MessageSquare } from 'lucide-react';
 import { useDeals, DealStage } from '@/hooks/useDeals';
-import { useContacts } from '@/hooks/useContacts';
 import { useActivities } from '@/hooks/useActivities';
 import {
   Dialog,
@@ -34,6 +39,7 @@ import { DealsTable } from '@/components/deals/DealsTable';
 import { AddConversationModal } from '@/components/deals/AddConversationModal';
 import { useToast } from '@/hooks/use-toast';
 
+// V1: Stages are locked - not editable
 const stages: { id: DealStage; name: string; color: string }[] = [
   { id: 'lead', name: 'Lead', color: 'bg-muted' },
   { id: 'qualified', name: 'Qualified', color: 'bg-info' },
@@ -51,17 +57,14 @@ export default function Deals() {
   const [isConversationModalOpen, setIsConversationModalOpen] = useState(false);
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
   const { deals, loading, addDeal, updateDeal } = useDeals();
-  const { contacts } = useContacts();
   const { addActivity } = useActivities();
 
+  // V1: Simplified new deal form - only essential fields
   const [newDeal, setNewDeal] = useState({
     title: '',
     company: '',
     value: '',
     stage: 'lead' as DealStage,
-    probability: '20',
-    expected_close_date: '',
-    contact_id: '',
   });
 
   const sensors = useSensors(
@@ -109,14 +112,15 @@ export default function Deals() {
   const handleAddDeal = async () => {
     if (!newDeal.title) return;
     
+    // V1: Only save essential fields
     await addDeal({
       title: newDeal.title,
       company: newDeal.company || null,
       value: parseFloat(newDeal.value) || 0,
       stage: newDeal.stage,
-      probability: parseInt(newDeal.probability) || 20,
-      expected_close_date: newDeal.expected_close_date || null,
-      contact_id: newDeal.contact_id || null,
+      probability: 20, // V1: Default value, hidden from UI
+      expected_close_date: null, // V1: Hidden from UI
+      contact_id: null, // V1: Hidden from UI
     });
     
     setNewDeal({
@@ -124,9 +128,6 @@ export default function Deals() {
       company: '',
       value: '',
       stage: 'lead',
-      probability: '20',
-      expected_close_date: '',
-      contact_id: '',
     });
     setIsAddDialogOpen(false);
   };
@@ -150,7 +151,6 @@ export default function Deals() {
     company: string,
     rawText: string
   ): Promise<boolean> => {
-    // First create the deal
     const newDealData = await addDeal({
       title: dealTitle,
       company: company || null,
@@ -170,7 +170,6 @@ export default function Deals() {
       return false;
     }
 
-    // Then add the conversation activity
     const activityResult = await addActivity({
       type: 'conversation',
       description: 'Conversation added',
@@ -195,8 +194,8 @@ export default function Deals() {
   return (
     <MainLayout>
       <Header
-        title="Deals"
-        subtitle="Track and manage your sales pipeline"
+        title="Pipeline"
+        subtitle="Track and manage your deals"
         action={{
           label: 'Add Deal',
           onClick: () => setIsAddDialogOpen(true),
@@ -284,7 +283,7 @@ export default function Deals() {
           </div>
         </div>
 
-        {/* Add Deal Dialog */}
+        {/* V1: Simplified Add Deal Dialog - essential fields only */}
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogContent>
             <DialogHeader>
@@ -334,44 +333,7 @@ export default function Deals() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="deal-probability">Probability (%)</Label>
-                <Input
-                  id="deal-probability"
-                  type="number"
-                  value={newDeal.probability}
-                  onChange={(e) => setNewDeal({ ...newDeal, probability: e.target.value })}
-                  placeholder="50"
-                  min="0"
-                  max="100"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="deal-close-date">Expected Close Date</Label>
-                <Input
-                  id="deal-close-date"
-                  type="date"
-                  value={newDeal.expected_close_date}
-                  onChange={(e) => setNewDeal({ ...newDeal, expected_close_date: e.target.value })}
-                />
-              </div>
-              {contacts.length > 0 && (
-                <div className="space-y-2">
-                  <Label htmlFor="deal-contact">Contact</Label>
-                  <Select value={newDeal.contact_id} onValueChange={(value) => setNewDeal({ ...newDeal, contact_id: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select contact" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {contacts.map((contact) => (
-                        <SelectItem key={contact.id} value={contact.id}>
-                          {contact.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              {/* V1: probability, expected_close_date, contact_id hidden */}
               <Button className="w-full" variant="gradient" onClick={handleAddDeal}>
                 Add Deal
               </Button>
@@ -395,8 +357,30 @@ export default function Deals() {
           </div>
         )}
 
+        {/* Empty State */}
+        {!loading && deals.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
+              <MessageSquare className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="text-lg font-medium text-foreground mb-2">No deals yet</h3>
+            <p className="text-muted-foreground mb-4 max-w-sm">
+              Start by adding a conversation or creating your first deal.
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setIsConversationModalOpen(true)}>
+                <MessageSquare className="mr-2 h-4 w-4" />
+                Add Conversation
+              </Button>
+              <Button onClick={() => setIsAddDialogOpen(true)}>
+                Add Deal
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Pipeline View */}
-        {!loading && viewMode === 'pipeline' && (
+        {!loading && deals.length > 0 && viewMode === 'pipeline' && (
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -435,7 +419,7 @@ export default function Deals() {
         )}
 
         {/* Table View */}
-        {!loading && viewMode === 'table' && (
+        {!loading && deals.length > 0 && viewMode === 'table' && (
           <DealsTable 
             deals={filteredDeals} 
             stages={stages} 
