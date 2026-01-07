@@ -2,15 +2,16 @@ import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
-import { 
-  MessageSquare, 
-  Brain, 
-  Shield, 
+import {
+  MessageSquare,
+  Brain,
+  Shield,
   ArrowRight,
   Sparkles,
   Phone,
   Lock,
-  Zap
+  Zap,
+  Check
 } from "lucide-react";
 import { BlurText, DecryptedText, Orb, DotGrid, ColorBends } from "@/components/reactbits";
 
@@ -103,7 +104,7 @@ const Landing = () => {
           {/* Subheadline with DecryptedText */}
           <p className="text-xl sm:text-2xl text-white/70 max-w-2xl mx-auto mb-12 font-normal">
             <DecryptedText
-              text="Paste a call, meeting, or chat. AI does the rest."
+              text="Connect your ecosystem. Gmail, Meta, WhatsApp. AI does the rest."
               speed={40}
               maxIterations={15}
               animateOn="view"
@@ -167,8 +168,8 @@ const Landing = () => {
             {[
               {
                 step: "01",
-                title: "Paste a conversation",
-                description: "Drop any call transcript, meeting notes, or chat log.",
+                title: "Connect your ecosystem",
+                description: "Link Gmail, WhatsApp, Meta, and your communication tools.",
                 icon: MessageSquare
               },
               {
@@ -311,7 +312,136 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* SECTION 6 - Final CTA (Simple, gentle fade) */}
+      {/* SECTION 6 - Pricing */}
+      <section className="py-32 px-6 bg-neutral-50">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-20 scroll-reveal">
+            <h2 className="text-4xl sm:text-5xl font-bold text-black tracking-tight mb-4">
+              Simple, transparent pricing
+            </h2>
+            <p className="text-xl text-black/50">
+              Choose the plan that fits your team's needs
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {/* Starter Plan */}
+            <Card className="scroll-reveal border-black/10 bg-white hover:shadow-xl transition-all duration-500 rounded-3xl overflow-hidden">
+              <CardContent className="p-8">
+                <div className="text-sm font-semibold uppercase tracking-wider text-black/40 mb-2">Starter</div>
+                <div className="flex items-baseline mb-6">
+                  <span className="text-5xl font-bold text-black">$30</span>
+                  <span className="text-black/40 ml-2">/user/month</span>
+                </div>
+                <p className="text-black/60 mb-8">Perfect for small teams getting started with AI CRM</p>
+                <ul className="space-y-4 mb-8">
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-black/70">Connect Gmail & WhatsApp</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-black/70">Basic AI features</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-black/70">Lead & contact management</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-black/70">Email support</span>
+                  </li>
+                </ul>
+                <Button className="w-full rounded-full bg-black text-white hover:bg-black/90">
+                  Get Started
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Professional Plan - Featured */}
+            <Card className="scroll-reveal border-2 border-black bg-white hover:shadow-xl transition-all duration-500 rounded-3xl overflow-hidden relative">
+              <div className="absolute top-0 left-0 right-0 bg-black text-white text-center py-2 text-sm font-semibold">
+                Most Popular
+              </div>
+              <CardContent className="p-8 pt-14">
+                <div className="text-sm font-semibold uppercase tracking-wider text-black/40 mb-2">Professional</div>
+                <div className="flex items-baseline mb-6">
+                  <span className="text-5xl font-bold text-black">$60</span>
+                  <span className="text-black/40 ml-2">/user/month</span>
+                </div>
+                <p className="text-black/60 mb-8">For growing teams that need advanced features</p>
+                <ul className="space-y-4 mb-8">
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-black/70">Connect entire ecosystem (Gmail, Meta, WhatsApp)</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-black/70">Upload call recordings & transcripts</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-black/70">AI analytics & insights</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-black/70">Advanced reporting</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-black/70">Priority support</span>
+                  </li>
+                </ul>
+                <Button className="w-full rounded-full bg-black text-white hover:bg-black/90">
+                  Get Started
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Enterprise Plan */}
+            <Card className="scroll-reveal border-black/10 bg-white hover:shadow-xl transition-all duration-500 rounded-3xl overflow-hidden">
+              <CardContent className="p-8">
+                <div className="text-sm font-semibold uppercase tracking-wider text-black/40 mb-2">Enterprise</div>
+                <div className="flex items-baseline mb-6">
+                  <span className="text-5xl font-bold text-black">Custom</span>
+                </div>
+                <p className="text-black/60 mb-8">For large teams with custom requirements</p>
+                <ul className="space-y-4 mb-8">
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-black/70">Everything in Professional</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-black/70">Dedicated phone numbers</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-black/70">In-platform calling</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-black/70">Custom integrations</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-black/70">Dedicated account manager</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-black/70">SLA & 24/7 support</span>
+                  </li>
+                </ul>
+                <Button variant="outline" className="w-full rounded-full border-black/20 text-black hover:bg-black hover:text-white">
+                  Contact Sales
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION 7 - Final CTA (Simple, gentle fade) */}
       <section className="py-32 px-6 scroll-reveal">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-4xl sm:text-5xl font-bold text-black tracking-tight mb-6">
@@ -320,8 +450,8 @@ const Landing = () => {
           <p className="text-xl text-black/50 mb-12">
             No signup required. See your CRM update itself in 2 minutes.
           </p>
-          <Button 
-            size="lg" 
+          <Button
+            size="lg"
             className="text-base px-10 py-6 bg-black text-white hover:bg-black/90 rounded-full group"
             onClick={() => navigate('/demo')}
           >

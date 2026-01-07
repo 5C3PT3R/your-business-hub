@@ -25,45 +25,8 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
-import { useEffect } from "react";
 
 const queryClient = new QueryClient();
-
-// V1: Auto-create sales workspace if user has none
-function AutoCreateSalesWorkspace({ children }: { children: React.ReactNode }) {
-  const { hasWorkspace, loading, createWorkspace, workspaces } = useWorkspace();
-  const [hasTriedCreating, setHasTriedCreating] = React.useState(false);
-
-  useEffect(() => {
-    const autoCreate = async () => {
-      console.log('[AutoCreateSalesWorkspace] loading:', loading, 'hasWorkspace:', hasWorkspace, 'workspaces:', workspaces.length, 'hasTriedCreating:', hasTriedCreating);
-      // Only create if no workspaces exist at all AND we haven't tried creating yet
-      if (!loading && workspaces.length === 0 && !hasTriedCreating) {
-        setHasTriedCreating(true);
-        console.log('[AutoCreateSalesWorkspace] Creating Sales CRM workspace...');
-        const result = await createWorkspace('Sales CRM', 'sales');
-        if (result.error) {
-          console.error('[AutoCreateSalesWorkspace] Workspace creation failed:', result.error);
-        } else {
-          console.log('[AutoCreateSalesWorkspace] Workspace created successfully');
-        }
-      }
-    };
-    autoCreate();
-  }, [loading, workspaces.length, hasTriedCreating]);
-
-  if (loading || !hasWorkspace) {
-    console.log('[AutoCreateSalesWorkspace] Showing loader - loading:', loading, 'hasWorkspace:', hasWorkspace);
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  console.log('[AutoCreateSalesWorkspace] Rendering children');
-  return <>{children}</>;
-}
 
 // Protected route that requires authentication
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -82,11 +45,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/auth" replace />;
   }
 
-  return (
-    <AutoCreateSalesWorkspace>
-      {children}
-    </AutoCreateSalesWorkspace>
-  );
+  return <>{children}</>;
 }
 
 function AppRoutes() {
