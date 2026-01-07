@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quick Database Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #fff; max-width: 1000px; margin: 0 auto; }
+        button { background: #0078d4; color: white; border: none; padding: 15px 30px; cursor: pointer; margin: 10px 5px; border-radius: 4px; font-size: 16px; font-weight: bold; }
+        button:hover { background: #106ebe; }
+        button:active { transform: scale(0.98); }
+        .output { background: #252526; padding: 20px; margin: 15px 0; border-radius: 4px; min-height: 100px; white-space: pre-wrap; font-size: 14px; line-height: 1.6; }
+        .success { color: #4ec9b0; }
+        .error { color: #f48771; }
+        .warning { color: #dcdcaa; }
+        h1 { color: #4ec9b0; }
+        .step { background: #2d2d30; padding: 15px; margin: 10px 0; border-left: 4px solid #0078d4; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Database Test & Fix Tool</h1>
+    <p>Test your database and apply fixes automatically</p>
+
+    <div class="step">
+        <strong>Step 1:</strong> Make sure you're logged in at <a href="https://upflo-lac.vercel.app/" target="_blank" style="color: #4ec9b0;">your app</a>
+    </div>
+
+    <button onclick="testEverything()">▶️ RUN FULL TEST</button>
+    <button onclick="applyFix()">🔧 COPY FIX SQL</button>
+
+    <div class="output" id="output">Click "RUN FULL TEST" to start...</div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const output = document.getElementById('output');
+
+        function log(msg, color = '#fff') {
+            const line = document.createElement('div');
+            line.style.color = color;
+            line.textContent = msg;
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clear() {
+            output.innerHTML = '';
+        }
+
+        const client = window.supabase.createClient(
+            'https://pesqbkgfsfkqdquhilsv.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlc3Fia2dmc2ZrcWRxdWhpbHN2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1MDU3MTYsImV4cCI6MjA4MjA4MTcxNn0.SuRLVpP_k8vbSiZeTG_aJY9qiOPvRLiZo8amZNv2YTQ'
+        );
+
+        async function testEverything() {
+            clear();
+            log('🔍 STARTING FULL DIAGNOSTIC...\n', '#4ec9b0');
+
+            // Test 1: Auth
+            log('Test 1: Checking authentication...', '#dcdcaa');
+            const { data: { user }, error: authError } = await client.auth.getUser();
+
+            if (authError || !user) {
+                log('❌ NOT LOGGED IN!', '#f48771');
+                log('Please log in at: https://upflo-lac.vercel.app/', '#f48771');
+                log('Then come back and click RUN FULL TEST again.\n', '#dcdcaa');
+                return;
+            }
+
+            log('✅ Logged in as: ' + user.email, '#4ec9b0');
+            log('User ID: ' + user.id + '\n', '#4ec9b0');
+
+            // Test 2: Workspace
+            log('Test 2: Checking workspace...', '#dcdcaa');
+            const { data: workspaces, error: wsError } = await client
+                .from('workspaces')
+                .select('*');
+
+            if (wsError || !workspaces || workspaces.length === 0) {
+                log('❌ No workspace found!', '#f48771');
+                log('Create a workspace in the app first.\n', '#dcdcaa');
+                return;
+            }
+
+            const workspace = workspaces[0];
+            log('✅ Found workspace: ' + workspace.name, '#4ec9b0');
+            log('Workspace ID: ' + workspace.id + '\n', '#4ec9b0');
+
+            // Test 3: Read leads
+            log('Test 3: Reading leads from database...', '#dcdcaa');
+            const { data: leads, error: readError } = await client
+                .from('leads')
+                .select('*')
+                .eq('workspace_id', workspace.id);
+
+            if (readError) {
+                log('❌ ERROR READING LEADS: ' + readError.message, '#f48771');
+                log('\nDETAILS:', '#f48771');
+                log(JSON.stringify(readError, null, 2), '#f48771');
+
+                if (readError.message.includes('column')) {
+                    log('\n💡 PROBLEM: Missing columns in leads table!', '#dcdcaa');
+                    log('👉 Click "COPY FIX SQL" button above', '#4ec9b0');
+                }
+                if (readError.message.includes('permission') || readError.message.includes('policy')) {
+                    log('\n💡 PROBLEM: RLS policies blocking access!', '#dcdcaa');
+                    log('👉 Click "COPY FIX SQL" button above', '#4ec9b0');
+                }
+                return;
+            }
+
+            log('✅ Successfully read leads!', '#4ec9b0');
+            log('Found ' + leads.length + ' existing leads\n', '#4ec9b0');
+
+            // Test 4: Create test lead
+            log('Test 4: Creating test lead...', '#dcdcaa');
+            const testLead = {
+                name: 'DIAGNOSTIC_TEST_' + Date.now(),
+                email: 'test@diagnostic.com',
+                company: 'Test Corp',
+                status: 'new',
+                value: 9999,
+                user_id: user.id,
+                workspace_id: workspace.id
+            };
+
+            log('Inserting: ' + testLead.name, '#dcdcaa');
+            const { data: newLead, error: insertError } = await client
+                .from('leads')
+                .insert(testLead)
+                .select()
+                .single();
+
+            if (insertError) {
+                log('❌ FAILED TO CREATE LEAD!', '#f48771');
+                log('Error: ' + insertError.message, '#f48771');
+                log('\n💡 PROBLEM: Cannot insert data!', '#dcdcaa');
+                log('👉 Click "COPY FIX SQL" button above', '#4ec9b0');
+                return;
+            }
+
+            log('✅ Lead created! ID: ' + newLead.id, '#4ec9b0');
+
+            // Test 5: Read it back (THE KEY TEST)
+            log('\nTest 5: Reading back the lead we just created...', '#dcdcaa');
+            await new Promise(r => setTimeout(r, 500)); // Wait a bit
+
+            const { data: fetchedLead, error: fetchError } = await client
+                .from('leads')
+                .select('*')
+                .eq('id', newLead.id)
+                .single();
+
+            if (fetchError || !fetchedLead) {
+                log('❌ CANNOT READ BACK THE LEAD!!!', '#f48771');
+                log('This is THE BUG causing data to disappear!', '#f48771');
+                log('Error: ' + (fetchError?.message || 'Lead not found'), '#f48771');
+                log('\n💡 PROBLEM: RLS SELECT policy is blocking you!', '#dcdcaa');
+                log('👉 Click "COPY FIX SQL" button above NOW!', '#4ec9b0');
+
+                // Try to clean up
+                await client.from('leads').delete().eq('id', newLead.id);
+                return;
+            }
+
+            log('✅ SUCCESS! Lead persists!', '#4ec9b0');
+            log('Retrieved: ' + fetchedLead.name, '#4ec9b0');
+
+            // Clean up
+            log('\nCleaning up test data...', '#dcdcaa');
+            await client.from('leads').delete().eq('id', newLead.id);
+            log('✅ Test lead deleted\n', '#4ec9b0');
+
+            log('═'.repeat(60), '#4ec9b0');
+            log('🎉 ALL TESTS PASSED!', '#4ec9b0');
+            log('Your database is working correctly!', '#4ec9b0');
+            log('═'.repeat(60), '#4ec9b0');
+            log('\nIf you still see issues in the app:', '#dcdcaa');
+            log('1. Log out and back in', '#dcdcaa');
+            log('2. Clear browser cache (Ctrl+Shift+Delete)', '#dcdcaa');
+            log('3. Hard refresh (Ctrl+F5)', '#dcdcaa');
+        }
+
+        async function applyFix() {
+            clear();
+            log('Preparing SQL fix...', '#dcdcaa');
+
+            const sql = `-- INSTANT FIX FOR DATA PERSISTENCE
+-- Copy this and run in: https://supabase.com/dashboard/project/pesqbkgfsfkqdquhilsv/sql/new
+
+-- Add missing columns
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS company TEXT;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS source TEXT;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'new';
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS value NUMERIC DEFAULT 0;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS user_id UUID;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS workspace_id UUID;
+
+-- Enable RLS
+ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
+
+-- Drop old policies
+DROP POLICY IF EXISTS "leads_select" ON public.leads;
+DROP POLICY IF EXISTS "leads_insert" ON public.leads;
+DROP POLICY IF EXISTS "leads_update" ON public.leads;
+DROP POLICY IF EXISTS "leads_delete" ON public.leads;
+DROP POLICY IF EXISTS "Users can view leads in their workspaces" ON public.leads;
+DROP POLICY IF EXISTS "Users can create leads in their workspaces" ON public.leads;
+DROP POLICY IF EXISTS "Users can update leads in their workspaces" ON public.leads;
+DROP POLICY IF EXISTS "Users can delete leads in their workspaces" ON public.leads;
+
+-- Create working policies
+CREATE POLICY "leads_select" ON public.leads
+FOR SELECT TO authenticated
+USING (
+  auth.uid() = user_id
+  OR workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())
+);
+
+CREATE POLICY "leads_insert" ON public.leads
+FOR INSERT TO authenticated
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "leads_update" ON public.leads
+FOR UPDATE TO authenticated
+USING (
+  auth.uid() = user_id
+  OR workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())
+);
+
+CREATE POLICY "leads_delete" ON public.leads
+FOR DELETE TO authenticated
+USING (
+  auth.uid() = user_id
+  OR workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())
+);
+
+-- Create tables for deals and contacts
+CREATE TABLE IF NOT EXISTS public.contacts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    email TEXT,
+    phone TEXT,
+    company TEXT,
+    role TEXT,
+    user_id UUID,
+    workspace_id UUID,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.contacts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "contacts_all" ON public.contacts FOR ALL TO authenticated
+USING (auth.uid() = user_id OR workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()))
+WITH CHECK (auth.uid() = user_id);
+
+CREATE TABLE IF NOT EXISTS public.deals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT NOT NULL,
+    value NUMERIC DEFAULT 0,
+    stage TEXT DEFAULT 'lead',
+    probability INTEGER DEFAULT 0,
+    close_date DATE,
+    contact_id UUID,
+    lead_id UUID,
+    user_id UUID,
+    workspace_id UUID,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.deals ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "deals_all" ON public.deals FOR ALL TO authenticated
+USING (auth.uid() = user_id OR workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()))
+WITH CHECK (auth.uid() = user_id);
+
+-- Success
+SELECT 'SUCCESS - Database fixed!' as result;`;
+
+            try {
+                await navigator.clipboard.writeText(sql);
+                log('✅ SQL FIX COPIED TO CLIPBOARD!\n', '#4ec9b0');
+                log('═'.repeat(60), '#4ec9b0');
+                log('NEXT STEPS:', '#dcdcaa');
+                log('═'.repeat(60), '#4ec9b0');
+                log('\n1. Click this link:', '#dcdcaa');
+                log('   https://supabase.com/dashboard/project/pesqbkgfsfkqdquhilsv/sql/new', '#4ec9b0');
+                log('\n2. PASTE the SQL (Ctrl+V)', '#dcdcaa');
+                log('\n3. Click RUN button (bottom right)', '#dcdcaa');
+                log('\n4. Wait for "Success" message', '#dcdcaa');
+                log('\n5. Come back here and click "RUN FULL TEST" again', '#dcdcaa');
+                log('\n6. Should show ALL TESTS PASSED ✅', '#4ec9b0');
+                log('\n7. Go to your app and refresh - data should persist!', '#4ec9b0');
+            } catch (err) {
+                log('❌ Could not copy to clipboard automatically', '#f48771');
+                log('\nManually copy this SQL:', '#dcdcaa');
+                log('\n' + sql, '#fff');
+            }
+        }
+
+        // Auto-run test on load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                log('Ready! Click "RUN FULL TEST" to diagnose your database.', '#4ec9b0');
+            }, 500);
+        });
+    </script>
+</body>
+</html>

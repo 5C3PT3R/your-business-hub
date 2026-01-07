@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Data Persistence</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #0f0; }
+        button { padding: 10px 20px; margin: 5px; font-size: 16px; cursor: pointer; }
+        .output { background: #000; padding: 15px; margin: 10px 0; border: 1px solid #0f0; max-height: 500px; overflow-y: auto; }
+        .error { color: #f00; }
+        .success { color: #0f0; }
+        .info { color: #0ff; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Data Persistence Test</h1>
+    <div>
+        <button onclick="testWorkspace()">1. Check Workspace</button>
+        <button onclick="testAddLead()">2. Add Test Lead</button>
+        <button onclick="testFetchLeads()">3. Fetch Leads</button>
+        <button onclick="testAddContact()">4. Add Test Contact</button>
+        <button onclick="testFetchContacts()">5. Fetch Contacts</button>
+        <button onclick="testPolicies()">6. Test Policies</button>
+        <button onclick="clearOutput()">Clear</button>
+    </div>
+    <div class="output" id="output"></div>
+
+    <script>
+        const { createClient } = supabase;
+        const client = createClient(
+            'https://pesqbkgfsfkqdquhilsv.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlc3Fia2dmc2ZrcWRxdWhpbHN2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1MDU3MTYsImV4cCI6MjA4MjA4MTcxNn0.SuRLVpP_k8vbSiZeTG_aJY9qiOPvRLiZo8amZNv2YTQ'
+        );
+
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+            console.log(message);
+        }
+
+        function clearOutput() {
+            document.getElementById('output').innerHTML = '';
+        }
+
+        async function testWorkspace() {
+            log('=== TESTING WORKSPACE ===', 'info');
+
+            const { data: { user }, error: authError } = await client.auth.getUser();
+            if (authError || !user) {
+                log('ERROR: Not logged in!', 'error');
+                return;
+            }
+            log(`✓ Logged in as: ${user.email}`, 'success');
+            log(`✓ User ID: ${user.id}`, 'success');
+
+            // Check workspaces
+            const { data: workspaces, error: wsError } = await client
+                .from('workspaces')
+                .select('*')
+                .eq('owner_id', user.id);
+
+            if (wsError) {
+                log(`ERROR fetching workspaces: ${wsError.message}`, 'error');
+                return;
+            }
+
+            log(`✓ Found ${workspaces.length} workspaces`, 'success');
+            workspaces.forEach((ws, i) => {
+                log(`  ${i + 1}. ${ws.name} (ID: ${ws.id})`, 'info');
+            });
+
+            // Check localStorage
+            const savedWsId = localStorage.getItem('current_workspace_id');
+            log(`✓ localStorage workspace_id: ${savedWsId || 'NOT SET'}`, savedWsId ? 'success' : 'error');
+
+            // Check workspace_members
+            const { data: members } = await client
+                .from('workspace_members')
+                .select('*')
+                .eq('user_id', user.id);
+
+            log(`✓ Member of ${members.length} workspaces`, 'success');
+            members.forEach(m => {
+                log(`  - Workspace: ${m.workspace_id}, Role: ${m.role}`, 'info');
+            });
+
+            return { user, workspace: workspaces[0] };
+        }
+
+        async function testAddLead() {
+            log('=== ADDING TEST LEAD ===', 'info');
+
+            const { data: { user } } = await client.auth.getUser();
+            if (!user) {
+                log('ERROR: Not logged in!', 'error');
+                return;
+            }
+
+            const { data: workspaces } = await client
+                .from('workspaces')
+                .select('*')
+                .eq('owner_id', user.id)
+                .limit(1);
+
+            if (!workspaces || workspaces.length === 0) {
+                log('ERROR: No workspace found!', 'error');
+                return;
+            }
+
+            const workspace = workspaces[0];
+            log(`Using workspace: ${workspace.name} (${workspace.id})`, 'info');
+
+            const leadData = {
+                name: `Test Lead ${Date.now()}`,
+                email: 'test@example.com',
+                phone: '+1234567890',
+                company: 'Test Corp',
+                source: 'test',
+                status: 'new',
+                value: 1000,
+                user_id: user.id,
+                workspace_id: workspace.id
+            };
+
+            log(`Inserting lead: ${JSON.stringify(leadData, null, 2)}`, 'info');
+
+            const { data, error } = await client
+                .from('leads')
+                .insert([leadData])
+                .select()
+                .single();
+
+            if (error) {
+                log(`ERROR: ${error.message}`, 'error');
+                log(`Details: ${JSON.stringify(error, null, 2)}`, 'error');
+                return;
+            }
+
+            log(`✓ Lead created successfully!`, 'success');
+            log(`  ID: ${data.id}`, 'success');
+            log(`  Name: ${data.name}`, 'success');
+            log(`  Workspace: ${data.workspace_id}`, 'success');
+            log(`  User: ${data.user_id}`, 'success');
+        }
+
+        async function testFetchLeads() {
+            log('=== FETCHING LEADS ===', 'info');
+
+            const { data: { user } } = await client.auth.getUser();
+            if (!user) {
+                log('ERROR: Not logged in!', 'error');
+                return;
+            }
+
+            const { data: workspaces } = await client
+                .from('workspaces')
+                .select('*')
+                .eq('owner_id', user.id)
+                .limit(1);
+
+            if (!workspaces || workspaces.length === 0) {
+                log('ERROR: No workspace found!', 'error');
+                return;
+            }
+
+            const workspace = workspaces[0];
+            log(`Fetching leads for workspace: ${workspace.id}`, 'info');
+
+            const { data: leads, error } = await client
+                .from('leads')
+                .select('*')
+                .eq('workspace_id', workspace.id)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                log(`ERROR: ${error.message}`, 'error');
+                log(`Details: ${JSON.stringify(error, null, 2)}`, 'error');
+                return;
+            }
+
+            log(`✓ Found ${leads.length} leads`, 'success');
+            leads.forEach((lead, i) => {
+                log(`  ${i + 1}. ${lead.name} - ${lead.email} (ID: ${lead.id})`, 'info');
+                log(`     Workspace: ${lead.workspace_id}, User: ${lead.user_id}`, 'info');
+            });
+        }
+
+        async function testAddContact() {
+            log('=== ADDING TEST CONTACT ===', 'info');
+
+            const { data: { user } } = await client.auth.getUser();
+            if (!user) {
+                log('ERROR: Not logged in!', 'error');
+                return;
+            }
+
+            const { data: workspaces } = await client
+                .from('workspaces')
+                .select('*')
+                .eq('owner_id', user.id)
+                .limit(1);
+
+            if (!workspaces || workspaces.length === 0) {
+                log('ERROR: No workspace found!', 'error');
+                return;
+            }
+
+            const workspace = workspaces[0];
+            log(`Using workspace: ${workspace.name} (${workspace.id})`, 'info');
+
+            const contactData = {
+                name: `Test Contact ${Date.now()}`,
+                email: 'contact@example.com',
+                phone: '+1234567890',
+                company: 'Test Corp',
+                position: 'Manager',
+                status: 'active',
+                user_id: user.id,
+                workspace_id: workspace.id
+            };
+
+            log(`Inserting contact: ${JSON.stringify(contactData, null, 2)}`, 'info');
+
+            const { data, error } = await client
+                .from('contacts')
+                .insert([contactData])
+                .select()
+                .single();
+
+            if (error) {
+                log(`ERROR: ${error.message}`, 'error');
+                log(`Details: ${JSON.stringify(error, null, 2)}`, 'error');
+                return;
+            }
+
+            log(`✓ Contact created successfully!`, 'success');
+            log(`  ID: ${data.id}`, 'success');
+            log(`  Name: ${data.name}`, 'success');
+            log(`  Workspace: ${data.workspace_id}`, 'success');
+            log(`  User: ${data.user_id}`, 'success');
+        }
+
+        async function testFetchContacts() {
+            log('=== FETCHING CONTACTS ===', 'info');
+
+            const { data: { user } } = await client.auth.getUser();
+            if (!user) {
+                log('ERROR: Not logged in!', 'error');
+                return;
+            }
+
+            const { data: workspaces } = await client
+                .from('workspaces')
+                .select('*')
+                .eq('owner_id', user.id)
+                .limit(1);
+
+            if (!workspaces || workspaces.length === 0) {
+                log('ERROR: No workspace found!', 'error');
+                return;
+            }
+
+            const workspace = workspaces[0];
+            log(`Fetching contacts for workspace: ${workspace.id}`, 'info');
+
+            const { data: contacts, error } = await client
+                .from('contacts')
+                .select('*')
+                .eq('workspace_id', workspace.id)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                log(`ERROR: ${error.message}`, 'error');
+                log(`Details: ${JSON.stringify(error, null, 2)}`, 'error');
+                return;
+            }
+
+            log(`✓ Found ${contacts.length} contacts`, 'success');
+            contacts.forEach((contact, i) => {
+                log(`  ${i + 1}. ${contact.name} - ${contact.email} (ID: ${contact.id})`, 'info');
+                log(`     Workspace: ${contact.workspace_id}, User: ${contact.user_id}`, 'info');
+            });
+        }
+
+        async function testPolicies() {
+            log('=== TESTING RLS POLICIES ===', 'info');
+
+            const { data: { user } } = await client.auth.getUser();
+            if (!user) {
+                log('ERROR: Not logged in!', 'error');
+                return;
+            }
+
+            log(`Testing as user: ${user.id}`, 'info');
+
+            // Test 1: Can we select from leads?
+            const { data: leads, error: leadsError } = await client
+                .from('leads')
+                .select('count');
+
+            if (leadsError) {
+                log(`✗ SELECT leads FAILED: ${leadsError.message}`, 'error');
+            } else {
+                log(`✓ SELECT leads OK (count: ${leads[0]?.count || 0})`, 'success');
+            }
+
+            // Test 2: Can we select from contacts?
+            const { data: contacts, error: contactsError } = await client
+                .from('contacts')
+                .select('count');
+
+            if (contactsError) {
+                log(`✗ SELECT contacts FAILED: ${contactsError.message}`, 'error');
+            } else {
+                log(`✓ SELECT contacts OK (count: ${contacts[0]?.count || 0})`, 'success');
+            }
+
+            // Test 3: Can we select from deals?
+            const { data: deals, error: dealsError } = await client
+                .from('deals')
+                .select('count');
+
+            if (dealsError) {
+                log(`✗ SELECT deals FAILED: ${dealsError.message}`, 'error');
+            } else {
+                log(`✓ SELECT deals OK (count: ${deals[0]?.count || 0})`, 'success');
+            }
+
+            // Test 4: Can we select from tasks?
+            const { data: tasks, error: tasksError } = await client
+                .from('tasks')
+                .select('count');
+
+            if (tasksError) {
+                log(`✗ SELECT tasks FAILED: ${tasksError.message}`, 'error');
+            } else {
+                log(`✓ SELECT tasks OK (count: ${tasks[0]?.count || 0})`, 'success');
+            }
+        }
+
+        // Auto-run workspace test on load
+        window.onload = () => {
+            log('=== Test Tool Loaded ===', 'success');
+            log('Click buttons above to test', 'info');
+        };
+    </script>
+</body>
+</html>

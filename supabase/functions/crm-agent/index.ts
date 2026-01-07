@@ -58,9 +58,18 @@ serve(async (req) => {
   try {
     const { instruction, workspaceId, industryType, context, allowedActions, fileData } = await req.json() as AgentRequest;
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    
+
     if (!OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY is not configured");
+      return new Response(
+        JSON.stringify({
+          error: "AI agent not configured",
+          message: "OPENAI_API_KEY environment variable must be set in Supabase Edge Functions settings"
+        }),
+        {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     const industryPrompt = industryPrompts[industryType] || industryPrompts.sales;

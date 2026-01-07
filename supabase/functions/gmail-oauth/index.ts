@@ -16,10 +16,10 @@ import { encryptToken } from '../_shared/encryption.ts';
 import { enforceRateLimit } from '../_shared/rate-limiter.ts';
 import { logAudit, logOAuthConnected } from '../_shared/audit-logger.ts';
 
-const GMAIL_CLIENT_ID = Deno.env.get('GMAIL_CLIENT_ID')!;
-const GMAIL_CLIENT_SECRET = Deno.env.get('GMAIL_CLIENT_SECRET')!;
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const GMAIL_CLIENT_ID = Deno.env.get('GMAIL_CLIENT_ID');
+const GMAIL_CLIENT_SECRET = Deno.env.get('GMAIL_CLIENT_SECRET');
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 // OAuth scopes - full access (read, send, modify)
 const GMAIL_SCOPES = [
@@ -94,22 +94,61 @@ serve(async (req) => {
  * Start OAuth flow - redirect user to Google
  */
 async function handleOAuthStart(req: Request, supabase: any): Promise<Response> {
+  // Check if environment variables are set
+  if (!GMAIL_CLIENT_ID || !GMAIL_CLIENT_SECRET) {
+    return new Response(
+      JSON.stringify({
+        error: 'Gmail OAuth not configured',
+        message: 'GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET environment variables must be set in Supabase Edge Functions settings'
+      }),
+      {
+        status: 503,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        }
+      }
+    );
+  }
+
   // Get user from Authorization header
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized', message: 'Authorization header missing' }),
+      {
+        status: 401,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        }
+      }
+    );
   }
 
   const token = authHeader.replace('Bearer ', '');
   const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
   if (authError || !user) {
-    return new Response(JSON.stringify({ error: 'Invalid token' }), { status: 401 });
+    return new Response(
+      JSON.stringify({ error: 'Invalid token', message: authError?.message || 'Unable to verify user' }),
+      {
+        status: 401,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        }
+      }
+    );
   }
 
-  // Rate limiting
-  const rateLimitResponse = await enforceRateLimit(supabase, user.id, 'gmail-oauth');
-  if (rateLimitResponse) return rateLimitResponse;
+  // Rate limiting (skip if function not available)
+  try {
+    const rateLimitResponse = await enforceRateLimit(supabase, user.id, 'gmail-oauth');
+    if (rateLimitResponse) return rateLimitResponse;
+  } catch (e) {
+    console.warn('Rate limiting skipped:', e);
+  }
 
   // Generate state parameter for CSRF protection
   const state = crypto.randomUUID();
