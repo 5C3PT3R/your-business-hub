@@ -30,12 +30,13 @@ const queryClient = new QueryClient();
 
 // V1: Auto-create sales workspace if user has none
 function AutoCreateSalesWorkspace({ children }: { children: React.ReactNode }) {
-  const { hasWorkspace, loading, createWorkspace } = useWorkspace();
+  const { hasWorkspace, loading, createWorkspace, workspaces } = useWorkspace();
 
   useEffect(() => {
     const autoCreate = async () => {
-      console.log('[AutoCreateSalesWorkspace] loading:', loading, 'hasWorkspace:', hasWorkspace);
-      if (!loading && !hasWorkspace) {
+      console.log('[AutoCreateSalesWorkspace] loading:', loading, 'hasWorkspace:', hasWorkspace, 'workspaces:', workspaces.length);
+      // Only create if no workspaces exist at all
+      if (!loading && workspaces.length === 0) {
         console.log('[AutoCreateSalesWorkspace] Creating Sales CRM workspace...');
         const result = await createWorkspace('Sales CRM', 'sales');
         if (result.error) {
@@ -46,7 +47,7 @@ function AutoCreateSalesWorkspace({ children }: { children: React.ReactNode }) {
       }
     };
     autoCreate();
-  }, [loading, hasWorkspace, createWorkspace]);
+  }, [loading, workspaces.length]);
 
   if (loading || !hasWorkspace) {
     console.log('[AutoCreateSalesWorkspace] Showing loader - loading:', loading, 'hasWorkspace:', hasWorkspace);
