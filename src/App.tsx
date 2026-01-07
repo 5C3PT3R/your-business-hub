@@ -4,6 +4,7 @@
  * User flow: Landing → Auth → Pipeline → Deal → Conversation
  */
 
+import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -31,12 +32,14 @@ const queryClient = new QueryClient();
 // V1: Auto-create sales workspace if user has none
 function AutoCreateSalesWorkspace({ children }: { children: React.ReactNode }) {
   const { hasWorkspace, loading, createWorkspace, workspaces } = useWorkspace();
+  const [hasTriedCreating, setHasTriedCreating] = React.useState(false);
 
   useEffect(() => {
     const autoCreate = async () => {
-      console.log('[AutoCreateSalesWorkspace] loading:', loading, 'hasWorkspace:', hasWorkspace, 'workspaces:', workspaces.length);
-      // Only create if no workspaces exist at all
-      if (!loading && workspaces.length === 0) {
+      console.log('[AutoCreateSalesWorkspace] loading:', loading, 'hasWorkspace:', hasWorkspace, 'workspaces:', workspaces.length, 'hasTriedCreating:', hasTriedCreating);
+      // Only create if no workspaces exist at all AND we haven't tried creating yet
+      if (!loading && workspaces.length === 0 && !hasTriedCreating) {
+        setHasTriedCreating(true);
         console.log('[AutoCreateSalesWorkspace] Creating Sales CRM workspace...');
         const result = await createWorkspace('Sales CRM', 'sales');
         if (result.error) {
@@ -47,7 +50,7 @@ function AutoCreateSalesWorkspace({ children }: { children: React.ReactNode }) {
       }
     };
     autoCreate();
-  }, [loading, workspaces.length]);
+  }, [loading, workspaces.length, hasTriedCreating]);
 
   if (loading || !hasWorkspace) {
     console.log('[AutoCreateSalesWorkspace] Showing loader - loading:', loading, 'hasWorkspace:', hasWorkspace);
