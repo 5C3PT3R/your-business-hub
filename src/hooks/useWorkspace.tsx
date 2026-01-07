@@ -34,11 +34,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const fetchWorkspaces = async () => {
     if (!user) {
+      console.log('[useWorkspace] No user, clearing workspaces');
       setWorkspaces([]);
       setWorkspace(null);
       setLoading(false);
       return;
     }
+
+    console.log('[useWorkspace] Fetching workspaces for user:', user.id);
 
     try {
       // Fetch workspaces where user is owner or member
@@ -47,7 +50,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         .select('workspace_id')
         .eq('user_id', user.id);
 
-      if (memberError) throw memberError;
+      if (memberError) {
+        console.error('[useWorkspace] Error fetching workspace members:', memberError);
+        throw memberError;
+      }
+
+      console.log('[useWorkspace] Member workspaces:', memberWorkspaces);
 
       const memberWorkspaceIds = memberWorkspaces?.map(m => m.workspace_id) || [];
 
@@ -78,20 +86,26 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       }));
 
       setWorkspaces(typedWorkspaces);
+      console.log('[useWorkspace] Found workspaces:', typedWorkspaces.length);
 
       // Auto-select first workspace or from localStorage
       const savedWorkspaceId = localStorage.getItem('current_workspace_id');
       const savedWorkspace = typedWorkspaces.find(w => w.id === savedWorkspaceId);
-      
+
       if (savedWorkspace) {
+        console.log('[useWorkspace] Setting saved workspace:', savedWorkspaceId);
         setWorkspace(savedWorkspace);
       } else if (typedWorkspaces.length > 0) {
+        console.log('[useWorkspace] Setting first workspace:', typedWorkspaces[0].id);
         setWorkspace(typedWorkspaces[0]);
         localStorage.setItem('current_workspace_id', typedWorkspaces[0].id);
+      } else {
+        console.log('[useWorkspace] No workspaces found');
       }
     } catch (error) {
-      console.error('Error fetching workspaces:', error);
+      console.error('[useWorkspace] Error fetching workspaces:', error);
     } finally {
+      console.log('[useWorkspace] Fetch complete, setting loading to false');
       setLoading(false);
     }
   };
@@ -102,12 +116,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const createWorkspace = async (name: string, industryType: IndustryType) => {
     if (!user) {
+      console.error('[useWorkspace] Cannot create workspace: No user');
       return { error: new Error('User not authenticated') };
     }
 
+    console.log('[useWorkspace] Creating workspace:', { name, industryType, userId: user.id });
+
     try {
       const template = getIndustryTemplate(industryType);
-      
+      console.log('[useWorkspace] Using template:', template);
+
       const { data: newWorkspace, error: workspaceError } = await supabase
         .from('workspaces')
         .insert({
@@ -124,9 +142,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         .select()
         .single();
 
-      if (workspaceError) throw workspaceError;
+      if (workspaceError) {
+        console.error('[useWorkspace] Workspace creation error:', workspaceError);
+        throw workspaceError;
+      }
+
+      console.log('[useWorkspace] Workspace created:', newWorkspace.id);
 
       // Add owner as a member
+      console.log('[useWorkspace] Adding owner as member');
       const { error: memberError } = await supabase
         .from('workspace_members')
         .insert({
@@ -135,7 +159,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           role: 'owner',
         });
 
-      if (memberError) throw memberError;
+      if (memberError) {
+        console.error('[useWorkspace] Member creation error:', memberError);
+        throw memberError;
+      }
+
+      console.log('[useWorkspace] Member added successfully');
 
       const typedWorkspace = {
         ...newWorkspace,

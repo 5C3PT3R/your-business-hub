@@ -34,15 +34,22 @@ function AutoCreateSalesWorkspace({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const autoCreate = async () => {
+      console.log('[AutoCreateSalesWorkspace] loading:', loading, 'hasWorkspace:', hasWorkspace);
       if (!loading && !hasWorkspace) {
-        // V1 MODE: Automatically create a Sales CRM workspace
-        await createWorkspace('Sales CRM', 'sales');
+        console.log('[AutoCreateSalesWorkspace] Creating Sales CRM workspace...');
+        const result = await createWorkspace('Sales CRM', 'sales');
+        if (result.error) {
+          console.error('[AutoCreateSalesWorkspace] Workspace creation failed:', result.error);
+        } else {
+          console.log('[AutoCreateSalesWorkspace] Workspace created successfully');
+        }
       }
     };
     autoCreate();
   }, [loading, hasWorkspace, createWorkspace]);
 
   if (loading || !hasWorkspace) {
+    console.log('[AutoCreateSalesWorkspace] Showing loader - loading:', loading, 'hasWorkspace:', hasWorkspace);
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -50,6 +57,7 @@ function AutoCreateSalesWorkspace({ children }: { children: React.ReactNode }) {
     );
   }
 
+  console.log('[AutoCreateSalesWorkspace] Rendering children');
   return <>{children}</>;
 }
 

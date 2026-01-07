@@ -13,10 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { User, Bell, Shield, CreditCard, Users, Loader2 } from 'lucide-react';
+import { User, Bell, Shield, CreditCard, Users, Loader2, Plug } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { GmailConnect } from '@/components/integrations/GmailConnect';
 
 export default function Settings() {
   const { user, signOut } = useAuth();
@@ -179,6 +180,10 @@ export default function Settings() {
             <TabsTrigger value="team" className="gap-1.5 text-xs sm:text-sm">
               <Users className="h-4 w-4" />
               <span className="hidden sm:inline">Team</span>
+            </TabsTrigger>
+            <TabsTrigger value="integrations" className="gap-1.5 text-xs sm:text-sm">
+              <Plug className="h-4 w-4" />
+              <span className="hidden sm:inline">Integrations</span>
             </TabsTrigger>
             <TabsTrigger value="billing" className="gap-1.5 text-xs sm:text-sm">
               <CreditCard className="h-4 w-4" />
@@ -388,6 +393,27 @@ export default function Settings() {
                     <span className="text-sm text-muted-foreground">Admin</span>
                     <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">You</span>
                   </div>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="integrations" className="animate-slide-up">
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">Connected Accounts</h3>
+                <p className="text-sm text-muted-foreground">Connect your accounts to automatically capture leads and conversations</p>
+              </div>
+
+              <GmailConnect />
+
+              <div className="rounded-xl border border-border bg-card p-6 shadow-card">
+                <div className="text-center py-8">
+                  <Plug className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                  <h4 className="font-semibold text-foreground mb-2">More integrations coming soon</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Instagram, Facebook Messenger, and more will be available soon.
+                  </p>
                 </div>
               </div>
             </div>

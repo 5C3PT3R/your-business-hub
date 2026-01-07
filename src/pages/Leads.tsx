@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { useLeads, LeadStatus } from '@/hooks/useLeads';
 import { Button } from '@/components/ui/button';
+import { useWorkspace } from '@/hooks/useWorkspace';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -65,7 +66,13 @@ export default function Leads() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const { leads, loading, addLead, updateLead, deleteLead } = useLeads();
+  const { workspace } = useWorkspace();
   const { toast } = useToast();
+
+  // Debug logging
+  useEffect(() => {
+    console.log('[Leads Page] Render - workspace:', workspace?.id, 'leads:', leads.length, 'loading:', loading);
+  }, [workspace?.id, leads.length, loading]);
 
   const [newLead, setNewLead] = useState({
     name: '',
