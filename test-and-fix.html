@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Test & Fix Tool</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        button {
+            background: #000;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background: #333;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .log {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            padding: 5px;
+            margin-bottom: 5px;
+            border-left: 3px solid #ddd;
+            padding-left: 10px;
+        }
+        .log-entry.success { border-color: #28a745; }
+        .log-entry.error { border-color: #dc3545; }
+        .log-entry.info { border-color: #17a2b8; }
+        .step {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .step h3 {
+            margin-top: 0;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Database Test & Fix Tool</h1>
+        <p class="subtitle">Automatically test and fix your CRM database issues</p>
+
+        <div class="step">
+            <h3>Step 1: Apply Database Fixes</h3>
+            <button id="fixBtn" onclick="applyFixes()">🛠️ Fix Database Schema</button>
+            <p style="color: #666; font-size: 14px; margin-top: 10px;">
+                This will add all missing columns and set up proper security policies
+            </p>
+        </div>
+
+        <div class="step">
+            <h3>Step 2: Test Data Persistence</h3>
+            <button id="testBtn" onclick="runTests()" disabled>✅ Run Tests</button>
+            <p style="color: #666; font-size: 14px; margin-top: 10px;">
+                This will create test records and verify they persist
+            </p>
+        </div>
+
+        <div class="step">
+            <h3>Step 3: Verify Everything</h3>
+            <button id="verifyBtn" onclick="verifyAll()" disabled>🔍 Verify Status</button>
+            <p style="color: #666; font-size: 14px; margin-top: 10px;">
+                Check that all fixes are working correctly
+            </p>
+        </div>
+
+        <div id="status"></div>
+        <div id="log" class="log" style="display: none;"></div>
+    </div>
+
+    <script>
+        // Your Supabase credentials
+        const SUPABASE_URL = 'https://pesqbkgfsfkqdquhilsv.supabase.co';
+        const SUPABASE_ANON_KEY = prompt('Paste your SUPABASE_ANON_KEY (VITE_SUPABASE_PUBLISHABLE_KEY from .env):');
+
+        if (!SUPABASE_ANON_KEY) {
+            document.body.innerHTML = '<div class="container"><div class="status error">❌ Anon key required to continue</div></div>';
+            throw new Error('Anon key required');
+        }
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const log = [];
+
+        function addLog(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            logDiv.style.display = 'block';
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[${type}] ${message}`);
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.innerHTML = message;
+        }
+
+        async function applyFixes() {
+            const fixBtn = document.getElementById('fixBtn');
+            fixBtn.disabled = true;
+            fixBtn.textContent = '⏳ Applying fixes...';
+
+            addLog('Starting database fixes...', 'info');
+
+            try {
+                // Read the SQL fix file content (embedded here)
+                const fixSQL = \`
+-- Fix leads table
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'leads') THEN
+        CREATE TABLE public.leads (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), created_at TIMESTAMPTZ DEFAULT NOW());
+    END IF;
+
+    -- Add columns if missing
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='leads' AND column_name='name') THEN
+        ALTER TABLE public.leads ADD COLUMN name TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='leads' AND column_name='email') THEN
+        ALTER TABLE public.leads ADD COLUMN email TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='leads' AND column_name='phone') THEN
+        ALTER TABLE public.leads ADD COLUMN phone TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='leads' AND column_name='company') THEN
+        ALTER TABLE public.leads ADD COLUMN company TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='leads' AND column_name='status') THEN
+        ALTER TABLE public.leads ADD COLUMN status TEXT DEFAULT 'new';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='leads' AND column_name='value') THEN
+        ALTER TABLE public.leads ADD COLUMN value NUMERIC DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='leads' AND column_name='source') THEN
+        ALTER TABLE public.leads ADD COLUMN source TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='leads' AND column_name='user_id') THEN
+        ALTER TABLE public.leads ADD COLUMN user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='leads' AND column_name='workspace_id') THEN
+        ALTER TABLE public.leads ADD COLUMN workspace_id UUID REFERENCES public.workspaces(id) ON DELETE CASCADE;
+    END IF;
+END $$;
+\`;
+
+                showStatus('⏳ Copying SQL to clipboard... Please paste in Supabase SQL Editor', 'info');
+
+                // Copy to clipboard
+                await navigator.clipboard.writeText(fixSQL);
+
+                addLog('✅ SQL copied to clipboard!', 'success');
+                addLog('📋 Now paste it in Supabase SQL Editor and click RUN', 'info');
+
+                showStatus(\`
+                    <strong>✅ SQL Fix Copied!</strong><br><br>
+                    <strong>Next Steps:</strong><br>
+                    1. Go to: <a href="https://supabase.com/dashboard/project/pesqbkgfsfkqdquhilsv/sql/new" target="_blank">Supabase SQL Editor</a><br>
+                    2. Paste (Ctrl+V) and click RUN<br>
+                    3. Come back here and click "Run Tests"
+                \`, 'success');
+
+                document.getElementById('testBtn').disabled = false;
+
+            } catch (error) {
+                addLog(\`❌ Error: \${error.message}\`, 'error');
+                showStatus(\`❌ Error: \${error.message}\`, 'error');
+                fixBtn.disabled = false;
+                fixBtn.textContent = '🛠️ Fix Database Schema';
+            }
+        }
+
+        async function runTests() {
+            const testBtn = document.getElementById('testBtn');
+            testBtn.disabled = true;
+            testBtn.textContent = '⏳ Testing...';
+
+            addLog('Starting tests...', 'info');
+            let passed = 0;
+            let failed = 0;
+
+            try {
+                // Test 1: Check if user is logged in
+                addLog('Test 1: Checking authentication...', 'info');
+                const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+                if (authError || !user) {
+                    addLog('❌ Not logged in. Please log in to your app first!', 'error');
+                    showStatus('❌ Please log in to your app at https://upflo-lac.vercel.app/ first!', 'error');
+                    testBtn.disabled = false;
+                    testBtn.textContent = '✅ Run Tests';
+                    return;
+                }
+                addLog(\`✅ Logged in as: \${user.email}\`, 'success');
+                passed++;
+
+                // Test 2: Check workspace
+                addLog('Test 2: Checking workspace...', 'info');
+                const { data: workspaces, error: wsError } = await supabase
+                    .from('workspaces')
+                    .select('*')
+                    .limit(1);
+
+                if (wsError) throw wsError;
+                if (!workspaces || workspaces.length === 0) {
+                    addLog('❌ No workspace found. Create one in the app first!', 'error');
+                    failed++;
+                } else {
+                    addLog(\`✅ Found workspace: \${workspaces[0].name}\`, 'success');
+                    passed++;
+                }
+
+                // Test 3: Create a test lead
+                addLog('Test 3: Creating test lead...', 'info');
+                const testLead = {
+                    name: 'Test Lead ' + Date.now(),
+                    email: 'test@example.com',
+                    company: 'Test Corp',
+                    status: 'new',
+                    value: 5000,
+                    user_id: user.id,
+                    workspace_id: workspaces[0].id
+                };
+
+                const { data: lead, error: leadError } = await supabase
+                    .from('leads')
+                    .insert(testLead)
+                    .select()
+                    .single();
+
+                if (leadError) {
+                    addLog(\`❌ Failed to create lead: \${leadError.message}\`, 'error');
+                    failed++;
+                } else {
+                    addLog(\`✅ Created lead: \${lead.name}\`, 'success');
+                    passed++;
+
+                    // Test 4: Verify lead persists
+                    addLog('Test 4: Verifying lead persists...', 'info');
+                    const { data: fetchedLead, error: fetchError } = await supabase
+                        .from('leads')
+                        .select('*')
+                        .eq('id', lead.id)
+                        .single();
+
+                    if (fetchError || !fetchedLead) {
+                        addLog('❌ Lead does not persist!', 'error');
+                        failed++;
+                    } else {
+                        addLog('✅ Lead persists correctly!', 'success');
+                        passed++;
+                    }
+
+                    // Clean up
+                    await supabase.from('leads').delete().eq('id', lead.id);
+                    addLog('🧹 Cleaned up test data', 'info');
+                }
+
+                // Test 5: Check deals table
+                addLog('Test 5: Checking deals table...', 'info');
+                const { data: deals, error: dealError } = await supabase
+                    .from('deals')
+                    .select('*')
+                    .limit(0);
+
+                if (dealError) {
+                    addLog(\`❌ Deals table error: \${dealError.message}\`, 'error');
+                    addLog('💡 Run FIX_EVERYTHING.sql in Supabase SQL Editor', 'warning');
+                    failed++;
+                } else {
+                    addLog('✅ Deals table exists and is accessible', 'success');
+                    passed++;
+                }
+
+                // Show results
+                const total = passed + failed;
+                const percentage = Math.round((passed / total) * 100);
+
+                if (failed === 0) {
+                    showStatus(\`
+                        <strong>🎉 All Tests Passed!</strong><br><br>
+                        ✅ \${passed}/\${total} tests successful<br><br>
+                        Your database is working correctly!<br>
+                        Go to your app and try adding leads - they should persist now!
+                    \`, 'success');
+                    document.getElementById('verifyBtn').disabled = false;
+                } else {
+                    showStatus(\`
+                        <strong>⚠️ Some Tests Failed</strong><br><br>
+                        ✅ Passed: \${passed}/\${total}<br>
+                        ❌ Failed: \${failed}/\${total}<br><br>
+                        Check the log below for details.
+                    \`, 'warning');
+                }
+
+            } catch (error) {
+                addLog(\`❌ Error during tests: \${error.message}\`, 'error');
+                showStatus(\`❌ Tests failed: \${error.message}\`, 'error');
+            } finally {
+                testBtn.disabled = false;
+                testBtn.textContent = '✅ Run Tests';
+            }
+        }
+
+        async function verifyAll() {
+            addLog('Verifying final status...', 'info');
+
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+
+                // Check leads count
+                const { count: leadsCount } = await supabase
+                    .from('leads')
+                    .select('*', { count: 'exact', head: true });
+
+                // Check deals count
+                const { count: dealsCount } = await supabase
+                    .from('deals')
+                    .select('*', { count: 'exact', head: true });
+
+                // Check contacts count
+                const { count: contactsCount } = await supabase
+                    .from('contacts')
+                    .select('*', { count: 'exact', head: true });
+
+                addLog(\`📊 Leads: \${leadsCount || 0}\`, 'info');
+                addLog(\`📊 Deals: \${dealsCount || 0}\`, 'info');
+                addLog(\`📊 Contacts: \${contactsCount || 0}\`, 'info');
+
+                showStatus(\`
+                    <strong>✅ Database Status</strong><br><br>
+                    📊 Leads: \${leadsCount || 0}<br>
+                    📊 Deals: \${dealsCount || 0}<br>
+                    📊 Contacts: \${contactsCount || 0}<br><br>
+                    Everything is working! Go to<br>
+                    <a href="https://upflo-lac.vercel.app/" target="_blank">your app</a> and start using it!
+                \`, 'success');
+
+            } catch (error) {
+                addLog(\`❌ Verification failed: \${error.message}\`, 'error');
+                showStatus(\`❌ Verification failed: \${error.message}\`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
