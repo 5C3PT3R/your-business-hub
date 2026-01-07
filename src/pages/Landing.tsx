@@ -70,19 +70,23 @@ const Landing = () => {
 
       {/* SECTION 1 - Hero with ColorBends Background */}
       <section className="relative min-h-screen flex items-center justify-center pt-14 overflow-hidden bg-black">
-        {/* ColorBends Background */}
-        <ColorBends
-          colors={["#ff5c7a", "#8a5cff", "#00ffd1", "#ff9500", "#00ff88"]}
-          rotation={30}
-          speed={0.3}
-          scale={1.2}
-          frequency={1.4}
-          warpStrength={1.2}
-          mouseInfluence={0.8}
-          parallax={0.6}
-          noise={0.08}
-          transparent
-        />
+        {/* ColorBends Background - Centered and More Vivid */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-[120%] h-[120%] flex items-center justify-center">
+            <ColorBends
+              colors={["#ff1744", "#9c27ff", "#00e5ff", "#ff6d00", "#00ff88", "#ff4081"]}
+              rotation={30}
+              speed={0.4}
+              scale={0.8}
+              frequency={1.8}
+              warpStrength={1.8}
+              mouseInfluence={1.2}
+              parallax={0.8}
+              noise={0.05}
+              transparent
+            />
+          </div>
+        </div>
 
         <div className="relative max-w-4xl mx-auto text-center px-6 py-20 z-10">
           {/* Main Headline with BlurText */}
