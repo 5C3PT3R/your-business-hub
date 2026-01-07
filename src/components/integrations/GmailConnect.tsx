@@ -75,7 +75,7 @@ export function GmailConnect() {
       console.log('Calling Edge Function:', url);
 
       const response = await fetch(url, {
-        method: 'POST',
+        method: 'GET',
         headers: {
           Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
