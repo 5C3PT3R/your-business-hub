@@ -12,7 +12,7 @@ import {
   Lock,
   Zap
 } from "lucide-react";
-import { BlurText, DecryptedText, Orb, DotGrid } from "@/components/reactbits";
+import { BlurText, DecryptedText, Orb, DotGrid, ColorBends } from "@/components/reactbits";
 
 const Landing = () => {
   const navigate = useNavigate();
@@ -68,17 +68,26 @@ const Landing = () => {
         </div>
       </nav>
 
-      {/* SECTION 1 - Hero with Orb Background */}
-      <section className="relative min-h-screen flex items-center justify-center pt-14 overflow-hidden">
-        {/* Orb Background - Very subtle */}
-        <div className="absolute inset-0 opacity-30">
-          <Orb hue={220} hoverIntensity={0.1} />
-        </div>
-        
-        <div className="relative max-w-4xl mx-auto text-center px-6 py-20">
+      {/* SECTION 1 - Hero with ColorBends Background */}
+      <section className="relative min-h-screen flex items-center justify-center pt-14 overflow-hidden bg-black">
+        {/* ColorBends Background */}
+        <ColorBends
+          colors={["#ff5c7a", "#8a5cff", "#00ffd1", "#ff9500", "#00ff88"]}
+          rotation={30}
+          speed={0.3}
+          scale={1.2}
+          frequency={1.4}
+          warpStrength={1.2}
+          mouseInfluence={0.8}
+          parallax={0.6}
+          noise={0.08}
+          transparent
+        />
+
+        <div className="relative max-w-4xl mx-auto text-center px-6 py-20 z-10">
           {/* Main Headline with BlurText */}
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-black leading-[1.05] mb-8">
-            <BlurText 
+          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-white leading-[1.05] mb-8">
+            <BlurText
               text="The CRM that updates itself from your conversations"
               animateBy="words"
               direction="top"
@@ -86,24 +95,24 @@ const Landing = () => {
               className="inline"
             />
           </h1>
-          
+
           {/* Subheadline with DecryptedText */}
-          <p className="text-xl sm:text-2xl text-black/50 max-w-2xl mx-auto mb-12 font-normal">
-            <DecryptedText 
+          <p className="text-xl sm:text-2xl text-white/70 max-w-2xl mx-auto mb-12 font-normal">
+            <DecryptedText
               text="Paste a call, meeting, or chat. AI does the rest."
               speed={40}
               maxIterations={15}
               animateOn="view"
-              className="text-black/60"
-              encryptedClassName="text-black/30"
+              className="text-white/80"
+              encryptedClassName="text-white/40"
             />
           </p>
           
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button 
-              size="lg" 
-              className="text-base px-8 py-6 bg-black text-white hover:bg-black/90 rounded-full group relative overflow-hidden"
+            <Button
+              size="lg"
+              className="text-base px-8 py-6 bg-white text-black hover:bg-white/90 rounded-full group relative overflow-hidden"
               onClick={() => navigate('/demo')}
             >
               <span className="relative z-10 flex items-center">
@@ -111,10 +120,10 @@ const Landing = () => {
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
               </span>
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="lg"
-              className="text-base px-8 py-6 rounded-full border-black/20 text-black hover:bg-black/5"
+              className="text-base px-8 py-6 rounded-full border-white/30 text-white hover:bg-white/10"
             >
               Book a demo
             </Button>

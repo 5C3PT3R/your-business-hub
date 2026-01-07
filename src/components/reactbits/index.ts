@@ -5,3 +5,4 @@ export { Orb } from './Orb';
 export { DotGrid } from './DotGrid';
 export { Dock } from './Dock';
 export { ClickSpark, triggerSpark } from './ClickSpark';
+export { ColorBends } from './ColorBends';

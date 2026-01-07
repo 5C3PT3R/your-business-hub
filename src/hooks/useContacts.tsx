@@ -25,29 +25,46 @@ export function useContacts() {
   const { toast } = useToast();
 
   const fetchContacts = async () => {
-    if (!user || !workspace) return;
-    
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    if (!workspace) {
+      // Wait for workspace to load
+      setLoading(true);
+      return;
+    }
+
     setLoading(true);
-    const { data, error } = await supabase
+    const { data, error} = await supabase
       .from('contacts')
       .select('*')
       .eq('workspace_id', workspace.id)
       .order('created_at', { ascending: false });
 
     if (error) {
+      console.error('[useContacts] Error fetching contacts:', error);
       toast({
         title: "Error fetching contacts",
         description: error.message,
         variant: "destructive",
       });
     } else {
+      console.log('[useContacts] Fetched contacts:', data?.length || 0);
       setContacts(data || []);
     }
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchContacts();
+    console.log('[useContacts] Effect triggered - user:', !!user, 'workspace:', workspace?.id);
+    if (user && workspace?.id) {
+      fetchContacts();
+    } else if (!user) {
+      setContacts([]);
+      setLoading(false);
+    }
   }, [user, workspace?.id]);
 
   const addContact = async (contact: Omit<Contact, 'id' | 'created_at' | 'workspace_id'>) => {

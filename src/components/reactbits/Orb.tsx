@@ -60,9 +60,12 @@ export const Orb = ({
         centerY + offsetY,
         radius
       );
-      
+
+      // Convert HSL to HSLA with opacity
+      const colorWithAlpha = color.replace('hsl(', 'hsla(').replace(')', ', 0.53)');
+
       gradient.addColorStop(0, color);
-      gradient.addColorStop(0.5, `${color}88`);
+      gradient.addColorStop(0.5, colorWithAlpha);
       gradient.addColorStop(1, 'transparent');
       
       ctx.fillStyle = gradient;
