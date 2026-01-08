@@ -18,9 +18,10 @@ import { logAudit, logOAuthConnected } from '../_shared/audit-logger.ts';
 
 const GMAIL_CLIENT_ID = Deno.env.get('GMAIL_CLIENT_ID');
 const GMAIL_CLIENT_SECRET = Deno.env.get('GMAIL_CLIENT_SECRET');
+// These are automatically provided by Supabase
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
-const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY'); // Auto-provided
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'); // Auto-provided
 
 // OAuth scopes - full access (read, send, modify)
 const GMAIL_SCOPES = [
