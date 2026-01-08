@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, LayoutGrid, List, Plus, Loader2, Mail, Phone, Building, MoreHorizontal, Trash2, Edit, Undo2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { DialerRecorder } from '@/components/voice/DialerRecorder';
 import {
   Dialog,
   DialogContent,
@@ -55,6 +56,8 @@ export default function Contacts() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<any>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isCallDialogOpen, setIsCallDialogOpen] = useState(false);
+  const [callingContact, setCallingContact] = useState<any>(null);
   const { contacts, loading, addContact, updateContact, deleteContact } = useContacts();
   const { toast } = useToast();
 
@@ -154,6 +157,20 @@ export default function Contacts() {
     setIsEditDialogOpen(true);
   };
 
+  const openCallDialog = (contact: any) => {
+    setCallingContact(contact);
+    setIsCallDialogOpen(true);
+  };
+
+  const handleCallComplete = async (transcription: string, analysis: any, durationSeconds: number, twilioCallSid?: string) => {
+    toast({
+      title: "Call completed",
+      description: `Call with ${callingContact?.name} has been logged.`,
+    });
+    setIsCallDialogOpen(false);
+    setCallingContact(null);
+  };
+
   const ContactCard = ({ contact }: { contact: any }) => {
     const initials = contact.name
       .split(' ')
@@ -242,14 +259,17 @@ export default function Contacts() {
             >
               <Mail className="h-4 w-4" />
             </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
+            <Button
+              variant="ghost"
+              size="icon"
               className="h-8 w-8"
               onClick={(e) => {
                 e.stopPropagation();
-                if (contact.phone) window.location.href = `tel:${contact.phone}`;
+                if (contact.phone) {
+                  openCallDialog(contact);
+                }
               }}
+              disabled={!contact.phone}
             >
               <Phone className="h-4 w-4" />
             </Button>
@@ -464,6 +484,24 @@ export default function Contacts() {
                   Save Changes
                 </Button>
               </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Call Dialog */}
+        <Dialog open={isCallDialogOpen} onOpenChange={setIsCallDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Call {callingContact?.name}</DialogTitle>
+            </DialogHeader>
+            {callingContact && (
+              <DialerRecorder
+                leadId={callingContact.id}
+                leadName={callingContact.name}
+                leadCompany={callingContact.company || undefined}
+                leadPhone={callingContact.phone || undefined}
+                onCallComplete={handleCallComplete}
+              />
             )}
           </DialogContent>
         </Dialog>
