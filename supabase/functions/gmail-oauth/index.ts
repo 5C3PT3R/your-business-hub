@@ -347,7 +347,19 @@ async function handleOAuthCallback(req: Request, supabase: any): Promise<Respons
     const expiresAt = new Date();
     expiresAt.setSeconds(expiresAt.getSeconds() + tokens.expires_in);
 
-    // Store encrypted tokens
+    // Ensure user profile exists (oauth_tokens references profiles table)
+    await supabase
+      .from('profiles')
+      .upsert({
+        id: userId,
+        email: emailAddress,
+        updated_at: new Date().toISOString(),
+      }, {
+        onConflict: 'id',
+        ignoreDuplicates: false
+      });
+
+    // Store encrypted tokens (using service role to bypass RLS)
     const { error: dbError } = await supabase
       .from('oauth_tokens')
       .upsert({
@@ -366,6 +378,7 @@ async function handleOAuthCallback(req: Request, supabase: any): Promise<Respons
 
     if (dbError) {
       console.error('Database error:', dbError);
+      console.error('Error details:', JSON.stringify(dbError, null, 2));
       throw new Error('Failed to store tokens');
     }
 
