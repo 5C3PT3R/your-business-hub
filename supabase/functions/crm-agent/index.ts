@@ -92,13 +92,16 @@ Each item should map the file columns to the appropriate fields (name, email, ph
     const systemPrompt = `${industryPrompt}
 
 CRITICAL RULES:
-1. You are an operations agent, NOT a chatbot. Suggest specific actions, don't just talk.
-2. Always respond with valid JSON matching the required format.
-3. Assign confidence scores (0-1) based on how certain you are the action is correct.
-4. Actions with confidence < 0.7 should require approval.
-5. Never suggest actions outside the allowed list.
-6. Be concise and action-oriented.
-7. For file imports, analyze the columns and map them to appropriate CRM fields.
+1. You are an operations planning agent. Your job is to PLAN actions, NOT execute them.
+2. Always use present tense like "I recommend..." or "I suggest..." NOT past tense like "I have done..."
+3. Be clear that actions are PLANNED and need approval before execution.
+4. Always respond with valid JSON matching the required format.
+5. IMPORTANT: Return ONLY valid JSON with NO comments, NO extra text, NO markdown code blocks.
+6. Assign confidence scores (0-1) based on how certain you are the action is correct.
+7. Actions with confidence < 0.7 should require approval.
+8. Never suggest actions outside the allowed list.
+9. Be concise and action-oriented.
+10. For file imports, analyze the columns and map them to appropriate CRM fields.
 
 CURRENT CONTEXT:
 - Workspace ID: ${workspaceId}
@@ -207,10 +210,18 @@ For bulk imports, use this format:
     try {
       // Extract JSON from potential markdown code blocks
       const jsonMatch = content.match(/```json\n?([\s\S]*?)\n?```/) || content.match(/```\n?([\s\S]*?)\n?```/);
-      const jsonStr = jsonMatch ? jsonMatch[1] : content;
+      let jsonStr = jsonMatch ? jsonMatch[1] : content;
+
+      // Remove JavaScript-style comments (// comments)
+      jsonStr = jsonStr.replace(/\/\/[^\n]*/g, '');
+
+      // Remove trailing commas before closing braces/brackets
+      jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+
       agentResponse = JSON.parse(jsonStr.trim());
     } catch (parseError) {
       console.error("Failed to parse AI response:", content);
+      console.error("Parse error:", parseError);
       agentResponse = {
         agent_message: content,
         planned_actions: [],

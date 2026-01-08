@@ -46,6 +46,27 @@ setInterval(() => {
 
 serve(async (req) => {
   const url = new URL(req.url);
+
+  console.log('SUPABASE_URL:', SUPABASE_URL);
+  console.log('SUPABASE_SERVICE_ROLE_KEY exists:', !!SUPABASE_SERVICE_ROLE_KEY);
+
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('Missing Supabase credentials');
+    return new Response(
+      JSON.stringify({
+        error: 'Configuration error',
+        message: 'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set'
+      }),
+      {
+        status: 503,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        }
+      }
+    );
+  }
+
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   // CORS headers
@@ -94,8 +115,13 @@ serve(async (req) => {
  * Start OAuth flow - redirect user to Google
  */
 async function handleOAuthStart(req: Request, supabase: any): Promise<Response> {
+  console.log('handleOAuthStart called');
+  console.log('GMAIL_CLIENT_ID exists:', !!GMAIL_CLIENT_ID);
+  console.log('GMAIL_CLIENT_SECRET exists:', !!GMAIL_CLIENT_SECRET);
+
   // Check if environment variables are set
   if (!GMAIL_CLIENT_ID || !GMAIL_CLIENT_SECRET) {
+    console.log('Environment variables missing');
     return new Response(
       JSON.stringify({
         error: 'Gmail OAuth not configured',
@@ -113,6 +139,8 @@ async function handleOAuthStart(req: Request, supabase: any): Promise<Response> 
 
   // Get user from Authorization header
   const authHeader = req.headers.get('Authorization');
+  console.log('Authorization header exists:', !!authHeader);
+
   if (!authHeader) {
     return new Response(
       JSON.stringify({ error: 'Unauthorized', message: 'Authorization header missing' }),
@@ -127,7 +155,9 @@ async function handleOAuthStart(req: Request, supabase: any): Promise<Response> 
   }
 
   const token = authHeader.replace('Bearer ', '');
+  console.log('Attempting to get user with token...');
   const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+  console.log('getUser result - user exists:', !!user, 'error:', authError?.message);
 
   if (authError || !user) {
     return new Response(
