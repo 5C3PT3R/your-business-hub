@@ -14,12 +14,16 @@ You **do NOT** need to add `SUPABASE_ANON_KEY` manually!
 1. **Deploy Function:**
    - Go to: https://supabase.com/dashboard/project/pesqbkgfsfkqdquhilsv/functions
    - Click on **gmail-oauth**
-   - Click **"Deploy new version"**
-   - Copy ALL contents from: `supabase/functions/gmail-oauth/index.ts`
-   - Paste in the editor
-   - Click **Deploy**
+   - Look for a button that says **"Deploy new version"** or **"Edit"**
+   - If you see **"Edit"**, click it, then replace ALL the code with contents from: `supabase/functions/gmail-oauth/index.ts`
+   - If there's a **"Deploy"** button in the editor, click it
+   - If not, look for a **"Save"** or **"Update"** button
+
+   **CRITICAL**: Make sure you're actually deploying/saving, not just editing!
 
 2. **Wait for deployment to complete** (about 30 seconds)
+   - Watch for a success message
+   - The function logs should show "shutdown" then restart with new boot logs
 
 3. **Test the connection:**
    - Go to your app: https://upflo-lac.vercel.app/settings

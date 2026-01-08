@@ -49,6 +49,11 @@ setInterval(() => {
 serve(async (req) => {
   const url = new URL(req.url);
 
+  console.log('=== INCOMING REQUEST ===');
+  console.log('Method:', req.method);
+  console.log('Full URL:', req.url);
+  console.log('Pathname:', url.pathname);
+  console.log('Headers:', Object.fromEntries(req.headers.entries()));
   console.log('SUPABASE_URL:', SUPABASE_URL);
   console.log('SUPABASE_ANON_KEY exists:', !!SUPABASE_ANON_KEY);
   console.log('SUPABASE_SERVICE_ROLE_KEY exists:', !!SUPABASE_SERVICE_ROLE_KEY);
@@ -85,27 +90,41 @@ serve(async (req) => {
   }
 
   try {
+    console.log('Routing request...');
+
     // Route: Start OAuth flow
-    if (url.pathname === '/gmail-oauth' || url.pathname === '/gmail-oauth/') {
+    // Accept any root path (/gmail-oauth, /gmail-oauth/, or even just /)
+    if (url.pathname === '/gmail-oauth' || url.pathname === '/gmail-oauth/' || url.pathname === '/') {
+      console.log('Matched OAuth start route');
       return await handleOAuthStart(req, supabaseAdmin);
     }
 
     // Route: OAuth callback
     if (url.pathname.includes('/callback')) {
+      console.log('Matched callback route');
       return await handleOAuthCallback(req, supabaseAdmin);
     }
 
     // Route: Disconnect Gmail
     if (url.pathname.includes('/disconnect') && req.method === 'POST') {
+      console.log('Matched disconnect route');
       return await handleDisconnect(req, supabaseAdmin);
     }
 
     // Route: Get connection status
     if (url.pathname.includes('/status') && req.method === 'GET') {
+      console.log('Matched status route');
       return await handleStatus(req, supabaseAdmin);
     }
 
-    return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
+    console.log('No route matched, returning 404');
+    return new Response(JSON.stringify({ error: 'Not found', pathname: url.pathname }), {
+      status: 404,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      }
+    });
   } catch (error) {
     console.error('Gmail OAuth error:', error);
     return new Response(
@@ -159,31 +178,69 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
   }
 
   console.log('Attempting to verify JWT token...');
+  console.log('Authorization header:', authHeader.substring(0, 20) + '...');
 
-  // Create a temporary client with the user's token to verify it
-  const userClient = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
-    global: {
-      headers: {
-        Authorization: authHeader,
-      },
-    },
-  });
+  // Use service role client to verify the user's JWT token
+  const token = authHeader.replace('Bearer ', '');
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.admin.getUserById(token);
 
-  // Get user from the authenticated client
-  const { data: { user }, error: authError } = await userClient.auth.getUser();
-  console.log('JWT verification result - user exists:', !!user, 'error:', authError?.message);
-
+  // If that doesn't work, try getUser with the token
   if (authError || !user) {
-    console.error('JWT verification failed:', authError);
+    console.log('admin.getUserById failed, trying getUser()');
+    const result = await supabaseAdmin.auth.getUser(token);
+    console.log('getUser result:', { hasUser: !!result.data?.user, error: result.error?.message });
+
+    if (result.error || !result.data?.user) {
+      console.error('JWT verification failed:', result.error);
+      return new Response(
+        JSON.stringify({
+          code: 401,
+          error: 'Invalid JWT',
+          message: result.error?.message || 'Unable to verify user token',
+          details: 'Make sure you are logged in and your session is active'
+        }),
+        {
+          status: 401,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          }
+        }
+      );
+    }
+
+    const verifiedUser = result.data.user;
+    console.log('JWT verification result - user exists:', !!verifiedUser, 'user id:', verifiedUser?.id);
+
+    // Continue with verified user
+    // Rate limiting (skip if function not available)
+    try {
+      const rateLimitResponse = await enforceRateLimit(supabaseAdmin, verifiedUser.id, 'gmail-oauth');
+      if (rateLimitResponse) return rateLimitResponse;
+    } catch (e) {
+      console.warn('Rate limiting skipped:', e);
+    }
+
+    // Generate state parameter for CSRF protection
+    const state = crypto.randomUUID();
+    stateStore.set(state, { userId: verifiedUser.id, createdAt: Date.now() });
+
+    // Build Google OAuth URL
+    const params = new URLSearchParams({
+      client_id: GMAIL_CLIENT_ID!,
+      redirect_uri: REDIRECT_URI,
+      response_type: 'code',
+      scope: GMAIL_SCOPES,
+      state: state,
+      access_type: 'offline',
+      prompt: 'consent',
+    });
+
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+
     return new Response(
-      JSON.stringify({
-        code: 401,
-        error: 'Invalid JWT',
-        message: authError?.message || 'Unable to verify user token',
-        details: 'Make sure you are logged in and your session is active'
-      }),
+      JSON.stringify({ authUrl }),
       {
-        status: 401,
         headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
@@ -191,6 +248,9 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
       }
     );
   }
+
+  //  If admin.getUserById worked, use that user
+  console.log('admin.getUserById succeeded - user exists:', !!user, 'user id:', user?.id);
 
   // Rate limiting (skip if function not available)
   try {
@@ -206,13 +266,13 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
 
   // Build Google OAuth URL
   const params = new URLSearchParams({
-    client_id: GMAIL_CLIENT_ID,
+    client_id: GMAIL_CLIENT_ID!,
     redirect_uri: REDIRECT_URI,
     response_type: 'code',
     scope: GMAIL_SCOPES,
     state: state,
-    access_type: 'offline', // Get refresh token
-    prompt: 'consent', // Force consent to get refresh token
+    access_type: 'offline',
+    prompt: 'consent',
   });
 
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
