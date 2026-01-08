@@ -186,65 +186,22 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
 
   // Use service role client to verify the user's JWT token
   const token = authHeader.replace('Bearer ', '');
-  const { data: { user }, error: authError } = await supabaseAdmin.auth.admin.getUserById(token);
 
-  // If that doesn't work, try getUser with the token
+  // CORRECT METHOD: Use getUser() with the JWT token
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+  console.log('getUser result:', { hasUser: !!user, error: authError?.message });
+
   if (authError || !user) {
-    console.log('admin.getUserById failed, trying getUser()');
-    const result = await supabaseAdmin.auth.getUser(token);
-    console.log('getUser result:', { hasUser: !!result.data?.user, error: result.error?.message });
-
-    if (result.error || !result.data?.user) {
-      console.error('JWT verification failed:', result.error);
-      return new Response(
-        JSON.stringify({
-          code: 401,
-          error: 'Invalid JWT',
-          message: result.error?.message || 'Unable to verify user token',
-          details: 'Make sure you are logged in and your session is active'
-        }),
-        {
-          status: 401,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          }
-        }
-      );
-    }
-
-    const verifiedUser = result.data.user;
-    console.log('JWT verification result - user exists:', !!verifiedUser, 'user id:', verifiedUser?.id);
-
-    // Continue with verified user
-    // Rate limiting (skip if function not available)
-    try {
-      const rateLimitResponse = await enforceRateLimit(supabaseAdmin, verifiedUser.id, 'gmail-oauth');
-      if (rateLimitResponse) return rateLimitResponse;
-    } catch (e) {
-      console.warn('Rate limiting skipped:', e);
-    }
-
-    // Generate state parameter for CSRF protection
-    const state = crypto.randomUUID();
-    stateStore.set(state, { userId: verifiedUser.id, createdAt: Date.now() });
-
-    // Build Google OAuth URL
-    const params = new URLSearchParams({
-      client_id: GMAIL_CLIENT_ID!,
-      redirect_uri: REDIRECT_URI,
-      response_type: 'code',
-      scope: GMAIL_SCOPES,
-      state: state,
-      access_type: 'offline',
-      prompt: 'consent',
-    });
-
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-
+    console.error('JWT verification failed:', authError);
     return new Response(
-      JSON.stringify({ authUrl }),
+      JSON.stringify({
+        code: 401,
+        error: 'Invalid JWT',
+        message: authError?.message || 'Unable to verify user token',
+        details: 'Make sure you are logged in and your session is active'
+      }),
       {
+        status: 401,
         headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
@@ -253,8 +210,7 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
     );
   }
 
-  //  If admin.getUserById worked, use that user
-  console.log('admin.getUserById succeeded - user exists:', !!user, 'user id:', user?.id);
+  console.log('JWT verification succeeded - user id:', user.id);
 
   // Rate limiting (skip if function not available)
   try {
