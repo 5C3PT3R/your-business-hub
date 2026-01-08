@@ -70,9 +70,6 @@ serve(async (req) => {
     );
   }
 
-  // Create anon client for JWT verification (used to verify user tokens)
-  const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
   // Create service role client for admin operations (database writes)
   const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -90,7 +87,7 @@ serve(async (req) => {
   try {
     // Route: Start OAuth flow
     if (url.pathname === '/gmail-oauth' || url.pathname === '/gmail-oauth/') {
-      return await handleOAuthStart(req, supabaseClient, supabaseAdmin);
+      return await handleOAuthStart(req, supabaseAdmin);
     }
 
     // Route: OAuth callback
@@ -100,12 +97,12 @@ serve(async (req) => {
 
     // Route: Disconnect Gmail
     if (url.pathname.includes('/disconnect') && req.method === 'POST') {
-      return await handleDisconnect(req, supabaseClient, supabaseAdmin);
+      return await handleDisconnect(req, supabaseAdmin);
     }
 
     // Route: Get connection status
     if (url.pathname.includes('/status') && req.method === 'GET') {
-      return await handleStatus(req, supabaseClient, supabaseAdmin);
+      return await handleStatus(req, supabaseAdmin);
     }
 
     return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
@@ -121,7 +118,7 @@ serve(async (req) => {
 /**
  * Start OAuth flow - redirect user to Google
  */
-async function handleOAuthStart(req: Request, supabaseClient: any, supabaseAdmin: any): Promise<Response> {
+async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Response> {
   console.log('handleOAuthStart called');
   console.log('GMAIL_CLIENT_ID exists:', !!GMAIL_CLIENT_ID);
   console.log('GMAIL_CLIENT_SECRET exists:', !!GMAIL_CLIENT_SECRET);
@@ -161,11 +158,19 @@ async function handleOAuthStart(req: Request, supabaseClient: any, supabaseAdmin
     );
   }
 
-  const token = authHeader.replace('Bearer ', '');
   console.log('Attempting to verify JWT token...');
 
-  // Use anon client to verify user JWT token
-  const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+  // Create a temporary client with the user's token to verify it
+  const userClient = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
+    global: {
+      headers: {
+        Authorization: authHeader,
+      },
+    },
+  });
+
+  // Get user from the authenticated client
+  const { data: { user }, error: authError } = await userClient.auth.getUser();
   console.log('JWT verification result - user exists:', !!user, 'error:', authError?.message);
 
   if (authError || !user) {
@@ -361,14 +366,17 @@ async function handleOAuthCallback(req: Request, supabase: any): Promise<Respons
 /**
  * Disconnect Gmail integration
  */
-async function handleDisconnect(req: Request, supabaseClient: any, supabaseAdmin: any): Promise<Response> {
+async function handleDisconnect(req: Request, supabaseAdmin: any): Promise<Response> {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
 
-  const token = authHeader.replace('Bearer ', '');
-  const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+  // Create authenticated client
+  const userClient = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: { user }, error: authError } = await userClient.auth.getUser();
 
   if (authError || !user) {
     return new Response(JSON.stringify({ error: 'Invalid token' }), { status: 401 });
@@ -405,14 +413,17 @@ async function handleDisconnect(req: Request, supabaseClient: any, supabaseAdmin
 /**
  * Get Gmail connection status
  */
-async function handleStatus(req: Request, supabaseClient: any, supabaseAdmin: any): Promise<Response> {
+async function handleStatus(req: Request, supabaseAdmin: any): Promise<Response> {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
 
-  const token = authHeader.replace('Bearer ', '');
-  const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+  // Create authenticated client
+  const userClient = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: { user }, error: authError } = await userClient.auth.getUser();
 
   if (authError || !user) {
     return new Response(JSON.stringify({ error: 'Invalid token' }), { status: 401 });
