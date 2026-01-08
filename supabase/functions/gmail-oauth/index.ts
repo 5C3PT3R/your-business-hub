@@ -19,6 +19,7 @@ import { logAudit, logOAuthConnected } from '../_shared/audit-logger.ts';
 const GMAIL_CLIENT_ID = Deno.env.get('GMAIL_CLIENT_ID');
 const GMAIL_CLIENT_SECRET = Deno.env.get('GMAIL_CLIENT_SECRET');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 // OAuth scopes - full access (read, send, modify)
@@ -48,14 +49,15 @@ serve(async (req) => {
   const url = new URL(req.url);
 
   console.log('SUPABASE_URL:', SUPABASE_URL);
+  console.log('SUPABASE_ANON_KEY exists:', !!SUPABASE_ANON_KEY);
   console.log('SUPABASE_SERVICE_ROLE_KEY exists:', !!SUPABASE_SERVICE_ROLE_KEY);
 
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
     console.error('Missing Supabase credentials');
     return new Response(
       JSON.stringify({
         error: 'Configuration error',
-        message: 'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set'
+        message: 'SUPABASE_URL, SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY must be set'
       }),
       {
         status: 503,
@@ -67,7 +69,11 @@ serve(async (req) => {
     );
   }
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  // Create anon client for JWT verification (used to verify user tokens)
+  const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Create service role client for admin operations (database writes)
+  const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   // CORS headers
   if (req.method === 'OPTIONS') {
@@ -83,29 +89,29 @@ serve(async (req) => {
   try {
     // Route: Start OAuth flow
     if (url.pathname === '/gmail-oauth' || url.pathname === '/gmail-oauth/') {
-      return await handleOAuthStart(req, supabase);
+      return await handleOAuthStart(req, supabaseClient, supabaseAdmin);
     }
 
     // Route: OAuth callback
     if (url.pathname.includes('/callback')) {
-      return await handleOAuthCallback(req, supabase);
+      return await handleOAuthCallback(req, supabaseAdmin);
     }
 
     // Route: Disconnect Gmail
     if (url.pathname.includes('/disconnect') && req.method === 'POST') {
-      return await handleDisconnect(req, supabase);
+      return await handleDisconnect(req, supabaseClient, supabaseAdmin);
     }
 
     // Route: Get connection status
     if (url.pathname.includes('/status') && req.method === 'GET') {
-      return await handleStatus(req, supabase);
+      return await handleStatus(req, supabaseClient, supabaseAdmin);
     }
 
     return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
   } catch (error) {
     console.error('Gmail OAuth error:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error', message: error.message }),
+      JSON.stringify({ error: 'Internal server error', message: (error as Error).message }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
@@ -114,7 +120,7 @@ serve(async (req) => {
 /**
  * Start OAuth flow - redirect user to Google
  */
-async function handleOAuthStart(req: Request, supabase: any): Promise<Response> {
+async function handleOAuthStart(req: Request, supabaseClient: any, supabaseAdmin: any): Promise<Response> {
   console.log('handleOAuthStart called');
   console.log('GMAIL_CLIENT_ID exists:', !!GMAIL_CLIENT_ID);
   console.log('GMAIL_CLIENT_SECRET exists:', !!GMAIL_CLIENT_SECRET);
@@ -155,13 +161,21 @@ async function handleOAuthStart(req: Request, supabase: any): Promise<Response> 
   }
 
   const token = authHeader.replace('Bearer ', '');
-  console.log('Attempting to get user with token...');
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  console.log('getUser result - user exists:', !!user, 'error:', authError?.message);
+  console.log('Attempting to verify JWT token...');
+
+  // Use anon client to verify user JWT token
+  const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+  console.log('JWT verification result - user exists:', !!user, 'error:', authError?.message);
 
   if (authError || !user) {
+    console.error('JWT verification failed:', authError);
     return new Response(
-      JSON.stringify({ error: 'Invalid token', message: authError?.message || 'Unable to verify user' }),
+      JSON.stringify({
+        code: 401,
+        error: 'Invalid JWT',
+        message: authError?.message || 'Unable to verify user token',
+        details: 'Make sure you are logged in and your session is active'
+      }),
       {
         status: 401,
         headers: {
@@ -174,7 +188,7 @@ async function handleOAuthStart(req: Request, supabase: any): Promise<Response> 
 
   // Rate limiting (skip if function not available)
   try {
-    const rateLimitResponse = await enforceRateLimit(supabase, user.id, 'gmail-oauth');
+    const rateLimitResponse = await enforceRateLimit(supabaseAdmin, user.id, 'gmail-oauth');
     if (rateLimitResponse) return rateLimitResponse;
   } catch (e) {
     console.warn('Rate limiting skipped:', e);
@@ -346,28 +360,28 @@ async function handleOAuthCallback(req: Request, supabase: any): Promise<Respons
 /**
  * Disconnect Gmail integration
  */
-async function handleDisconnect(req: Request, supabase: any): Promise<Response> {
+async function handleDisconnect(req: Request, supabaseClient: any, supabaseAdmin: any): Promise<Response> {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
 
   const token = authHeader.replace('Bearer ', '');
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+  const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
 
   if (authError || !user) {
     return new Response(JSON.stringify({ error: 'Invalid token' }), { status: 401 });
   }
 
   // Delete tokens
-  await supabase
+  await supabaseAdmin
     .from('oauth_tokens')
     .delete()
     .eq('user_id', user.id)
     .eq('channel', 'gmail');
 
   // Audit log
-  await logAudit(supabase, {
+  await logAudit(supabaseAdmin, {
     action: 'oauth_disconnected',
     entityType: 'oauth_token',
     userId: user.id,
@@ -390,20 +404,20 @@ async function handleDisconnect(req: Request, supabase: any): Promise<Response> 
 /**
  * Get Gmail connection status
  */
-async function handleStatus(req: Request, supabase: any): Promise<Response> {
+async function handleStatus(req: Request, supabaseClient: any, supabaseAdmin: any): Promise<Response> {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
 
   const token = authHeader.replace('Bearer ', '');
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+  const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
 
   if (authError || !user) {
     return new Response(JSON.stringify({ error: 'Invalid token' }), { status: 401 });
   }
 
-  const { data: tokenData } = await supabase
+  const { data: tokenData } = await supabaseAdmin
     .from('oauth_tokens')
     .select('email_address, scopes, created_at, last_synced_at')
     .eq('user_id', user.id)
