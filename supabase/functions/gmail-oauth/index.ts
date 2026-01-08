@@ -33,18 +33,7 @@ const GMAIL_SCOPES = [
 
 const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/gmail-oauth/callback`;
 
-// In-memory state storage (in production, use Redis)
-const stateStore = new Map<string, { userId: string; createdAt: number }>();
-
-// Cleanup old states every hour
-setInterval(() => {
-  const oneHourAgo = Date.now() - 3600000;
-  for (const [state, data] of stateStore.entries()) {
-    if (data.createdAt < oneHourAgo) {
-      stateStore.delete(state);
-    }
-  }
-}, 3600000);
+// Note: State is now stored in database instead of memory to survive edge function restarts
 
 serve(async (req) => {
   // CRITICAL: Log IMMEDIATELY before anything else
@@ -222,7 +211,16 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
 
   // Generate state parameter for CSRF protection
   const state = crypto.randomUUID();
-  stateStore.set(state, { userId: user.id, createdAt: Date.now() });
+
+  // Store state in database (survives edge function restarts)
+  await supabaseAdmin
+    .from('oauth_states')
+    .insert({
+      state,
+      user_id: user.id,
+      created_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 600000).toISOString() // 10 minutes
+    });
 
   // Build Google OAuth URL
   const params = new URLSearchParams({
@@ -273,14 +271,20 @@ async function handleOAuthCallback(req: Request, supabase: any): Promise<Respons
     );
   }
 
-  // Verify state parameter (CSRF protection)
-  const stateData = stateStore.get(state);
-  if (!stateData) {
+  // Verify state parameter (CSRF protection) - read from database
+  const { data: stateData, error: stateError } = await supabase
+    .from('oauth_states')
+    .select('user_id, expires_at')
+    .eq('state', state)
+    .single();
+
+  if (stateError || !stateData) {
+    console.error('State verification failed:', stateError);
     await logAudit(supabase, {
       action: 'unauthorized_access_attempt',
       entityType: 'oauth_token',
       performedBy: 'system',
-      metadata: { reason: 'Invalid OAuth state parameter' },
+      metadata: { reason: 'Invalid OAuth state parameter', error: stateError?.message },
       riskLevel: 'high',
     });
 
@@ -290,8 +294,20 @@ async function handleOAuthCallback(req: Request, supabase: any): Promise<Respons
     );
   }
 
-  stateStore.delete(state); // Use state only once
-  const userId = stateData.userId;
+  // Check if state expired
+  const expiresAt = new Date(stateData.expires_at);
+  if (expiresAt < new Date()) {
+    console.error('State expired');
+    return new Response(
+      '<html><body><h1>Session Expired</h1><p>OAuth session expired. Please try connecting again.</p></body></html>',
+      { status: 400, headers: { 'Content-Type': 'text/html' } }
+    );
+  }
+
+  // Delete state (use only once)
+  await supabase.from('oauth_states').delete().eq('state', state);
+
+  const userId = stateData.user_id;
 
   try {
     // Exchange code for tokens
