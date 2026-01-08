@@ -47,6 +47,9 @@ setInterval(() => {
 }, 3600000);
 
 serve(async (req) => {
+  // CRITICAL: Log IMMEDIATELY before anything else
+  console.log('🔥🔥🔥 REQUEST RECEIVED 🔥🔥🔥');
+
   const url = new URL(req.url);
 
   console.log('=== INCOMING REQUEST ===');
@@ -57,6 +60,18 @@ serve(async (req) => {
   console.log('SUPABASE_URL:', SUPABASE_URL);
   console.log('SUPABASE_ANON_KEY exists:', !!SUPABASE_ANON_KEY);
   console.log('SUPABASE_SERVICE_ROLE_KEY exists:', !!SUPABASE_SERVICE_ROLE_KEY);
+
+  // CORS headers - Handle OPTIONS first before ANY other logic
+  if (req.method === 'OPTIONS') {
+    console.log('Handling OPTIONS request');
+    return new Response(null, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+      },
+    });
+  }
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
     console.error('Missing Supabase credentials');
@@ -77,17 +92,6 @@ serve(async (req) => {
 
   // Create service role client for admin operations (database writes)
   const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-  // CORS headers
-  if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      },
-    });
-  }
 
   try {
     console.log('Routing request...');
