@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   SkipForward,
+  Undo2,
 } from 'lucide-react';
 import { NextAction } from '@/types/next-actions';
 import { cn } from '@/lib/utils';
@@ -24,6 +25,7 @@ interface ActionCardProps {
   onAction: (actionId: string, actionType: string) => void;
   onComplete: (actionId: string) => void;
   onSkip: (actionId: string) => void;
+  onRestore?: (actionId: string) => void;
   compact?: boolean;
 }
 
@@ -68,6 +70,7 @@ export function ActionCard({
   onAction,
   onComplete,
   onSkip,
+  onRestore,
   compact = false,
 }: ActionCardProps) {
   const urgency = urgencyConfig[action.urgency];
@@ -270,14 +273,23 @@ export function ActionCard({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => onSkip(action.id)} className="h-8 text-xs">
-            <SkipForward className="h-3 w-3 mr-1" />
-            Skip
-          </Button>
-          <Button variant="default" size="sm" onClick={() => onComplete(action.id)} className="h-8 text-xs">
-            <CheckCircle2 className="h-3 w-3 mr-1" />
-            Complete
-          </Button>
+          {onRestore ? (
+            <Button variant="outline" size="sm" onClick={() => onRestore(action.id)} className="h-8 text-xs">
+              <Undo2 className="h-3 w-3 mr-1" />
+              Move to Pending
+            </Button>
+          ) : (
+            <>
+              <Button variant="ghost" size="sm" onClick={() => onSkip(action.id)} className="h-8 text-xs">
+                <SkipForward className="h-3 w-3 mr-1" />
+                Skip
+              </Button>
+              <Button variant="default" size="sm" onClick={() => onComplete(action.id)} className="h-8 text-xs">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Complete
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </Card>
