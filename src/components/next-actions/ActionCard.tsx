@@ -106,10 +106,9 @@ export function ActionCard({
     return (
       <Card
         className={cn(
-          'p-4 hover:shadow-md transition-all cursor-pointer border-l-4',
+          'p-4 hover:shadow-md transition-all border-l-4',
           urgency.color
         )}
-        onClick={() => onAction(action.id, 'view')}
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 space-y-1">
@@ -118,13 +117,23 @@ export function ActionCard({
               <h4 className="font-semibold text-gray-900">{action.title}</h4>
             </div>
             <p className="text-sm text-gray-600">{action.description}</p>
-          </div>
-          <div className="text-right space-y-1">
-            <div className="text-sm font-medium text-gray-900">
-              {formatCurrency(action.revenueImpact)}
+            <div className="flex items-center gap-3 text-xs text-gray-500 mt-2">
+              <div className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {action.effortMinutes} min
+              </div>
+              <div className="flex items-center gap-1 font-medium text-gray-700">
+                <DollarSign className="h-3 w-3" />
+                {formatCurrency(action.revenueImpact)}
+              </div>
             </div>
-            <div className="text-xs text-gray-500">{action.effortMinutes} min</div>
           </div>
+          {onRestore && (
+            <Button variant="outline" size="sm" onClick={() => onRestore(action.id)} className="h-8 text-xs shrink-0">
+              <Undo2 className="h-3 w-3 mr-1" />
+              Restore
+            </Button>
+          )}
         </div>
       </Card>
     );
