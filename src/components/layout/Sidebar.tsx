@@ -35,7 +35,7 @@ interface NavItem {
 
 // V1: Fixed navigation for Sales CRM only
 const navigation: NavItem[] = [
-  { name: 'Next Actions', href: '/actions', icon: Zap },
+  { name: 'Next Actions', href: '/next-actions', icon: Zap },
   { name: 'Pipeline', href: '/deals', icon: Briefcase },
   { name: 'Leads', href: '/leads', icon: Users },
   { name: 'Contacts', href: '/contacts', icon: UserCircle },
