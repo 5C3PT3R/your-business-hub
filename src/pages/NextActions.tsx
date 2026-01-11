@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { Header } from '@/components/layout/Header';
 import { ActionCard } from '@/components/next-actions/ActionCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +24,7 @@ import { useNextActions, useActionStats } from '@/hooks/useNextActions';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function NextActions() {
   const { user } = useAuth();
@@ -113,14 +115,24 @@ export default function NextActions() {
 
   const handleMoveToPending = async (actionId: string) => {
     try {
-      await updateAction({
-        actionId,
-        updates: { status: 'pending', completed_at: null },
-      });
+      // Update using raw Supabase client to ensure proper field names
+      const { error } = await supabase
+        .from('next_actions')
+        .update({
+          status: 'pending',
+          completed_at: null,
+        })
+        .eq('id', actionId);
+
+      if (error) throw error;
+
       toast({
         title: '↩️ Moved to Pending',
         description: 'Action restored to pending list.',
       });
+
+      // Manually refetch to update UI
+      refetch();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -177,20 +189,18 @@ export default function NextActions() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Next Actions</h1>
-            <p className="text-muted-foreground mt-1">
-              {stats?.pending || 0} pending · {stats?.completed || 0} completed today
-            </p>
-          </div>
-          <Button variant="outline" onClick={() => refetch()} disabled={isLoading}>
+      <Header
+        title="Next Actions"
+        subtitle={`${stats?.pending || 0} pending · ${stats?.completed || 0} completed today`}
+        actions={
+          <Button variant="outline" onClick={() => refetch()} disabled={isLoading} size="sm">
             <RefreshCw className={cn('h-4 w-4 mr-2', isLoading && 'animate-spin')} />
             Refresh
           </Button>
-        </div>
+        }
+      />
+
+      <div className="p-4 md:p-6 space-y-4 md:space-y-6">
 
         {/* Compact Focus Card - Only show for pending tab */}
         {activeTab === 'pending' && !isLoading && topAction && (
