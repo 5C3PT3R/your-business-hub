@@ -12,7 +12,16 @@
       "Bash(supabase link:*)",
       "Bash(supabase functions deploy:*)",
       "Bash(supabase functions list:*)",
-      "Bash(supabase functions logs:*)"
+      "Bash(supabase functions logs:*)",
+      "Bash(timeout 5 npm run dev:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx supabase functions deploy gmail-sync)",
+      "Bash(set SUPABASE_ACCESS_TOKEN)",
+      "Bash(npx supabase functions deploy:*)",
+      "Bash(cmd.exe /c \"d:\\\\your-business-hub\\\\deploy-gmail-sync.bat\")",
+      "Bash(npx supabase projects list:*)",
+      "Bash(grep:*)"
     ]
   }
 }

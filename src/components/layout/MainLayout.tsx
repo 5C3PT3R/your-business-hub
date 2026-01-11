@@ -1,9 +1,8 @@
 import { ReactNode, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sidebar } from './Sidebar';
+import { BreezeSidebar } from './BreezeSidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useSidebarCollapse } from '@/hooks/useSidebarCollapse';
 import { AgentButton } from '@/components/agent/AgentButton';
 import { cn } from '@/lib/utils';
 
@@ -15,7 +14,6 @@ export function MainLayout({ children }: MainLayoutProps) {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { collapsed } = useSidebarCollapse();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -39,12 +37,9 @@ export function MainLayout({ children }: MainLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Sidebar />
-      <main className={cn(
-        'min-h-screen transition-all duration-200',
-        isMobile ? 'pl-0' : collapsed ? 'pl-16' : 'pl-60'
-      )}>
+    <div className="min-h-screen bg-background flex">
+      {!isMobile && <BreezeSidebar />}
+      <main className="flex-1 min-h-screen">
         {children}
       </main>
       <AgentButton />

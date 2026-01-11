@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { ActionCard } from '@/components/next-actions/ActionCard';
@@ -7,6 +7,14 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Search,
   Zap,
@@ -19,6 +27,10 @@ import {
   SkipForward,
   Archive,
   Undo2,
+  TrendingUp,
+  Clock,
+  ArrowUpDown,
+  X,
 } from 'lucide-react';
 import { useNextActions, useActionStats } from '@/hooks/useNextActions';
 import { useAuth } from '@/hooks/useAuth';
@@ -32,6 +44,9 @@ export default function NextActions() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<string>('pending');
+  const [sortBy, setSortBy] = useState<string>('priority');
+  const [selectedActions, setSelectedActions] = useState<Set<string>>(new Set());
+  const [batchMode, setBatchMode] = useState(false);
 
   // Set page title
   React.useEffect(() => {
@@ -64,6 +79,49 @@ export default function NextActions() {
   } = useNextActions(filters);
 
   const { data: stats } = useActionStats();
+
+  // Keyboard shortcuts (moved after refetch is defined)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only trigger if not typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      switch (e.key) {
+        case 'r':
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            refetch();
+          }
+          break;
+        case 'b':
+          e.preventDefault();
+          setBatchMode(!batchMode);
+          setSelectedActions(new Set());
+          break;
+        case '1':
+          e.preventDefault();
+          setActiveTab('pending');
+          break;
+        case '2':
+          e.preventDefault();
+          setActiveTab('completed');
+          break;
+        case '3':
+          e.preventDefault();
+          setActiveTab('skipped');
+          break;
+        case 'Escape':
+          if (batchMode) {
+            setBatchMode(false);
+            setSelectedActions(new Set());
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [batchMode, refetch]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -142,9 +200,71 @@ export default function NextActions() {
     }
   };
 
+  // Batch action handlers
+  const handleBatchComplete = async () => {
+    if (selectedActions.size === 0) return;
+
+    try {
+      const promises = Array.from(selectedActions).map(id => completeAction(id));
+      await Promise.all(promises);
+
+      toast({
+        title: `✅ ${selectedActions.size} actions completed`,
+        description: 'Great work! Keep it up.',
+      });
+
+      setSelectedActions(new Set());
+      setBatchMode(false);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: 'Failed to complete some actions',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleBatchSkip = async () => {
+    if (selectedActions.size === 0) return;
+
+    try {
+      const promises = Array.from(selectedActions).map(id => skipAction(id));
+      await Promise.all(promises);
+
+      toast({
+        title: `⏭️ ${selectedActions.size} actions skipped`,
+        description: 'Actions moved to skipped section.',
+      });
+
+      setSelectedActions(new Set());
+      setBatchMode(false);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: 'Failed to skip some actions',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const toggleActionSelection = (actionId: string) => {
+    const newSelected = new Set(selectedActions);
+    if (newSelected.has(actionId)) {
+      newSelected.delete(actionId);
+    } else {
+      newSelected.add(actionId);
+    }
+    setSelectedActions(newSelected);
+  };
+
+  const selectAllVisible = () => {
+    const allIds = new Set(filteredActions.map(a => a.id));
+    setSelectedActions(allIds);
+  };
+
   // Client-side filtering
   const filteredActions = React.useMemo(() => {
-    let result = allActions;
+    let result = allActions || [];
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -165,8 +285,36 @@ export default function NextActions() {
       }
     }
 
+    // Apply sorting
+    switch (sortBy) {
+      case 'priority':
+        result.sort((a, b) => {
+          const urgencyOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+          const urgencyDiff = urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
+          if (urgencyDiff !== 0) return urgencyDiff;
+          return (b.aiPriorityScore || 0) - (a.aiPriorityScore || 0);
+        });
+        break;
+      case 'revenue':
+        result.sort((a, b) => (b.revenueImpact || 0) - (a.revenueImpact || 0));
+        break;
+      case 'effort':
+        result.sort((a, b) => (a.effortMinutes || 999) - (b.effortMinutes || 999));
+        break;
+      case 'closeProbability':
+        result.sort((a, b) => (b.closeProbability || 0) - (a.closeProbability || 0));
+        break;
+      case 'dueDate':
+        result.sort((a, b) => {
+          if (!a.dueDate) return 1;
+          if (!b.dueDate) return -1;
+          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        });
+        break;
+    }
+
     return result;
-  }, [allActions, searchQuery, activeFilter, activeTab]);
+  }, [allActions, searchQuery, activeFilter, activeTab, sortBy]);
 
   // Group actions into priority sections
   const groupedActions = React.useMemo(() => {
@@ -175,32 +323,34 @@ export default function NextActions() {
     const todayEnd = new Date(today.getTime() + 24 * 60 * 60 * 1000);
     const weekEnd = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
 
+    const actions = filteredActions || [];
+
     return {
-      urgent: filteredActions.filter((a) => a.urgency === 'critical'),
-      dueToday: filteredActions.filter((a) => {
+      urgent: actions.filter((a) => a.urgency === 'critical'),
+      dueToday: actions.filter((a) => {
         if (a.urgency === 'critical') return false;
         if (!a.dueDate) return false;
         const dueDate = new Date(a.dueDate);
         return dueDate < todayEnd;
       }),
-      upcoming: filteredActions.filter((a) => {
+      upcoming: actions.filter((a) => {
         if (a.urgency === 'critical') return false;
         if (!a.dueDate) return false;
         const dueDate = new Date(a.dueDate);
         return dueDate >= todayEnd && dueDate < weekEnd;
       }),
-      quickWins: filteredActions.filter((a) => {
+      quickWins: actions.filter((a) => {
         if (a.urgency === 'critical') return false;
         if (a.dueDate && new Date(a.dueDate) < weekEnd) return false;
         return a.effortMinutes <= 15 && a.revenueImpact >= 10000;
       }),
-      aiSuggested: filteredActions.filter((a) => {
+      aiSuggested: actions.filter((a) => {
         if (a.urgency === 'critical') return false;
         if (a.dueDate && new Date(a.dueDate) < weekEnd) return false;
         if (a.effortMinutes <= 15 && a.revenueImpact >= 10000) return false;
         return a.aiPriorityScore >= 70;
       }),
-      other: filteredActions.filter((a) => {
+      other: actions.filter((a) => {
         if (a.urgency === 'critical') return false;
         if (a.dueDate) {
           const dueDate = new Date(a.dueDate);
@@ -235,12 +385,54 @@ export default function NextActions() {
     <MainLayout>
       <Header
         title="Next Actions"
-        subtitle={`${stats?.pending || 0} pending · ${stats?.completed || 0} completed today`}
+        subtitle={`${stats?.pending || 0} pending · ${stats?.completed || 0} completed today ${batchMode ? `· ${selectedActions.size} selected` : ''}`}
         actions={
-          <Button variant="outline" onClick={() => refetch()} disabled={isLoading} size="sm">
-            <RefreshCw className={cn('h-4 w-4 mr-2', isLoading && 'animate-spin')} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            {batchMode && activeTab === 'pending' && (
+              <>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleBatchComplete}
+                  disabled={selectedActions.size === 0}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                  Complete ({selectedActions.size})
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBatchSkip}
+                  disabled={selectedActions.size === 0}
+                >
+                  <SkipForward className="h-4 w-4 mr-1" />
+                  Skip ({selectedActions.size})
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setBatchMode(false);
+                    setSelectedActions(new Set());
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+            {!batchMode && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setBatchMode(true)}>
+                  <Checkbox className="h-4 w-4 mr-1" />
+                  Batch
+                </Button>
+                <Button variant="outline" onClick={() => refetch()} disabled={isLoading} size="sm">
+                  <RefreshCw className={cn('h-4 w-4 mr-2', isLoading && 'animate-spin')} />
+                  Refresh
+                </Button>
+              </>
+            )}
+          </div>
         }
       />
 
@@ -345,6 +537,20 @@ export default function NextActions() {
             </TabsList>
 
             <div className="flex items-center gap-2">
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-40 h-9">
+                  <ArrowUpDown className="h-4 w-4 mr-2" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="priority">Priority</SelectItem>
+                  <SelectItem value="revenue">Revenue</SelectItem>
+                  <SelectItem value="effort">Effort</SelectItem>
+                  <SelectItem value="closeProbability">Close %</SelectItem>
+                  <SelectItem value="dueDate">Due Date</SelectItem>
+                </SelectContent>
+              </Select>
+
               <div className="relative w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
@@ -359,47 +565,59 @@ export default function NextActions() {
 
           {/* Filters - Only show for pending tab */}
           {activeTab === 'pending' && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Filter:</span>
-              <Button
-                variant={activeFilter === 'all' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setActiveFilter('all')}
-              >
-                All
-              </Button>
-              <Button
-                variant={activeFilter === 'urgent' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setActiveFilter('urgent')}
-              >
-                <Flame className="h-3 w-3 mr-1" />
-                Urgent ({groupedActions.urgent.length})
-              </Button>
-              <Button
-                variant={activeFilter === 'today' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setActiveFilter('today')}
-              >
-                <Calendar className="h-3 w-3 mr-1" />
-                Today
-              </Button>
-              <Button
-                variant={activeFilter === 'high-value' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setActiveFilter('high-value')}
-              >
-                <DollarSign className="h-3 w-3 mr-1" />
-                High Value
-              </Button>
-              <Button
-                variant={activeFilter === 'at-risk' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setActiveFilter('at-risk')}
-              >
-                <AlertTriangle className="h-3 w-3 mr-1" />
-                At Risk
-              </Button>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Filter:</span>
+                <Button
+                  variant={activeFilter === 'all' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setActiveFilter('all')}
+                >
+                  All
+                </Button>
+                <Button
+                  variant={activeFilter === 'urgent' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setActiveFilter('urgent')}
+                >
+                  <Flame className="h-3 w-3 mr-1" />
+                  Urgent ({groupedActions.urgent.length})
+                </Button>
+                <Button
+                  variant={activeFilter === 'today' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setActiveFilter('today')}
+                >
+                  <Calendar className="h-3 w-3 mr-1" />
+                  Today
+                </Button>
+                <Button
+                  variant={activeFilter === 'high-value' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setActiveFilter('high-value')}
+                >
+                  <DollarSign className="h-3 w-3 mr-1" />
+                  High Value
+                </Button>
+                <Button
+                  variant={activeFilter === 'at-risk' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setActiveFilter('at-risk')}
+                >
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  At Risk
+                </Button>
+              </div>
+
+              {batchMode && filteredActions.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={selectAllVisible}
+                >
+                  Select All ({filteredActions.length})
+                </Button>
+              )}
             </div>
           )}
 
@@ -433,6 +651,9 @@ export default function NextActions() {
                         onAction={handleAction}
                         onComplete={handleComplete}
                         onSkip={handleSkip}
+                        batchMode={batchMode}
+                        isSelected={selectedActions.has(action.id)}
+                        onToggleSelect={toggleActionSelection}
                       />
                     ))}
                   </div>
@@ -453,6 +674,9 @@ export default function NextActions() {
                         onAction={handleAction}
                         onComplete={handleComplete}
                         onSkip={handleSkip}
+                        batchMode={batchMode}
+                        isSelected={selectedActions.has(action.id)}
+                        onToggleSelect={toggleActionSelection}
                       />
                     ))}
                   </div>
@@ -473,6 +697,9 @@ export default function NextActions() {
                         onAction={handleAction}
                         onComplete={handleComplete}
                         onSkip={handleSkip}
+                        batchMode={batchMode}
+                        isSelected={selectedActions.has(action.id)}
+                        onToggleSelect={toggleActionSelection}
                       />
                     ))}
                   </div>
@@ -494,6 +721,9 @@ export default function NextActions() {
                         onAction={handleAction}
                         onComplete={handleComplete}
                         onSkip={handleSkip}
+                        batchMode={batchMode}
+                        isSelected={selectedActions.has(action.id)}
+                        onToggleSelect={toggleActionSelection}
                       />
                     ))}
                   </div>
@@ -515,6 +745,9 @@ export default function NextActions() {
                         onAction={handleAction}
                         onComplete={handleComplete}
                         onSkip={handleSkip}
+                        batchMode={batchMode}
+                        isSelected={selectedActions.has(action.id)}
+                        onToggleSelect={toggleActionSelection}
                       />
                     ))}
                   </div>
@@ -534,6 +767,9 @@ export default function NextActions() {
                         onAction={handleAction}
                         onComplete={handleComplete}
                         onSkip={handleSkip}
+                        batchMode={batchMode}
+                        isSelected={selectedActions.has(action.id)}
+                        onToggleSelect={toggleActionSelection}
                       />
                     ))}
                   </div>
@@ -548,6 +784,9 @@ export default function NextActions() {
                     onAction={handleAction}
                     onComplete={handleComplete}
                     onSkip={handleSkip}
+                    batchMode={batchMode}
+                    isSelected={selectedActions.has(action.id)}
+                    onToggleSelect={toggleActionSelection}
                   />
                 ))}
               </div>
@@ -623,31 +862,84 @@ export default function NextActions() {
           </TabsContent>
         </Tabs>
 
-        {/* Compact Stats - Only for pending */}
+        {/* Enhanced Stats & Keyboard Shortcuts */}
         {activeTab === 'pending' && stats && filteredActions.length > 0 && (
-          <Card className="p-4 bg-gray-50">
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-6">
-                <div>
-                  <span className="text-gray-600">Revenue potential:</span>
-                  <span className="ml-2 font-semibold text-gray-900">
-                    {formatCurrency(stats.totalRevenue)}
-                  </span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Progress Widget */}
+            <Card className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 col-span-1 md:col-span-2">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-gray-900">Today's Progress</h4>
+                  <div className="text-2xl">
+                    {stats.completed >= (stats.today || 1) * 0.7 ? '🎯' : '💪'}
+                  </div>
                 </div>
-                <div>
-                  <span className="text-gray-600">Pending:</span>
-                  <span className="ml-2 font-semibold text-gray-900">{stats.pending}</span>
+
+                {/* Progress bar */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs text-gray-600">
+                    <span>{stats.completed} completed</span>
+                    <span>{stats.pending} remaining</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full transition-all"
+                      style={{
+                        width: `${Math.min(100, ((stats.completed || 0) / ((stats.pending || 0) + (stats.completed || 0)) * 100))}%`,
+                      }}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <span className="text-gray-600">Urgent:</span>
-                  <span className="ml-2 font-semibold text-red-600">{stats.urgent}</span>
+
+                {/* Stats grid */}
+                <div className="grid grid-cols-3 gap-3 pt-2 border-t border-green-200">
+                  <div>
+                    <div className="text-xs text-gray-600">Revenue</div>
+                    <div className="text-sm font-bold text-green-700">
+                      {formatCurrency(stats.totalRevenue)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-600">Urgent</div>
+                    <div className="text-sm font-bold text-red-600">{stats.urgent}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-600">Completion</div>
+                    <div className="text-sm font-bold text-gray-900">
+                      {Math.round(((stats.completed || 0) / ((stats.pending || 0) + (stats.completed || 0)) * 100) || 0)}%
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="text-2xl">
-                {stats.completed >= (stats.today || 1) * 0.7 ? '🎯' : '💪'}
+            </Card>
+
+            {/* Keyboard Shortcuts */}
+            <Card className="p-4 bg-gray-50">
+              <h4 className="text-sm font-semibold text-gray-900 mb-3">⌨️ Shortcuts</h4>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Refresh</span>
+                  <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-gray-700 font-mono">R</kbd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Batch Mode</span>
+                  <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-gray-700 font-mono">B</kbd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Pending/Done/Skip</span>
+                  <div className="flex gap-1">
+                    <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-gray-700 font-mono">1</kbd>
+                    <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-gray-700 font-mono">2</kbd>
+                    <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-gray-700 font-mono">3</kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Exit Batch</span>
+                  <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-gray-700 font-mono">ESC</kbd>
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          </div>
         )}
       </div>
     </MainLayout>

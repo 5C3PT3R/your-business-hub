@@ -14,8 +14,10 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { WorkspaceProvider, useWorkspace } from "@/hooks/useWorkspace";
 import Landing from "./pages/Landing";
 import Demo from "./pages/Demo";
+import Dashboard from "./pages/Dashboard";
 import Actions from "./pages/Actions";
 import NextActions from "./pages/NextActions";
+import Inbox from "./pages/Inbox";
 import Leads from "./pages/Leads";
 import LeadProfile from "./pages/LeadProfile";
 import Contacts from "./pages/Contacts";
@@ -59,6 +61,14 @@ function AppRoutes() {
 
       {/* PROTECTED ROUTES - Auth required */}
       <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/actions"
         element={
           <ProtectedRoute>
@@ -71,6 +81,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <NextActions />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/inbox"
+        element={
+          <ProtectedRoute>
+            <Inbox />
           </ProtectedRoute>
         }
       />

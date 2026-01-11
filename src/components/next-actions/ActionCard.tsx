@@ -2,6 +2,7 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Mail,
   Phone,
@@ -27,6 +28,9 @@ interface ActionCardProps {
   onSkip: (actionId: string) => void;
   onRestore?: (actionId: string) => void;
   compact?: boolean;
+  batchMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (actionId: string) => void;
 }
 
 const urgencyConfig = {
@@ -72,6 +76,9 @@ export function ActionCard({
   onSkip,
   onRestore,
   compact = false,
+  batchMode = false,
+  isSelected = false,
+  onToggleSelect,
 }: ActionCardProps) {
   const urgency = urgencyConfig[action.urgency];
   const ActionIcon = actionTypeIcons[action.actionType] || FileText;
@@ -140,10 +147,17 @@ export function ActionCard({
   }
 
   return (
-    <Card className={cn('p-4 hover:shadow-md transition-all border-l-4', urgency.color)}>
+    <Card className={cn('p-4 hover:shadow-md transition-all border-l-4', urgency.color, isSelected && 'ring-2 ring-blue-500 bg-blue-50/50')}>
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2 flex-1">
+          {batchMode && onToggleSelect && (
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={() => onToggleSelect(action.id)}
+              className="mt-1"
+            />
+          )}
           <div className="p-1.5 bg-blue-100 rounded">
             <ActionIcon className="h-4 w-4 text-blue-600" />
           </div>
