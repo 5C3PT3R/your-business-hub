@@ -260,23 +260,35 @@ export function ActionCard({
 
       {/* Metadata Footer */}
       <div className="flex items-center justify-between pt-3 border-t">
-        <div className="flex items-center gap-3 text-xs text-gray-500">
+        <div className="flex items-center gap-4 text-xs">
           {action.effortMinutes && (
-            <div className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {action.effortMinutes} min
+            <div className="flex items-center gap-1 text-gray-600">
+              <Clock className="h-3.5 w-3.5" />
+              <span>{action.effortMinutes} min</span>
             </div>
           )}
           {action.revenueImpact > 0 && (
-            <div className="flex items-center gap-1 font-medium text-gray-700">
-              <DollarSign className="h-3 w-3" />
-              {formatCurrency(action.revenueImpact)}
+            <div className="flex items-center gap-1 font-semibold text-green-700">
+              <DollarSign className="h-3.5 w-3.5" />
+              <span>{formatCurrency(action.revenueImpact)}</span>
             </div>
           )}
           {action.closeProbability !== undefined && (
             <div className="flex items-center gap-1">
-              <TrendingUp className="h-3 w-3" />
-              {action.closeProbability}%
+              <TrendingUp className={cn(
+                'h-3.5 w-3.5',
+                action.closeProbability >= 70 ? 'text-green-600' :
+                action.closeProbability >= 40 ? 'text-yellow-600' :
+                'text-red-600'
+              )} />
+              <span className={cn(
+                'font-semibold',
+                action.closeProbability >= 70 ? 'text-green-700' :
+                action.closeProbability >= 40 ? 'text-yellow-700' :
+                'text-red-700'
+              )}>
+                {action.closeProbability}% close
+              </span>
             </div>
           )}
         </div>
