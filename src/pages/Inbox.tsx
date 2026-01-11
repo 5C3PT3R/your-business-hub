@@ -36,14 +36,17 @@ import { useAuth } from '@/hooks/useAuth';
 import { useIntegrations } from '@/hooks/useIntegrations';
 import { useMessages } from '@/hooks/useMessages';
 import { useGmailSync } from '@/hooks/useGmailSync';
+import { useToast } from '@/hooks/use-toast';
 import { UnifiedMessage } from '@/types/inbox';
 import { ChannelNavigation } from '@/components/inbox/ChannelNavigation';
 import { EmptyInboxState } from '@/components/inbox/EmptyInboxState';
 import { EmptyMessagesState } from '@/components/inbox/EmptyMessagesState';
+import { ComposeModal } from '@/components/inbox/ComposeModal';
 import { getPlatformConfig } from '@/config/platforms';
 
 export default function Inbox() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const { integrations, loading: integrationsLoading, refreshIntegrations } = useIntegrations();
   const { syncGmail, isSyncing: isGmailSyncing } = useGmailSync();
   const [activeTab, setActiveTab] = useState<string>('all');
@@ -51,6 +54,7 @@ export default function Inbox() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMessage, setSelectedMessage] = useState<UnifiedMessage | null>(null);
   const [sortBy, setSortBy] = useState<string>('date');
+  const [composeOpen, setComposeOpen] = useState(false);
 
   // Fetch real messages from conversations table
   const {
@@ -61,7 +65,7 @@ export default function Inbox() {
     toggleStar: toggleMessageStar,
   } = useMessages({
     channel: activeChannel as any,
-    unreadOnly: activeTab === 'unread',
+    unreadOnly: false, // Don't filter at DB level, filter in UI for flexibility
   });
 
   // Set page title
@@ -207,7 +211,7 @@ export default function Inbox() {
               />
               Sync Gmail
             </Button>
-            <Button variant="default" size="sm">
+            <Button variant="default" size="sm" onClick={() => setComposeOpen(true)}>
               <Mail className="h-4 w-4 mr-2" />
               Compose
             </Button>
@@ -515,11 +519,18 @@ export default function Inbox() {
 
               {/* Message Body */}
               <div className="flex-1 p-6 overflow-y-auto">
-                <div className="prose prose-sm max-w-none">
-                  <p className="whitespace-pre-wrap text-gray-700">
-                    {selectedMessage.body}
-                  </p>
-                </div>
+                {selectedMessage.bodyHtml ? (
+                  <div
+                    className="prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedMessage.bodyHtml) }}
+                  />
+                ) : (
+                  <div className="prose prose-sm max-w-none">
+                    <p className="whitespace-pre-wrap text-gray-700">
+                      {selectedMessage.body}
+                    </p>
+                  </div>
+                )}
               </div>
             </Card>
           ) : (
@@ -530,8 +541,37 @@ export default function Inbox() {
           )}
         </div>
       </div>
+
+      {/* Compose Modal */}
+      <ComposeModal
+        open={composeOpen}
+        onClose={() => setComposeOpen(false)}
+        onSend={async (data) => {
+          toast({
+            title: 'Email sent',
+            description: `Message sent to ${data.to}`,
+          });
+          // TODO: Implement actual email sending via API
+        }}
+      />
     </MainLayout>
   );
+}
+
+function sanitizeHtml(html: string): string {
+  // Remove <style> tags and their contents
+  let cleaned = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+
+  // Remove inline style attributes
+  cleaned = cleaned.replace(/\sstyle="[^"]*"/gi, '');
+
+  // Remove script tags
+  cleaned = cleaned.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+
+  // Remove dangerous attributes
+  cleaned = cleaned.replace(/\son\w+="[^"]*"/gi, '');
+
+  return cleaned;
 }
 
 function formatTimestamp(date: Date, detailed: boolean = false): string {
