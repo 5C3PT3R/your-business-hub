@@ -15,6 +15,7 @@ import { WorkspaceProvider, useWorkspace } from "@/hooks/useWorkspace";
 import Landing from "./pages/Landing";
 import Demo from "./pages/Demo";
 import Actions from "./pages/Actions";
+import NextActions from "./pages/NextActions";
 import Leads from "./pages/Leads";
 import LeadProfile from "./pages/LeadProfile";
 import Contacts from "./pages/Contacts";
@@ -62,6 +63,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Actions />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/next-actions"
+        element={
+          <ProtectedRoute>
+            <NextActions />
           </ProtectedRoute>
         }
       />
