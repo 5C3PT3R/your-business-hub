@@ -17,6 +17,7 @@ import {
   RefreshCw,
   SkipForward,
   Archive,
+  Undo2,
 } from 'lucide-react';
 import { useNextActions, useActionStats } from '@/hooks/useNextActions';
 import { useAuth } from '@/hooks/useAuth';
@@ -29,6 +30,11 @@ export default function NextActions() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<string>('pending');
+
+  // Set page title
+  React.useEffect(() => {
+    document.title = 'Next Actions | Upflo CRM';
+  }, []);
 
   // Fetch actions based on active tab
   const filters = React.useMemo(() => {
@@ -52,6 +58,7 @@ export default function NextActions() {
     refetch,
     completeAction,
     skipAction,
+    updateAction,
   } = useNextActions(filters);
 
   const { data: stats } = useActionStats();
@@ -99,6 +106,25 @@ export default function NextActions() {
       toast({
         title: 'Error',
         description: error?.message || 'Failed to skip action',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleMoveToPending = async (actionId: string) => {
+    try {
+      await updateAction({
+        actionId,
+        updates: { status: 'pending', completed_at: null },
+      });
+      toast({
+        title: '↩️ Moved to Pending',
+        description: 'Action restored to pending list.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to move action',
         variant: 'destructive',
       });
     }
@@ -344,6 +370,7 @@ export default function NextActions() {
                     onAction={handleAction}
                     onComplete={handleComplete}
                     onSkip={handleSkip}
+                    onRestore={handleMoveToPending}
                     compact
                   />
                 ))}
@@ -377,6 +404,7 @@ export default function NextActions() {
                     onAction={handleAction}
                     onComplete={handleComplete}
                     onSkip={handleSkip}
+                    onRestore={handleMoveToPending}
                     compact
                   />
                 ))}
