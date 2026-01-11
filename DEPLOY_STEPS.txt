@@ -1,0 +1,79 @@
+========================================
+GMAIL SYNC DEPLOYMENT - STEP BY STEP
+========================================
+
+You're currently stuck at the login prompt. Here's what to do:
+
+STEP 1: Complete Login
+-----------------------
+In your terminal where it says:
+  "Hello from Supabase! Press Enter to open browser and login automatically."
+
+→ Press ENTER key
+
+→ Your browser will open to Supabase login page
+
+→ Login with your Supabase account
+
+→ You'll see "Successfully logged in!" in the terminal
+
+
+STEP 2: Deploy the Function
+----------------------------
+After successful login, run:
+
+  npx supabase functions deploy gmail-sync --project-ref pesqbkgfsfkqdquhilsv
+
+You should see:
+  "Deploying Function (project-ref: pesqbkgfsfkqdquhilsv)...
+   gmail-sync (deployed)"
+
+
+STEP 3: Test in Your App
+-------------------------
+1. Go to: http://localhost:8080/inbox
+
+2. Click the "Sync Gmail" button (top right)
+
+3. Wait for success message
+
+4. Your Gmail messages will appear!
+
+
+========================================
+TROUBLESHOOTING
+========================================
+
+If you see "failed to scan line: expected newline":
+→ The function file has a formatting issue
+→ Try running: npx supabase functions deploy gmail-sync --no-verify-jwt
+
+If you see "Access token not provided":
+→ You didn't complete Step 1 (login)
+→ Close terminal and start fresh with: npx supabase login
+
+If you see "Gmail not connected" when clicking Sync:
+→ Make sure Gmail is connected in Settings first
+→ Go to Settings → Integrations → Connect Gmail
+
+
+========================================
+ALTERNATIVE: Deploy via Dashboard
+========================================
+
+If command line keeps failing:
+
+1. Go to: https://supabase.com/dashboard/project/pesqbkgfsfkqdquhilsv/functions
+
+2. Click "New Function"
+
+3. Name it: gmail-sync
+
+4. Copy ALL contents from:
+   supabase\functions\gmail-sync\index.ts
+
+5. Paste into the editor
+
+6. Click "Deploy"
+
+Done! Now test by clicking "Sync Gmail" in your inbox.

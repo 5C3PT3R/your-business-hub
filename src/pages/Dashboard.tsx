@@ -1,6 +1,7 @@
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { IndustryDashboard } from '@/components/dashboard/IndustryDashboard';
+import { AIInsightsWidget } from '@/components/dashboard/AIInsightsWidget';
 import { useAuth } from '@/hooks/useAuth';
 import { useWorkspace } from '@/hooks/useWorkspace';
 
@@ -15,8 +16,9 @@ export default function Dashboard() {
         title="Dashboard"
         subtitle={`Welcome back, ${userName}! Here's your ${template?.name || 'CRM'} overview.`}
       />
-      
-      <div className="p-4 md:p-6">
+
+      <div className="p-4 md:p-6 space-y-6">
+        <AIInsightsWidget />
         <IndustryDashboard />
       </div>
     </MainLayout>
