@@ -49,7 +49,28 @@ serve(async (req) => {
     console.log('Syncing Gmail for user:', user.id);
 
     // Get Gmail access token
-    const accessToken = await getValidGmailToken(supabase, user.id);
+    let accessToken;
+    try {
+      accessToken = await getValidGmailToken(supabase, user.id);
+    } catch (error) {
+      console.error('Failed to get Gmail token:', error);
+
+      // Check if it's a decryption error
+      if (error.message?.includes('decrypt')) {
+        return new Response(
+          JSON.stringify({
+            error: 'Gmail token encryption error. Please disconnect and reconnect Gmail in Settings to fix this.',
+            details: error.message
+          }),
+          {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+          }
+        );
+      }
+
+      throw error;
+    }
 
     if (!accessToken) {
       return new Response(
