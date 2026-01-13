@@ -56,7 +56,7 @@ export function ContactEmailDialog({ open, onOpenChange, contact }: ContactEmail
     try {
       // Fetch emails from conversations table where the contact's email is involved
       const { data, error } = await supabase
-        .from('conversations')
+        .from('conversations' as any)
         .select('*')
         .or(`from_email.eq.${contact.email},to_emails.cs.{${contact.email}}`)
         .order('sent_at', { ascending: false })
@@ -103,37 +103,22 @@ export function ContactEmailDialog({ open, onOpenChange, contact }: ContactEmail
         throw new Error('You must be logged in to send emails');
       }
 
-      // Add to email send queue for human approval
-      const { error } = await supabase
-        .from('email_send_queue')
-        .insert({
-          user_id: user.id,
-          to_address: composeForm.to,
-          subject: composeForm.subject,
-          body_html: composeForm.body,
-          body_text: composeForm.body,
-          status: 'pending',
-          draft_source: 'user',
-          metadata: {
-            contact_id: contact.id,
-            contact_name: contact.name,
-          },
-        });
-
-      if (error) throw error;
+      // Create a mailto link and open it
+      const mailtoLink = `mailto:${composeForm.to}?subject=${encodeURIComponent(composeForm.subject)}&body=${encodeURIComponent(composeForm.body)}`;
+      window.location.href = mailtoLink;
 
       toast({
-        title: 'Email queued',
-        description: 'Your email has been queued for sending. It will be sent pending approval.',
+        title: 'Email client opened',
+        description: 'Your default email client should now open with the composed message.',
       });
 
       setComposeForm({ to: contact.email || '', subject: '', body: '' });
       setComposing(false);
     } catch (error: any) {
-      console.error('[ContactEmailDialog] Error queueing email:', error);
+      console.error('[ContactEmailDialog] Error sending email:', error);
       toast({
-        title: 'Error sending email',
-        description: error.message || 'Failed to queue email',
+        title: 'Error opening email client',
+        description: error.message || 'Failed to open email client',
         variant: 'destructive',
       });
     }
@@ -291,7 +276,7 @@ export function ContactEmailDialog({ open, onOpenChange, contact }: ContactEmail
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Note: Emails are queued for human approval before sending for safety.
+                Note: Your default email client will open with the pre-filled message ready to send.
               </p>
             </div>
           </TabsContent>
