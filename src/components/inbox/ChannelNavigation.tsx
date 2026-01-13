@@ -31,6 +31,9 @@ export function ChannelNavigation({
   // Group integrations by category if more than 5 platforms
   const shouldGroupByCategory = connectedIntegrations.length > 5;
 
+  // Hide individual channel buttons if only one integration connected
+  const showIndividualChannels = connectedIntegrations.length > 1;
+
   const categories = shouldGroupByCategory
     ? Array.from(new Set(connectedIntegrations.map((i) => i.category)))
     : [];
@@ -58,7 +61,7 @@ export function ChannelNavigation({
           </Button>
 
           {/* Category Grouping or Individual Channels */}
-          {shouldGroupByCategory ? (
+          {showIndividualChannels && shouldGroupByCategory ? (
             // Show category tabs when many platforms connected
             categories.map((category) => {
               const categoryIntegrations = connectedIntegrations.filter(
@@ -91,7 +94,7 @@ export function ChannelNavigation({
                 </Button>
               );
             })
-          ) : (
+          ) : showIndividualChannels ? (
             // Show individual platform tabs when few platforms
             connectedIntegrations.map((integration) => {
               const config = getPlatformConfig(integration.platform);
@@ -125,7 +128,7 @@ export function ChannelNavigation({
                 </Button>
               );
             })
-          )}
+          ) : null}
         </div>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
