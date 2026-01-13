@@ -10,6 +10,7 @@ import { Mail, Send, Inbox, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useGmailSend } from '@/hooks/useGmailSend';
 
 interface ContactEmailDialogProps {
   open: boolean;
@@ -33,6 +34,7 @@ interface EmailMessage {
 
 export function ContactEmailDialog({ open, onOpenChange, contact }: ContactEmailDialogProps) {
   const { toast } = useToast();
+  const { sendEmail, isSending } = useGmailSend();
   const [emails, setEmails] = useState<EmailMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [composing, setComposing] = useState(false);
@@ -96,31 +98,22 @@ export function ContactEmailDialog({ open, onOpenChange, contact }: ContactEmail
     }
 
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
-        throw new Error('You must be logged in to send emails');
-      }
-
-      // Create a mailto link and open it
-      const mailtoLink = `mailto:${composeForm.to}?subject=${encodeURIComponent(composeForm.subject)}&body=${encodeURIComponent(composeForm.body)}`;
-      window.location.href = mailtoLink;
-
-      toast({
-        title: 'Email client opened',
-        description: 'Your default email client should now open with the composed message.',
+      // Send email via Gmail API
+      await sendEmail({
+        to: composeForm.to,
+        subject: composeForm.subject,
+        body: composeForm.body,
       });
 
+      // Clear form and close compose tab
       setComposeForm({ to: contact.email || '', subject: '', body: '' });
       setComposing(false);
+
+      // Refresh emails to show the sent message
+      await fetchEmails();
     } catch (error: any) {
       console.error('[ContactEmailDialog] Error sending email:', error);
-      toast({
-        title: 'Error opening email client',
-        description: error.message || 'Failed to open email client',
-        variant: 'destructive',
-      });
+      // Error handling is already done in useGmailSend hook
     }
   };
 
@@ -266,17 +259,22 @@ export function ContactEmailDialog({ open, onOpenChange, contact }: ContactEmail
               </div>
 
               <div className="flex items-center gap-3">
-                <Button variant="gradient" onClick={handleSendEmail} className="flex-1">
+                <Button
+                  variant="gradient"
+                  onClick={handleSendEmail}
+                  className="flex-1"
+                  disabled={isSending}
+                >
                   <Send className="h-4 w-4 mr-2" />
-                  Send Email
+                  {isSending ? 'Sending...' : 'Send Email'}
                 </Button>
-                <Button variant="outline" onClick={() => setComposing(false)}>
+                <Button variant="outline" onClick={() => setComposing(false)} disabled={isSending}>
                   Cancel
                 </Button>
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Note: Your default email client will open with the pre-filled message ready to send.
+                Note: Email will be sent directly via your connected Gmail account.
               </p>
             </div>
           </TabsContent>
