@@ -21,11 +21,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, Building, DollarSign, Loader2, Save, MessageSquare, Plus, Brain, Sparkles, TrendingUp, Copy, Check } from 'lucide-react';
+import { ArrowLeft, Building, DollarSign, Loader2, Save, MessageSquare, Plus, Brain, Sparkles, TrendingUp, Copy, Check, AlertTriangle, Clock, TrendingDown, Minus } from 'lucide-react';
 import { useDeals, Deal, DealStage } from '@/hooks/useDeals';
 import { useActivities, parseAISummary, AIAnalysis } from '@/hooks/useActivities';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 // V1: Stages are locked - not editable
 const stages: { id: DealStage; name: string }[] = [
@@ -39,6 +40,13 @@ const intentColors = {
   low: 'bg-muted text-muted-foreground',
   medium: 'bg-warning/20 text-warning-foreground border-warning/50',
   high: 'bg-success/20 text-success-foreground border-success/50',
+};
+
+// Health score color coding
+const getHealthScoreColor = (score: number = 50) => {
+  if (score >= 80) return 'text-green-600 bg-green-50 border-green-200';
+  if (score >= 50) return 'text-orange-600 bg-orange-50 border-orange-200';
+  return 'text-red-600 bg-red-50 border-red-200';
 };
 
 function AIInsightsCard({ analysis, stageChanged }: { analysis: AIAnalysis; stageChanged?: boolean }) {
@@ -293,12 +301,112 @@ export default function DealDetail() {
             <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
               <Building className="h-6 w-6 text-primary" />
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-2xl font-semibold text-foreground">{deal.title}</h1>
               <p className="text-muted-foreground">{deal.company || 'No company'}</p>
             </div>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-sm text-muted-foreground">Deal Value</p>
+                <p className="text-2xl font-bold text-foreground">${deal.value.toLocaleString()}</p>
+              </div>
+              <Badge variant="outline" className={cn('text-lg px-4 py-2 font-bold border-2', getHealthScoreColor(deal.health_score ?? 50))}>
+                {deal.health_score ?? 50}
+              </Badge>
+            </div>
           </div>
         </div>
+
+        {/* AI Health Analysis Card */}
+        <Card className="animate-slide-up" style={{ animationDelay: '50ms' }}>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Brain className="h-5 w-5 text-primary" />
+              AI Health Analysis
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Key Metrics Grid */}
+            <div className="grid grid-cols-3 gap-4">
+              {/* Days in Stage */}
+              <div className="p-4 rounded-lg border border-border bg-card">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Days in Stage</span>
+                </div>
+                <p className="text-2xl font-semibold text-foreground mb-1">{deal.days_in_stage ?? 0}</p>
+                {(deal.days_in_stage ?? 0) > 14 && (
+                  <Badge variant="destructive" className="text-xs">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    Stagnant
+                  </Badge>
+                )}
+              </div>
+
+              {/* Sentiment */}
+              <div className="p-4 rounded-lg border border-border bg-card">
+                <div className="flex items-center gap-2 mb-2">
+                  {deal.sentiment_trend === 'positive' ? <TrendingUp className="h-4 w-4 text-green-600" /> :
+                   deal.sentiment_trend === 'negative' ? <TrendingDown className="h-4 w-4 text-red-600" /> :
+                   <Minus className="h-4 w-4 text-muted-foreground" />}
+                  <span className="text-sm text-muted-foreground">Sentiment</span>
+                </div>
+                <p className="text-lg font-semibold capitalize text-foreground">
+                  {deal.sentiment_trend || 'neutral'}
+                </p>
+              </div>
+
+              {/* Last Activity */}
+              <div className="p-4 rounded-lg border border-border bg-card">
+                <div className="flex items-center gap-2 mb-2">
+                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Last Activity</span>
+                </div>
+                <p className="text-sm font-semibold text-foreground">
+                  {deal.last_activity_at
+                    ? format(new Date(deal.last_activity_at), 'MMM d, yyyy')
+                    : 'No activity yet'}
+                </p>
+              </div>
+            </div>
+
+            {/* Risk Factors */}
+            {deal.ai_risk_factors && deal.ai_risk_factors.length > 0 && (
+              <div className="p-4 rounded-lg border-2 border-destructive/30 bg-destructive/5">
+                <div className="flex items-center gap-2 mb-3">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  <span className="font-semibold text-destructive">Risk Factors</span>
+                </div>
+                <ul className="space-y-2">
+                  {deal.ai_risk_factors.map((risk, idx) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-destructive mt-2 flex-shrink-0" />
+                      <span className="text-sm text-foreground">{risk}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Next Actions */}
+            {deal.ai_next_actions && deal.ai_next_actions.length > 0 && (
+              <div className="p-4 rounded-lg border-2 border-primary/30 bg-primary/5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  <span className="font-semibold text-primary">Suggested Next Actions</span>
+                </div>
+                <ul className="space-y-2">
+                  {deal.ai_next_actions.map((action, idx) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
+                      <span className="text-sm text-foreground">{action}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* V1: Simplified Edit Form - essential fields only */}
         <Card className="animate-slide-up" style={{ animationDelay: '100ms' }}>
@@ -376,7 +484,7 @@ export default function DealDetail() {
         </Card>
 
         {/* Add Conversation */}
-        <Card className="animate-slide-up" style={{ animationDelay: '150ms' }}>
+        <Card className="animate-slide-up" style={{ animationDelay: '200ms' }}>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Plus className="h-5 w-5" />
@@ -415,7 +523,7 @@ export default function DealDetail() {
         </Card>
 
         {/* Conversations */}
-        <Card className="animate-slide-up" style={{ animationDelay: '200ms' }}>
+        <Card className="animate-slide-up" style={{ animationDelay: '250ms' }}>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <MessageSquare className="h-5 w-5" />
