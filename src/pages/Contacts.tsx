@@ -4,7 +4,8 @@ import { Header } from '@/components/layout/Header';
 import { useContacts } from '@/hooks/useContacts';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, LayoutGrid, List, Plus, Loader2, Mail, Phone, Building, MoreHorizontal, Trash2, Edit, Undo2, Star } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Search, LayoutGrid, List, Plus, Loader2, Mail, Phone, Building, MoreHorizontal, Trash2, Edit, Undo2, Star, CheckSquare, Download, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DialerRecorder } from '@/components/voice/DialerRecorder';
 import {
@@ -63,6 +64,8 @@ export default function Contacts() {
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [emailingContact, setEmailingContact] = useState<any>(null);
   const [activeFilter, setActiveFilter] = useState<'all' | 'favorites' | 'active' | 'inactive'>('all');
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { contacts, loading, addContact, updateContact, deleteContact } = useContacts();
   const { toast } = useToast();
 
@@ -208,6 +211,90 @@ export default function Contacts() {
     setCallingContact(null);
   };
 
+  // Bulk Actions
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAll = () => {
+    setSelectedIds(new Set(filteredContacts.map(c => c.id)));
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setIsSelectionMode(false);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+
+    const confirmed = confirm(`Delete ${selectedIds.size} contact(s)? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    let successCount = 0;
+    for (const id of Array.from(selectedIds)) {
+      const success = await deleteContact(id);
+      if (success) successCount++;
+    }
+
+    toast({
+      title: `Deleted ${successCount} contact(s)`,
+      description: `${successCount} of ${selectedIds.size} contacts were deleted.`,
+    });
+
+    clearSelection();
+  };
+
+  const handleBulkExport = () => {
+    if (selectedIds.size === 0) {
+      toast({
+        title: "No contacts selected",
+        description: "Please select contacts to export.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const selectedContacts = contacts.filter(c => selectedIds.has(c.id));
+    const csvHeaders = ['Name', 'Email', 'Phone', 'Company', 'Position', 'Status'];
+    const csvRows = selectedContacts.map(c => [
+      c.name,
+      c.email || '',
+      c.phone || '',
+      c.company || '',
+      c.position || '',
+      c.status || 'active'
+    ]);
+
+    const csvContent = [
+      csvHeaders.join(','),
+      ...csvRows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `contacts-export-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Export successful",
+      description: `Exported ${selectedIds.size} contact(s) to CSV.`,
+    });
+
+    clearSelection();
+  };
+
   return (
     <MainLayout>
       <Header
@@ -281,7 +368,31 @@ export default function Contacts() {
                 <List className="h-4 w-4" />
               </Button>
             </div>
-            
+
+            <Button
+              variant={isSelectionMode ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => {
+                if (isSelectionMode) {
+                  clearSelection();
+                } else {
+                  setIsSelectionMode(true);
+                }
+              }}
+            >
+              {isSelectionMode ? (
+                <>
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </>
+              ) : (
+                <>
+                  <CheckSquare className="h-4 w-4 mr-2" />
+                  Select
+                </>
+              )}
+            </Button>
+
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="gradient">
@@ -485,6 +596,48 @@ export default function Contacts() {
           </div>
         )}
 
+        {/* Bulk Action Toolbar */}
+        {isSelectionMode && selectedIds.size > 0 && (
+          <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-6 py-4 rounded-lg shadow-2xl flex items-center gap-4 z-50 animate-slide-up">
+            <span className="font-medium">{selectedIds.size} selected</span>
+            {selectedIds.size < filteredContacts.length && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={selectAll}
+              >
+                Select All ({filteredContacts.length})
+              </Button>
+            )}
+            <div className="h-6 w-px bg-primary-foreground/20" />
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleBulkExport}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleBulkDelete}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearSelection}
+              className="text-primary-foreground hover:bg-primary-foreground/10"
+            >
+              <X className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+          </div>
+        )}
+
         {/* Contacts Grid */}
         {!loading && (
           <div
@@ -499,15 +652,26 @@ export default function Contacts() {
               <div
                 key={contact.id}
                 style={{ animationDelay: `${index * 0.05}s` }}
-                className="animate-fade-in"
+                className="animate-fade-in relative"
               >
-                <ContactCard
-                  contact={contact}
-                  onToggleFavorite={handleToggleFavorite}
-                  onEmailClick={handleEmailClick}
-                  onEditClick={openEditDialog}
-                  onDeleteClick={handleDelete}
-                />
+                {isSelectionMode && (
+                  <div className="absolute top-3 left-3 z-10">
+                    <Checkbox
+                      checked={selectedIds.has(contact.id)}
+                      onCheckedChange={() => toggleSelection(contact.id)}
+                      className="h-5 w-5 bg-background border-2"
+                    />
+                  </div>
+                )}
+                <div className={cn(isSelectionMode && selectedIds.has(contact.id) && "ring-2 ring-primary rounded-xl")}>
+                  <ContactCard
+                    contact={contact}
+                    onToggleFavorite={handleToggleFavorite}
+                    onEmailClick={handleEmailClick}
+                    onEditClick={openEditDialog}
+                    onDeleteClick={handleDelete}
+                  />
+                </div>
               </div>
             ))}
           </div>
