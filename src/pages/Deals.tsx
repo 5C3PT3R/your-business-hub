@@ -4,8 +4,8 @@
  * Stages locked: Lead → Qualified → Proposal → Closed
  */
 
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
@@ -50,6 +50,10 @@ const stages: { id: DealStage; name: string; color: string }[] = [
 export default function Deals() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+  const filterParam = searchParams.get('filter');
+  const viewParam = searchParams.get('view');
+
   const [viewMode, setViewMode] = useState<'pipeline' | 'table'>('pipeline');
   const [searchQuery, setSearchQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('all');
@@ -58,6 +62,13 @@ export default function Deals() {
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
   const { deals, loading, addDeal, updateDeal, deleteDeal } = useDeals();
   const { addActivity } = useActivities();
+
+  // Handle view mode from URL
+  useEffect(() => {
+    if (viewParam === 'list') {
+      setViewMode('table');
+    }
+  }, [viewParam]);
 
   // V1: Simplified new deal form - only essential fields
   const [newDeal, setNewDeal] = useState({
@@ -78,13 +89,43 @@ export default function Deals() {
   );
 
   const filteredDeals = deals.filter((deal) => {
-    const matchesSearch = 
+    const matchesSearch =
       deal.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (deal.company?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
-    
+
     const matchesStage = stageFilter === 'all' || deal.stage === stageFilter;
-    
-    return matchesSearch && matchesStage;
+
+    // Handle filter from URL parameters
+    let matchesFilter = true;
+    if (filterParam) {
+      const healthScore = deal.health_score ?? 50;
+      const daysInStage = deal.days_in_stage ?? 0;
+
+      switch (filterParam) {
+        case 'hot':
+          // Hot deals: high health score (80+) and active
+          matchesFilter = healthScore >= 80 && deal.stage !== 'closed';
+          break;
+        case 'at-risk':
+          // At risk: low health score (50-79) or has risk factors
+          matchesFilter =
+            (healthScore >= 30 && healthScore < 80) ||
+            (deal.ai_risk_factors && deal.ai_risk_factors.length > 0);
+          break;
+        case 'stalled':
+          // Stalled: deals sitting in stage for > 14 days
+          matchesFilter = daysInStage > 14 && deal.stage !== 'closed';
+          break;
+        case 'won':
+          // Closed won: deals in closed stage
+          matchesFilter = deal.stage === 'closed';
+          break;
+        default:
+          matchesFilter = true;
+      }
+    }
+
+    return matchesSearch && matchesStage && matchesFilter;
   });
 
   const getDealsByStage = (stageId: DealStage) =>
