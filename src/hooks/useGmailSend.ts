@@ -21,6 +21,24 @@ export function useGmailSend() {
         throw new Error('Not authenticated');
       }
 
+      console.log('[useGmailSend] Sending email...');
+      console.log('[useGmailSend] User ID:', session.user.id);
+      console.log('[useGmailSend] Email:', session.user.email);
+
+      // First check if Gmail is connected
+      const { data: oauthTokens, error: tokenError } = await supabase
+        .from('oauth_tokens')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .eq('channel', 'gmail')
+        .maybeSingle();
+
+      console.log('[useGmailSend] OAuth check:', { found: !!oauthTokens, error: tokenError });
+
+      if (!oauthTokens) {
+        throw new Error('Gmail not connected. Please connect Gmail in Settings > Integrations.');
+      }
+
       // Call the gmail-send Edge Function
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gmail-send`,
@@ -34,9 +52,12 @@ export function useGmailSend() {
         }
       );
 
+      console.log('[useGmailSend] Response status:', response.status);
+
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to send email');
+        console.error('[useGmailSend] API error:', error);
+        throw new Error(error.error || error.details || 'Failed to send email');
       }
 
       const result = await response.json();
