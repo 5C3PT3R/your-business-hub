@@ -5,6 +5,7 @@ import { useWorkspace } from './useWorkspace';
 import { useToast } from './use-toast';
 
 export type DealStage = 'lead' | 'qualified' | 'proposal' | 'closed';
+export type SentimentTrend = 'positive' | 'neutral' | 'negative';
 
 export interface Deal {
   id: string;
@@ -17,6 +18,18 @@ export interface Deal {
   probability: number;
   created_at: string;
   workspace_id: string | null;
+
+  // AI-powered fields
+  health_score?: number; // 0-100
+  days_in_stage?: number;
+  last_activity_at?: string;
+  stage_entered_at?: string;
+  lost_reason?: string | null;
+  owner_id?: string | null;
+  company_logo_url?: string | null;
+  ai_risk_factors?: string[];
+  ai_next_actions?: string[];
+  sentiment_trend?: SentimentTrend | null;
 }
 
 export function useDeals() {
