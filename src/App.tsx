@@ -24,6 +24,7 @@ import Contacts from "./pages/Contacts";
 import ContactDetail from "./pages/ContactDetail";
 import Deals from "./pages/Deals";
 import DealDetail from "./pages/DealDetail";
+import Forecast from "./pages/Forecast";
 import Tasks from "./pages/Tasks";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
@@ -138,6 +139,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <DealDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/forecast"
+        element={
+          <ProtectedRoute>
+            <Forecast />
           </ProtectedRoute>
         }
       />
