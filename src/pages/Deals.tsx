@@ -56,7 +56,7 @@ export default function Deals() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isConversationModalOpen, setIsConversationModalOpen] = useState(false);
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
-  const { deals, loading, addDeal, updateDeal } = useDeals();
+  const { deals, loading, addDeal, updateDeal, deleteDeal } = useDeals();
   const { addActivity } = useActivities();
 
   // V1: Simplified new deal form - only essential fields
@@ -66,6 +66,8 @@ export default function Deals() {
     value: '',
     stage: 'lead' as DealStage,
   });
+
+  const [editingDeal, setEditingDeal] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -111,18 +113,29 @@ export default function Deals() {
 
   const handleAddDeal = async () => {
     if (!newDeal.title) return;
-    
-    // V1: Only save essential fields
-    await addDeal({
-      title: newDeal.title,
-      company: newDeal.company || null,
-      value: parseFloat(newDeal.value) || 0,
-      stage: newDeal.stage,
-      probability: 20, // V1: Default value, hidden from UI
-      expected_close_date: null, // V1: Hidden from UI
-      contact_id: null, // V1: Hidden from UI
-    });
-    
+
+    if (editingDeal) {
+      // Update existing deal
+      await updateDeal(editingDeal, {
+        title: newDeal.title,
+        company: newDeal.company || null,
+        value: parseFloat(newDeal.value) || 0,
+        stage: newDeal.stage,
+      });
+      setEditingDeal(null);
+    } else {
+      // V1: Only save essential fields
+      await addDeal({
+        title: newDeal.title,
+        company: newDeal.company || null,
+        value: parseFloat(newDeal.value) || 0,
+        stage: newDeal.stage,
+        probability: 20, // V1: Default value, hidden from UI
+        expected_close_date: null, // V1: Hidden from UI
+        contact_id: null, // V1: Hidden from UI
+      });
+    }
+
     setNewDeal({
       title: '',
       company: '',
@@ -134,6 +147,26 @@ export default function Deals() {
 
   const handleDealClick = (dealId: string) => {
     navigate(`/deal/${dealId}`);
+  };
+
+  const handleEditDeal = (dealId: string) => {
+    const deal = deals.find(d => d.id === dealId);
+    if (deal) {
+      setNewDeal({
+        title: deal.title,
+        company: deal.company || '',
+        value: deal.value.toString(),
+        stage: deal.stage,
+      });
+      setEditingDeal(dealId);
+      setIsAddDialogOpen(true);
+    }
+  };
+
+  const handleDeleteDeal = async (dealId: string) => {
+    if (confirm('Are you sure you want to delete this deal?')) {
+      await deleteDeal(dealId);
+    }
   };
 
   const handleAddConversation = async (dealId: string, rawText: string): Promise<boolean> => {
@@ -284,10 +317,16 @@ export default function Deals() {
         </div>
 
         {/* V1: Simplified Add Deal Dialog - essential fields only */}
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+          setIsAddDialogOpen(open);
+          if (!open) {
+            setEditingDeal(null);
+            setNewDeal({ title: '', company: '', value: '', stage: 'lead' });
+          }
+        }}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add New Deal</DialogTitle>
+              <DialogTitle>{editingDeal ? 'Edit Deal' : 'Add New Deal'}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
@@ -335,7 +374,7 @@ export default function Deals() {
               </div>
               {/* V1: probability, expected_close_date, contact_id hidden */}
               <Button className="w-full" variant="gradient" onClick={handleAddDeal}>
-                Add Deal
+                {editingDeal ? 'Save Changes' : 'Add Deal'}
               </Button>
             </div>
           </DialogContent>
@@ -402,10 +441,12 @@ export default function Deals() {
                     value={totalValue}
                   >
                     {stageDeals.map((deal) => (
-                      <DraggableDealCard 
-                        key={deal.id} 
-                        deal={deal} 
+                      <DraggableDealCard
+                        key={deal.id}
+                        deal={deal}
                         onClick={() => handleDealClick(deal.id)}
+                        onEdit={() => handleEditDeal(deal.id)}
+                        onDelete={() => handleDeleteDeal(deal.id)}
                       />
                     ))}
                   </DroppableColumn>
