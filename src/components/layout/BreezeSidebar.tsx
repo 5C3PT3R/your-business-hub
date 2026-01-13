@@ -235,7 +235,7 @@ export function BreezeSidebar() {
           id: 'forecast',
           label: 'Forecast',
           icon: TrendingUp,
-          path: '/deals?view=forecast',
+          path: '/forecast',
         },
         { id: 'divider-2', label: '', icon: null, path: '', isDivider: true },
         {
