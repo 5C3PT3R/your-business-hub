@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -58,8 +58,8 @@ export function ContactEmailDialog({ open, onOpenChange, contact }: ContactEmail
       const { data, error } = await supabase
         .from('conversations')
         .select('*')
-        .or(`from.eq.${contact.email},to.cs.{${contact.email}}`)
-        .order('received_at', { ascending: false })
+        .or(`from_email.eq.${contact.email},to_emails.cs.{${contact.email}}`)
+        .order('sent_at', { ascending: false })
         .limit(50);
 
       if (error) throw error;
@@ -67,17 +67,17 @@ export function ContactEmailDialog({ open, onOpenChange, contact }: ContactEmail
       setEmails((data as any[])?.map(msg => ({
         id: msg.id,
         subject: msg.subject || '(No subject)',
-        body: msg.body || '',
-        from: msg.from || '',
-        to: Array.isArray(msg.to) ? msg.to.join(', ') : msg.to || '',
-        received_at: msg.received_at || msg.created_at,
-        is_unread: msg.is_unread || false,
+        body: msg.plain_text || msg.body || '',
+        from: msg.from_email || msg.from_name || '',
+        to: Array.isArray(msg.to_emails) ? msg.to_emails.join(', ') : (msg.to_emails || ''),
+        received_at: msg.sent_at || msg.created_at,
+        is_unread: !msg.is_read,
       })) || []);
     } catch (error: any) {
       console.error('[ContactEmailDialog] Error fetching emails:', error);
       toast({
         title: 'Error loading emails',
-        description: error.message,
+        description: error.message || 'Failed to load emails',
         variant: 'destructive',
       });
     } finally {
@@ -96,15 +96,28 @@ export function ContactEmailDialog({ open, onOpenChange, contact }: ContactEmail
     }
 
     try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        throw new Error('You must be logged in to send emails');
+      }
+
       // Add to email send queue for human approval
       const { error } = await supabase
         .from('email_send_queue')
         .insert({
-          to: [composeForm.to],
+          user_id: user.id,
+          to_address: composeForm.to,
           subject: composeForm.subject,
-          body: composeForm.body,
+          body_html: composeForm.body,
+          body_text: composeForm.body,
           status: 'pending',
-          related_contact_id: contact.id,
+          draft_source: 'user',
+          metadata: {
+            contact_id: contact.id,
+            contact_name: contact.name,
+          },
         });
 
       if (error) throw error;
@@ -117,9 +130,10 @@ export function ContactEmailDialog({ open, onOpenChange, contact }: ContactEmail
       setComposeForm({ to: contact.email || '', subject: '', body: '' });
       setComposing(false);
     } catch (error: any) {
+      console.error('[ContactEmailDialog] Error queueing email:', error);
       toast({
         title: 'Error sending email',
-        description: error.message,
+        description: error.message || 'Failed to queue email',
         variant: 'destructive',
       });
     }
@@ -131,6 +145,7 @@ export function ContactEmailDialog({ open, onOpenChange, contact }: ContactEmail
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Email - {contact.name}</DialogTitle>
+            <DialogDescription>Contact email information</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
@@ -159,6 +174,7 @@ export function ContactEmailDialog({ open, onOpenChange, contact }: ContactEmail
             <Mail className="h-5 w-5" />
             Email - {contact.name}
           </DialogTitle>
+          <DialogDescription>View inbox and compose emails</DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="inbox" className="w-full">
