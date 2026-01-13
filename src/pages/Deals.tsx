@@ -10,7 +10,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Filter, LayoutGrid, Table as TableIcon, Loader2, MessageSquare } from 'lucide-react';
+import { Search, Filter, LayoutGrid, Table as TableIcon, Loader2, MessageSquare, TrendingUp } from 'lucide-react';
 import { useDeals, DealStage } from '@/hooks/useDeals';
 import { useActivities } from '@/hooks/useActivities';
 import {
@@ -234,6 +234,21 @@ export default function Deals() {
           onClick: () => setIsAddDialogOpen(true),
         }}
       />
+
+      {/* Quick Actions Bar */}
+      <div className="px-4 md:px-6 pt-4">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/forecast')}
+            className="flex items-center gap-2"
+          >
+            <TrendingUp className="h-4 w-4" />
+            View Forecast
+          </Button>
+        </div>
+      </div>
       
       <div className="p-4 md:p-6 space-y-4 md:space-y-6">
         {/* Toolbar */}
