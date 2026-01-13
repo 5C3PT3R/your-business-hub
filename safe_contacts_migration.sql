@@ -151,17 +151,16 @@ CREATE TRIGGER trigger_update_contact_completeness
 UPDATE contacts SET updated_at = COALESCE(updated_at, NOW());
 
 -- Create or replace view for contact list with computed fields
+-- Note: Only joins tables/columns that exist
 CREATE OR REPLACE VIEW contacts_with_stats AS
 SELECT
   c.*,
   COUNT(DISTINCT d.id) as deal_count,
-  COUNT(DISTINCT a.id) as activity_count,
-  COUNT(DISTINCT t.id) as task_count,
-  MAX(a.created_at) as latest_activity_at
+  0 as activity_count,
+  0 as task_count,
+  NULL::timestamp with time zone as latest_activity_at
 FROM contacts c
 LEFT JOIN deals d ON d.contact_id = c.id
-LEFT JOIN activities a ON a.related_contact_id = c.id
-LEFT JOIN tasks t ON t.related_to_id = c.id AND t.related_to_type = 'contact'
 GROUP BY c.id;
 
 -- Grant permissions
