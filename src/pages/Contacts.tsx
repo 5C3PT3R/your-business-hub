@@ -4,7 +4,7 @@ import { Header } from '@/components/layout/Header';
 import { useContacts } from '@/hooks/useContacts';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, LayoutGrid, List, Plus, Loader2, Mail, Phone, Building, MoreHorizontal, Trash2, Edit, Undo2 } from 'lucide-react';
+import { Search, LayoutGrid, List, Plus, Loader2, Mail, Phone, Building, MoreHorizontal, Trash2, Edit, Undo2, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DialerRecorder } from '@/components/voice/DialerRecorder';
 import {
@@ -29,6 +29,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { ContactEmailDialog } from '@/components/contacts/ContactEmailDialog';
+import { ContactCard } from '@/components/contacts/ContactCard';
 
 const statusOptions = [
   { value: 'active', label: 'Active' },
@@ -58,6 +60,9 @@ export default function Contacts() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isCallDialogOpen, setIsCallDialogOpen] = useState(false);
   const [callingContact, setCallingContact] = useState<any>(null);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailingContact, setEmailingContact] = useState<any>(null);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'favorites' | 'active' | 'inactive'>('all');
   const { contacts, loading, addContact, updateContact, deleteContact } = useContacts();
   const { toast } = useToast();
 
@@ -71,12 +76,26 @@ export default function Contacts() {
     status: 'active',
   });
 
-  const filteredContacts = contacts.filter(
-    (contact) =>
-      contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  const filteredContacts = contacts.filter((contact) => {
+    // Search filter
+    const matchesSearch = contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (contact.company?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
-      (contact.email?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
-  );
+      (contact.email?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
+
+    if (!matchesSearch) return false;
+
+    // Tab filter
+    switch (activeFilter) {
+      case 'favorites':
+        return contact.is_favorite === true;
+      case 'active':
+        return contact.status === 'active';
+      case 'inactive':
+        return contact.status === 'inactive';
+      default:
+        return true;
+    }
+  });
 
   const handleAddContact = async () => {
     if (!newContact.name) return;
@@ -162,6 +181,24 @@ export default function Contacts() {
     setIsCallDialogOpen(true);
   };
 
+  const handleToggleFavorite = async (id: string) => {
+    const contact = contacts.find(c => c.id === id);
+    if (!contact) return;
+
+    await updateContact(id, { is_favorite: !contact.is_favorite });
+    toast({
+      title: contact.is_favorite ? "Removed from favorites" : "Added to favorites",
+      description: contact.is_favorite
+        ? `${contact.name} has been removed from favorites.`
+        : `${contact.name} has been added to favorites.`,
+    });
+  };
+
+  const handleEmailClick = (contact: any) => {
+    setEmailingContact(contact);
+    setEmailDialogOpen(true);
+  };
+
   const handleCallComplete = async (transcription: string, analysis: any, durationSeconds: number, twilioCallSid?: string) => {
     toast({
       title: "Call completed",
@@ -169,114 +206,6 @@ export default function Contacts() {
     });
     setIsCallDialogOpen(false);
     setCallingContact(null);
-  };
-
-  const ContactCard = ({ contact }: { contact: any }) => {
-    const initials = contact.name
-      .split(' ')
-      .map((n: string) => n[0])
-      .join('')
-      .toUpperCase();
-
-    return (
-      <div className="group relative rounded-xl border border-border bg-card p-6 shadow-card transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 hover:border-primary/30">
-        <div className="absolute right-4 top-4 opacity-0 group-hover:opacity-100 transition-opacity">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => openEditDialog(contact)}>
-                <Edit className="h-4 w-4 mr-2" />
-                Edit Contact
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                className="text-destructive"
-                onClick={() => handleDelete(contact)}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        <div 
-          className="flex items-start gap-4 cursor-pointer"
-          onClick={() => openEditDialog(contact)}
-        >
-          <div className="flex h-14 w-14 items-center justify-center rounded-full gradient-primary text-primary-foreground font-semibold text-lg">
-            {initials}
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-foreground truncate">{contact.name}</h3>
-            <p className="text-sm text-muted-foreground truncate">{contact.position || 'No position'}</p>
-          </div>
-        </div>
-
-        <div className="mt-4 space-y-2">
-          {contact.company && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Building className="h-4 w-4 shrink-0" />
-              <span className="truncate">{contact.company}</span>
-            </div>
-          )}
-          {contact.email && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Mail className="h-4 w-4 shrink-0" />
-              <span className="truncate">{contact.email}</span>
-            </div>
-          )}
-          {contact.phone && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Phone className="h-4 w-4 shrink-0" />
-              <span>{contact.phone}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
-          <span className={cn(
-            'text-xs px-2 py-1 rounded-full',
-            contact.status === 'active' ? 'bg-success/10 text-success' :
-            contact.status === 'customer' ? 'bg-primary/10 text-primary' :
-            contact.status === 'prospect' ? 'bg-warning/10 text-warning' :
-            'bg-muted text-muted-foreground'
-          )}>
-            {contact.status || 'active'}
-          </span>
-          <div className="flex gap-2">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (contact.email) window.location.href = `mailto:${contact.email}`;
-              }}
-            >
-              <Mail className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (contact.phone) {
-                  openCallDialog(contact);
-                }
-              }}
-              disabled={!contact.phone}
-            >
-              <Phone className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
   };
 
   return (
@@ -287,6 +216,40 @@ export default function Contacts() {
       />
       
       <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+        {/* Sub-navigation tabs */}
+        <div className="flex items-center gap-2 border-b border-border pb-3">
+          <Button
+            variant={activeFilter === 'all' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveFilter('all')}
+          >
+            All Contacts
+          </Button>
+          <Button
+            variant={activeFilter === 'favorites' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveFilter('favorites')}
+            className="flex items-center gap-2"
+          >
+            <Star className="h-4 w-4" />
+            Favorites
+          </Button>
+          <Button
+            variant={activeFilter === 'active' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveFilter('active')}
+          >
+            Active
+          </Button>
+          <Button
+            variant={activeFilter === 'inactive' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveFilter('inactive')}
+          >
+            Inactive
+          </Button>
+        </div>
+
         {/* Filters */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 animate-fade-in">
           <div className="relative flex-1 max-w-md">
@@ -506,6 +469,15 @@ export default function Contacts() {
           </DialogContent>
         </Dialog>
 
+        {/* Email Dialog */}
+        {emailingContact && (
+          <ContactEmailDialog
+            open={emailDialogOpen}
+            onOpenChange={setEmailDialogOpen}
+            contact={emailingContact}
+          />
+        )}
+
         {/* Loading State */}
         {loading && (
           <div className="flex items-center justify-center py-12">
@@ -529,7 +501,13 @@ export default function Contacts() {
                 style={{ animationDelay: `${index * 0.05}s` }}
                 className="animate-fade-in"
               >
-                <ContactCard contact={contact} />
+                <ContactCard
+                  contact={contact}
+                  onToggleFavorite={handleToggleFavorite}
+                  onEmailClick={handleEmailClick}
+                  onEditClick={openEditDialog}
+                  onDeleteClick={handleDelete}
+                />
               </div>
             ))}
           </div>
