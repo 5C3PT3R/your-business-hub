@@ -156,6 +156,9 @@ CREATE TRIGGER trigger_update_contact_completeness
 -- Update existing records with completeness scores
 UPDATE contacts SET updated_at = COALESCE(updated_at, NOW());
 
+-- Drop existing view if it exists (to avoid column name conflicts)
+DROP VIEW IF EXISTS contacts_with_stats;
+
 -- Create or replace view for contact list with computed fields
 -- Note: Only joins tables/columns that exist
 CREATE OR REPLACE VIEW contacts_with_stats AS
