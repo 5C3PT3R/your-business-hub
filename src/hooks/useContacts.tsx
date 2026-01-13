@@ -7,24 +7,40 @@ import { useToast } from './use-toast';
 export interface Contact {
   id: string;
   name: string;
+  first_name?: string | null;
+  last_name?: string | null;
   email: string | null;
   phone: string | null;
   company: string | null;
   position: string | null;
   avatar_url: string | null;
   status: string | null;
+  linkedin_url?: string | null;
+  lifecycle_stage?: 'lead' | 'mql' | 'sql' | 'opportunity' | 'customer' | 'churned' | null;
+  lead_score?: number;
+  email_verified?: boolean;
+  phone_valid?: boolean;
+  data_completeness?: number;
+  custom_fields?: Record<string, any>;
+  tags?: string[];
+  notes?: string | null;
+  last_activity_at?: string | null;
   created_at: string;
+  updated_at?: string;
   workspace_id: string | null;
 }
 
 export function useContacts() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const PAGE_SIZE = 50;
   const { user } = useAuth();
   const { workspace } = useWorkspace();
   const { toast } = useToast();
 
-  const fetchContacts = async () => {
+  const fetchContacts = async (page: number = 1) => {
     if (!user) {
       setLoading(false);
       return;
@@ -37,11 +53,15 @@ export function useContacts() {
     }
 
     setLoading(true);
-    const { data, error} = await supabase
+    const from = (page - 1) * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    const { data, error, count } = await supabase
       .from('contacts')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('workspace_id', workspace.id)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(from, to);
 
     if (error) {
       console.error('[useContacts] Error fetching contacts:', error);
@@ -53,6 +73,8 @@ export function useContacts() {
     } else {
       console.log('[useContacts] Fetched contacts:', data?.length || 0);
       setContacts(data || []);
+      setTotalCount(count || 0);
+      setCurrentPage(page);
     }
     setLoading(false);
   };
@@ -134,10 +156,47 @@ export function useContacts() {
       title: "Contact deleted",
       description: "The contact has been removed.",
     });
-    
+
     setContacts(prev => prev.filter(c => c.id !== id));
     return true;
   };
 
-  return { contacts, loading, fetchContacts, addContact, updateContact, deleteContact };
+  const getContactById = async (id: string): Promise<Contact | null> => {
+    if (!workspace) return null;
+
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('*')
+      .eq('id', id)
+      .eq('workspace_id', workspace.id)
+      .single();
+
+    if (error) {
+      console.error('[useContacts] Error fetching contact:', error);
+      toast({
+        title: "Error fetching contact",
+        description: error.message,
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    return data;
+  };
+
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+
+  return {
+    contacts,
+    loading,
+    currentPage,
+    totalCount,
+    totalPages,
+    PAGE_SIZE,
+    fetchContacts,
+    addContact,
+    updateContact,
+    deleteContact,
+    getContactById,
+  };
 }
