@@ -21,6 +21,7 @@ import Inbox from "./pages/Inbox";
 import Leads from "./pages/Leads";
 import LeadProfile from "./pages/LeadProfile";
 import Contacts from "./pages/Contacts";
+import ContactDetail from "./pages/ContactDetail";
 import Deals from "./pages/Deals";
 import DealDetail from "./pages/DealDetail";
 import Tasks from "./pages/Tasks";
@@ -113,6 +114,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Contacts />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/contacts/:id"
+        element={
+          <ProtectedRoute>
+            <ContactDetail />
           </ProtectedRoute>
         }
       />
