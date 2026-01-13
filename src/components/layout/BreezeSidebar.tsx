@@ -48,6 +48,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useActionStats } from '@/hooks/useNextActions';
+import { useInboxStats } from '@/hooks/useInboxStats';
+import { useContactsStats } from '@/hooks/useContactsStats';
+import { useDealsStats } from '@/hooks/useDealsStats';
 
 interface MenuItem {
   id: string;
@@ -77,6 +80,9 @@ export function BreezeSidebar() {
   const location = useLocation();
   const { user } = useAuth();
   const { data: stats } = useActionStats();
+  const { stats: inboxStats } = useInboxStats();
+  const { stats: contactsStats } = useContactsStats();
+  const { stats: dealsStats } = useDealsStats();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>(['next-actions']);
@@ -146,35 +152,35 @@ export function BreezeSidebar() {
       label: 'Inbox',
       icon: MessageSquare,
       path: '/inbox',
-      badge: { count: 12, variant: 'info' },
+      badge: inboxStats.unread > 0 ? { count: inboxStats.unread, variant: 'info' } : undefined,
       subItems: [
         {
           id: 'all',
           label: 'All Messages',
           icon: Mail,
           path: '/inbox?filter=all',
-          badge: { count: 45, variant: 'info' },
+          badge: inboxStats.total > 0 ? { count: inboxStats.total, variant: 'info' } : undefined,
         },
         {
           id: 'urgent-inbox',
           label: 'Urgent',
           icon: Circle,
           path: '/inbox?filter=urgent',
-          badge: { count: 5, variant: 'urgent' },
+          badge: inboxStats.urgent > 0 ? { count: inboxStats.urgent, variant: 'urgent' } : undefined,
         },
         {
           id: 'starred',
           label: 'Starred',
           icon: Star,
           path: '/inbox?filter=starred',
-          badge: { count: 8, variant: 'info' },
+          badge: inboxStats.starred > 0 ? { count: inboxStats.starred, variant: 'info' } : undefined,
         },
         {
           id: 'ai-inbox',
           label: 'AI Assigned',
           icon: Bot,
           path: '/inbox?filter=ai',
-          badge: { count: 12, variant: 'info' },
+          badge: inboxStats.ai > 0 ? { count: inboxStats.ai, variant: 'info' } : undefined,
         },
         { id: 'divider-1', label: '', icon: null, path: '', isDivider: true },
         {
@@ -182,21 +188,21 @@ export function BreezeSidebar() {
           label: 'Email',
           icon: Mail,
           path: '/inbox?channel=email',
-          badge: { count: 25, variant: 'info' },
+          badge: inboxStats.byChannel.email > 0 ? { count: inboxStats.byChannel.email, variant: 'info' } : undefined,
         },
         {
           id: 'linkedin',
           label: 'LinkedIn',
           icon: Linkedin,
           path: '/inbox?channel=linkedin',
-          badge: { count: 10, variant: 'info' },
+          badge: inboxStats.byChannel.linkedin > 0 ? { count: inboxStats.byChannel.linkedin, variant: 'info' } : undefined,
         },
         {
           id: 'calls',
           label: 'Calls',
           icon: Phone,
           path: '/inbox?channel=calls',
-          badge: { count: 2, variant: 'info' },
+          badge: inboxStats.byChannel.calls > 0 ? { count: inboxStats.byChannel.calls, variant: 'info' } : undefined,
         },
       ],
     },
@@ -301,14 +307,14 @@ export function BreezeSidebar() {
       label: 'AI Agents',
       icon: Bot,
       path: '/ai-agents',
-      badge: { count: 5, variant: 'info' },
+      badge: undefined, // TODO: Add AI agents count when available
       subItems: [
         {
           id: 'all-agents',
           label: 'All Agents',
           icon: List,
           path: '/ai-agents',
-          badge: { count: 5, variant: 'info', label: '5 active' },
+          badge: undefined, // TODO: Add AI agents count when available
         },
         {
           id: 'create-agent',
@@ -335,14 +341,14 @@ export function BreezeSidebar() {
       label: 'Workflows',
       icon: Workflow,
       path: '/workflows',
-      badge: { count: 12, variant: 'info' },
+      badge: undefined, // TODO: Add workflows count when available
       subItems: [
         {
           id: 'all-workflows',
           label: 'All Workflows',
           icon: List,
           path: '/workflows',
-          badge: { count: 12, variant: 'info', label: '12 active' },
+          badge: undefined, // TODO: Add workflows count when available
         },
         {
           id: 'create-workflow',
@@ -416,28 +422,28 @@ export function BreezeSidebar() {
       label: 'Integrations',
       icon: Plug,
       path: '/integrations',
-      badge: { count: 1, variant: 'warning', label: '!' },
+      badge: undefined, // TODO: Add integrations needing attention count when available
       subItems: [
         {
           id: 'connected',
           label: 'Connected',
           icon: CheckCircle2,
           path: '/integrations?filter=connected',
-          badge: { count: 8, variant: 'success' },
+          badge: undefined, // TODO: Add connected integrations count when available
         },
         {
           id: 'available',
           label: 'Available',
           icon: Plus,
           path: '/integrations?filter=available',
-          badge: { count: 24, variant: 'info' },
+          badge: undefined, // Shows all available integrations
         },
         {
           id: 'needs-attention',
           label: 'Needs Attention',
           icon: AlertTriangle,
           path: '/integrations?filter=attention',
-          badge: { count: 1, variant: 'warning' },
+          badge: undefined, // TODO: Add integrations needing attention count when available
         },
         {
           id: 'api-access',
@@ -637,7 +643,15 @@ export function BreezeSidebar() {
             </div>
             <div className="flex justify-between">
               <span>💰 Pipeline:</span>
-              <span className="font-medium">$450K</span>
+              <span className="font-medium">
+                {dealsStats.totalValue >= 1000000
+                  ? `$${(dealsStats.totalValue / 1000000).toFixed(1)}M`
+                  : dealsStats.totalValue >= 1000
+                  ? `$${(dealsStats.totalValue / 1000).toFixed(0)}K`
+                  : dealsStats.totalValue > 0
+                  ? `$${dealsStats.totalValue}`
+                  : '$0'}
+              </span>
             </div>
           </div>
 

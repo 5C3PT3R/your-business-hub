@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/card';
@@ -43,18 +44,35 @@ import { EmptyInboxState } from '@/components/inbox/EmptyInboxState';
 import { EmptyMessagesState } from '@/components/inbox/EmptyMessagesState';
 import { ComposeModal } from '@/components/inbox/ComposeModal';
 import { getPlatformConfig } from '@/config/platforms';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Inbox() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { integrations, loading: integrationsLoading, refreshIntegrations } = useIntegrations();
   const { syncGmail, isSyncing: isGmailSyncing } = useGmailSync();
-  const [activeTab, setActiveTab] = useState<string>('all');
-  const [activeChannel, setActiveChannel] = useState<string>('all');
+
+  // Read initial values from URL query parameters
+  const filterParam = searchParams.get('filter') || 'all';
+  const channelParam = searchParams.get('channel') || 'all';
+
+  const [activeTab, setActiveTab] = useState<string>(filterParam);
+  const [activeChannel, setActiveChannel] = useState<string>(channelParam);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMessage, setSelectedMessage] = useState<UnifiedMessage | null>(null);
   const [sortBy, setSortBy] = useState<string>('date');
   const [composeOpen, setComposeOpen] = useState(false);
+
+  // Sync state with URL params when they change
+  useEffect(() => {
+    const filter = searchParams.get('filter') || 'all';
+    const channel = searchParams.get('channel') || 'all';
+
+    setActiveTab(filter);
+    setActiveChannel(channel);
+  }, [searchParams]);
 
   // Fetch real messages from conversations table
   const {
@@ -86,6 +104,29 @@ export default function Inbox() {
     }
   };
 
+  // Handlers to update both state and URL
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    const newParams = new URLSearchParams(searchParams);
+    if (tab === 'all') {
+      newParams.delete('filter');
+    } else {
+      newParams.set('filter', tab);
+    }
+    setSearchParams(newParams);
+  };
+
+  const handleChannelChange = (channel: string) => {
+    setActiveChannel(channel);
+    const newParams = new URLSearchParams(searchParams);
+    if (channel === 'all') {
+      newParams.delete('channel');
+    } else {
+      newParams.set('channel', channel);
+    }
+    setSearchParams(newParams);
+  };
+
   // Filter messages based on active filters
   const filteredMessages = React.useMemo(() => {
     let result = messages;
@@ -110,6 +151,11 @@ export default function Inbox() {
         result = result.filter((msg) => msg.isStarred);
       } else if (activeTab === 'urgent') {
         result = result.filter((msg) => msg.isUrgent);
+      } else if (activeTab === 'sent') {
+        result = result.filter((msg) => msg.direction === 'outgoing');
+      } else if (activeTab === 'ai') {
+        // AI Assigned filter - could filter by AI-suggested actions or tags
+        result = result.filter((msg) => msg.intent !== undefined || msg.sentiment !== undefined);
       }
     }
 
@@ -125,8 +171,25 @@ export default function Inbox() {
           categoryIntegrations.some((i) => i.platform === msg.platform)
         );
       } else {
-        // Filter by specific platform
-        result = result.filter((msg) => msg.platform === activeChannel);
+        // Filter by specific platform or channel type
+        // Handle special cases: map UI channels to actual platform values
+        if (activeChannel === 'calls') {
+          // Calls can be from twilio_sms or other phone platforms
+          result = result.filter((msg) =>
+            msg.platform === 'twilio_sms' ||
+            (msg as any).channel === 'call' ||
+            (msg as any).channel === 'phone'
+          );
+        } else if (activeChannel === 'email') {
+          // Email includes gmail and outlook
+          result = result.filter((msg) =>
+            msg.platform === 'gmail' ||
+            msg.platform === 'outlook'
+          );
+        } else {
+          // Direct platform match
+          result = result.filter((msg) => msg.platform === activeChannel);
+        }
       }
     }
 
@@ -166,6 +229,7 @@ export default function Inbox() {
   const unreadCount = messages.filter((msg) => !msg.isRead).length;
   const urgentCount = messages.filter((msg) => msg.isUrgent).length;
   const starredCount = messages.filter((msg) => msg.isStarred).length;
+  const sentCount = messages.filter((msg) => msg.direction === 'outgoing').length;
 
   // Show loading state
   if (integrationsLoading || messagesLoading) {
@@ -223,7 +287,7 @@ export default function Inbox() {
       <ChannelNavigation
         integrations={integrations}
         activeChannel={activeChannel}
-        onChannelChange={setActiveChannel}
+        onChannelChange={handleChannelChange}
       />
 
       <div className="p-4 md:p-6">
@@ -245,8 +309,8 @@ export default function Inbox() {
                 </div>
 
                 {/* Tabs */}
-                <Tabs value={activeTab} onValueChange={setActiveTab}>
-                  <TabsList className="w-full grid grid-cols-4">
+                <Tabs value={activeTab} onValueChange={handleTabChange}>
+                  <TabsList className="w-full grid grid-cols-5 gap-1">
                     <TabsTrigger value="all" className="text-xs">
                       All
                       <Badge variant="secondary" className="ml-1 text-xs">
@@ -258,6 +322,14 @@ export default function Inbox() {
                       {unreadCount > 0 && (
                         <Badge variant="default" className="ml-1 text-xs bg-blue-600">
                           {unreadCount}
+                        </Badge>
+                      )}
+                    </TabsTrigger>
+                    <TabsTrigger value="sent" className="text-xs">
+                      Sent
+                      {sentCount > 0 && (
+                        <Badge variant="secondary" className="ml-1 text-xs">
+                          {sentCount}
                         </Badge>
                       )}
                     </TabsTrigger>
@@ -547,11 +619,45 @@ export default function Inbox() {
         open={composeOpen}
         onClose={() => setComposeOpen(false)}
         onSend={async (data) => {
-          toast({
-            title: 'Email sent',
-            description: `Message sent to ${data.to}`,
-          });
-          // TODO: Implement actual email sending via API
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+              throw new Error('Not authenticated');
+            }
+
+            // Send email via Edge Function
+            const response = await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gmail-send`,
+              {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${session.access_token}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+              }
+            );
+
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.error || 'Failed to send email');
+            }
+
+            toast({
+              title: 'Email sent successfully',
+              description: `Message sent to ${data.to}`,
+            });
+
+            // Refresh messages to show the sent email
+            await refreshMessages();
+          } catch (error) {
+            toast({
+              title: 'Failed to send email',
+              description: error instanceof Error ? error.message : 'Unknown error',
+              variant: 'destructive',
+            });
+            throw error;
+          }
         }}
       />
     </MainLayout>
