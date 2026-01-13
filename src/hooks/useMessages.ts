@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { UnifiedMessage, Platform } from '@/types/inbox';
+import { UnifiedMessage, Platform, MessageDirection } from '@/types/inbox';
 
 interface UseMessagesOptions {
   channel?: Platform | 'all';
@@ -90,7 +90,7 @@ export function useMessages(options: UseMessagesOptions = {}) {
       }
 
       // Transform conversations to UnifiedMessage format
-      const transformedMessages: UnifiedMessage[] = (conversations || []).map((conv) => ({
+      const transformedMessages: UnifiedMessage[] = (conversations || []).map((conv: any) => ({
         id: conv.id,
         externalId: conv.external_id || '',
         platform: mapChannelToPlatform(conv.channel),
@@ -117,7 +117,7 @@ export function useMessages(options: UseMessagesOptions = {}) {
         bodyHtml: conv.html_body,
         preview: conv.plain_text ? conv.plain_text.substring(0, 150) : '',
 
-        direction: conv.direction === 'inbound' ? 'incoming' : 'outgoing',
+        direction: (conv.direction === 'inbound' ? 'inbound' : 'outbound') as MessageDirection,
         status: 'delivered',
 
         attachments: Array.isArray(conv.attachments) ? conv.attachments : [],
@@ -134,6 +134,9 @@ export function useMessages(options: UseMessagesOptions = {}) {
         isUrgent: conv.is_urgent,
 
         timestamp: conv.sent_at,
+        sentAt: new Date(conv.sent_at || conv.created_at),
+        receivedAt: new Date(conv.created_at),
+        platformMetadata: conv.metadata || {},
         syncedAt: conv.created_at,
         lastUpdatedAt: conv.updated_at,
       }));
