@@ -33,9 +33,6 @@ import {
   Briefcase,
   CheckCircle2,
   Linkedin,
-  CheckCircle,
-  XCircle,
-  AlertCircle,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -398,33 +395,12 @@ export default function ContactDetail() {
                     {contact.email && (
                       <div className="flex items-center gap-3">
                         <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <a
-                            href={`mailto:${contact.email}`}
-                            className="text-sm hover:underline truncate block"
-                          >
-                            {contact.email}
-                          </a>
-                          {contact.email_verified !== undefined && (
-                            <div className="flex items-center gap-1 mt-1">
-                              {contact.email_verified ? (
-                                <>
-                                  <CheckCircle className="h-3 w-3 text-green-600" />
-                                  <span className="text-xs text-green-600">
-                                    Verified
-                                  </span>
-                                </>
-                              ) : (
-                                <>
-                                  <XCircle className="h-3 w-3 text-red-600" />
-                                  <span className="text-xs text-red-600">
-                                    Not Verified
-                                  </span>
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                        <a
+                          href={`mailto:${contact.email}`}
+                          className="text-sm hover:underline truncate"
+                        >
+                          {contact.email}
+                        </a>
                       </div>
                     )}
 
@@ -432,31 +408,12 @@ export default function ContactDetail() {
                     {contact.phone && (
                       <div className="flex items-center gap-3">
                         <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <a
-                            href={`tel:${contact.phone}`}
-                            className="text-sm hover:underline truncate block"
-                          >
-                            {contact.phone}
-                          </a>
-                          {contact.phone_valid !== undefined && (
-                            <div className="flex items-center gap-1 mt-1">
-                              {contact.phone_valid ? (
-                                <>
-                                  <CheckCircle className="h-3 w-3 text-green-600" />
-                                  <span className="text-xs text-green-600">Valid</span>
-                                </>
-                              ) : (
-                                <>
-                                  <AlertCircle className="h-3 w-3 text-yellow-600" />
-                                  <span className="text-xs text-yellow-600">
-                                    Unvalidated
-                                  </span>
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                        <a
+                          href={`tel:${contact.phone}`}
+                          className="text-sm hover:underline truncate"
+                        >
+                          {contact.phone}
+                        </a>
                       </div>
                     )}
 
