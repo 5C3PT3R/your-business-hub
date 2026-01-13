@@ -70,6 +70,11 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='contacts' AND column_name='last_activity_at') THEN
         ALTER TABLE contacts ADD COLUMN last_activity_at TIMESTAMP WITH TIME ZONE;
     END IF;
+
+    -- Add is_favorite if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='contacts' AND column_name='is_favorite') THEN
+        ALTER TABLE contacts ADD COLUMN is_favorite BOOLEAN DEFAULT false;
+    END IF;
 END $$;
 
 -- Migrate existing name field to first_name/last_name
@@ -98,6 +103,7 @@ CREATE INDEX IF NOT EXISTS idx_contacts_lead_score ON contacts(lead_score DESC);
 CREATE INDEX IF NOT EXISTS idx_contacts_email_verified ON contacts(email_verified) WHERE email_verified = false;
 CREATE INDEX IF NOT EXISTS idx_contacts_phone_valid ON contacts(phone_valid) WHERE phone_valid = false;
 CREATE INDEX IF NOT EXISTS idx_contacts_last_activity ON contacts(last_activity_at DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS idx_contacts_is_favorite ON contacts(is_favorite) WHERE is_favorite = true;
 
 -- Function to calculate data completeness score
 CREATE OR REPLACE FUNCTION calculate_contact_completeness(contact_row contacts)
