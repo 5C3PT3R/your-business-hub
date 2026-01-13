@@ -25,6 +25,7 @@ export interface Contact {
   tags?: string[];
   notes?: string | null;
   last_activity_at?: string | null;
+  is_favorite?: boolean;
   created_at: string;
   updated_at?: string;
   workspace_id: string | null;

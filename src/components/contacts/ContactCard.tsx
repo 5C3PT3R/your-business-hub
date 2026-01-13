@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { Mail, Phone, Building, MoreHorizontal } from 'lucide-react';
+import { Mail, Phone, Building, MoreHorizontal, Star } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   DropdownMenu,
@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
 
 interface ContactCardProps {
   contact: {
@@ -17,10 +18,15 @@ interface ContactCardProps {
     company: string;
     position: string;
     avatar?: string;
+    is_favorite?: boolean;
   };
+  onToggleFavorite?: (id: string) => void;
+  onEmailClick?: (contact: any) => void;
+  onEditClick?: (contact: any) => void;
+  onDeleteClick?: (contact: any) => void;
 }
 
-export function ContactCard({ contact }: ContactCardProps) {
+export function ContactCard({ contact, onToggleFavorite, onEmailClick, onEditClick, onDeleteClick }: ContactCardProps) {
   const navigate = useNavigate();
 
   const initials = contact.name
@@ -40,7 +46,30 @@ export function ContactCard({ contact }: ContactCardProps) {
       case 'view':
         navigate(`/contacts/${contact.id}`);
         break;
-      // Add other actions here as needed
+      case 'edit':
+        if (onEditClick) {
+          onEditClick(contact);
+        }
+        break;
+      case 'delete':
+        if (onDeleteClick) {
+          onDeleteClick(contact);
+        }
+        break;
+    }
+  };
+
+  const handleToggleFavorite = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggleFavorite?.(contact.id);
+  };
+
+  const handleEmailClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onEmailClick) {
+      onEmailClick(contact);
+    } else if (contact.email) {
+      window.open(`mailto:${contact.email}`);
     }
   };
 
@@ -49,7 +78,15 @@ export function ContactCard({ contact }: ContactCardProps) {
       onClick={handleCardClick}
       className="group relative rounded-xl border border-border bg-card p-6 shadow-card transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 hover:border-primary/30 cursor-pointer"
     >
-      <div className="absolute right-4 top-4 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute right-4 top-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn("h-8 w-8", contact.is_favorite && "opacity-100")}
+          onClick={handleToggleFavorite}
+        >
+          <Star className={cn("h-4 w-4", contact.is_favorite && "fill-yellow-400 text-yellow-400")} />
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -113,10 +150,8 @@ export function ContactCard({ contact }: ContactCardProps) {
             variant="ghost"
             size="icon"
             className="h-8 w-8"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (contact.email) window.open(`mailto:${contact.email}`);
-            }}
+            onClick={handleEmailClick}
+            disabled={!contact.email}
           >
             <Mail className="h-4 w-4" />
           </Button>
@@ -128,6 +163,7 @@ export function ContactCard({ contact }: ContactCardProps) {
               e.stopPropagation();
               if (contact.phone) window.open(`tel:${contact.phone}`);
             }}
+            disabled={!contact.phone}
           >
             <Phone className="h-4 w-4" />
           </Button>
