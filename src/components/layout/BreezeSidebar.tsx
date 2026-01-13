@@ -211,37 +211,6 @@ export function BreezeSidebar() {
       label: 'Contacts',
       icon: Users,
       path: '/contacts',
-      badge: { count: 0, variant: 'info', label: '1.2K' },
-      subItems: [
-        {
-          id: 'all-contacts',
-          label: 'All Contacts',
-          icon: List,
-          path: '/contacts',
-          badge: { count: 1245, variant: 'info', label: '1.2K' },
-        },
-        {
-          id: 'hot-leads',
-          label: 'Hot Leads',
-          icon: Flame,
-          path: '/contacts?filter=hot',
-          badge: { count: 45, variant: 'urgent' },
-        },
-        {
-          id: 'customers',
-          label: 'Customers',
-          icon: Star,
-          path: '/contacts?filter=customers',
-          badge: { count: 234, variant: 'success' },
-        },
-        {
-          id: 'inactive',
-          label: 'Inactive',
-          icon: Clock,
-          path: '/contacts?filter=inactive',
-          badge: { count: 353, variant: 'warning' },
-        },
-      ],
     },
     {
       id: 'deals',
