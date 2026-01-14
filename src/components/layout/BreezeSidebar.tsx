@@ -45,12 +45,14 @@ import {
   Focus,
   PhoneCall,
   LogOut,
+  UserPlus,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useActionStats } from '@/hooks/useNextActions';
 import { useInboxStats } from '@/hooks/useInboxStats';
 import { useContactsStats } from '@/hooks/useContactsStats';
 import { useDealsStats } from '@/hooks/useDealsStats';
+import { useLeads } from '@/hooks/useLeads';
 
 interface MenuItem {
   id: string;
@@ -83,6 +85,7 @@ export function BreezeSidebar() {
   const { stats: inboxStats } = useInboxStats();
   const { stats: contactsStats } = useContactsStats();
   const { stats: dealsStats } = useDealsStats();
+  const { leads } = useLeads();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>(['next-actions']);
@@ -213,11 +216,28 @@ export function BreezeSidebar() {
       path: '/contacts',
     },
     {
+      id: 'leads',
+      label: 'Leads',
+      icon: UserPlus,
+      path: '/leads',
+      badge: leads.length > 0 ? { count: leads.length, variant: 'info' } : undefined,
+    },
+    {
       id: 'deals',
       label: 'Deals',
       icon: Briefcase,
       path: '/deals',
-      badge: { count: 0, variant: 'info', label: '$1.2M' },
+      badge: dealsStats.totalValue > 0
+        ? {
+            count: 0,
+            variant: 'info',
+            label: dealsStats.totalValue >= 1000000
+              ? `$${(dealsStats.totalValue / 1000000).toFixed(1)}M`
+              : dealsStats.totalValue >= 1000
+              ? `$${(dealsStats.totalValue / 1000).toFixed(0)}K`
+              : `$${dealsStats.totalValue}`
+          }
+        : undefined,
       subItems: [
         {
           id: 'pipeline',
@@ -243,28 +263,28 @@ export function BreezeSidebar() {
           label: 'Hot Deals',
           icon: Flame,
           path: '/deals?filter=hot',
-          badge: { count: 12, variant: 'urgent' },
+          badge: dealsStats.hotDeals > 0 ? { count: dealsStats.hotDeals, variant: 'urgent' } : undefined,
         },
         {
           id: 'at-risk',
           label: 'At Risk',
           icon: AlertTriangle,
           path: '/deals?filter=at-risk',
-          badge: { count: 8, variant: 'warning' },
+          badge: dealsStats.atRisk > 0 ? { count: dealsStats.atRisk, variant: 'warning' } : undefined,
         },
         {
           id: 'stalled',
           label: 'Stalled',
           icon: Clock,
           path: '/deals?filter=stalled',
-          badge: { count: 15, variant: 'warning' },
+          badge: dealsStats.stalled > 0 ? { count: dealsStats.stalled, variant: 'warning' } : undefined,
         },
         {
           id: 'closed-won',
           label: 'Closed Won',
           icon: CheckCircle2,
           path: '/deals?filter=won',
-          badge: { count: 24, variant: 'success' },
+          badge: dealsStats.closedWon > 0 ? { count: dealsStats.closedWon, variant: 'success' } : undefined,
         },
       ],
     },
@@ -275,27 +295,27 @@ export function BreezeSidebar() {
       id: 'ai-agents',
       label: 'AI Agents',
       icon: Bot,
-      path: '/ai-agents',
+      path: '/agents',
       badge: undefined, // TODO: Add AI agents count when available
       subItems: [
         {
           id: 'all-agents',
           label: 'All Agents',
           icon: List,
-          path: '/ai-agents',
+          path: '/agents',
           badge: undefined, // TODO: Add AI agents count when available
         },
         {
           id: 'create-agent',
           label: 'Create Agent',
           icon: Plus,
-          path: '/ai-agents/new',
+          path: '/agents/new',
         },
         {
           id: 'agent-templates',
           label: 'Templates',
           icon: FileText,
-          path: '/ai-agents/templates',
+          path: '/agents/templates',
         },
         {
           id: 'knowledge-base',
@@ -549,46 +569,8 @@ export function BreezeSidebar() {
               onNavigate={handleNavigate}
             />
           ))}
-
-          {/* Divider */}
-          <div className="my-3 border-t border-gray-200" />
-
-          {/* System */}
-          {!isCollapsed && (
-            <div className="px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              System
-            </div>
-          )}
-
-          {systemItems.map(item => (
-            <MenuItem
-              key={item.id}
-              item={item}
-              isCollapsed={isCollapsed}
-              isExpanded={expandedItems.includes(item.id)}
-              isActive={isItemActive(item)}
-              onToggle={() => toggleExpand(item.id)}
-              onNavigate={handleNavigate}
-            />
-          ))}
         </div>
       </nav>
-
-      {/* Quick Actions */}
-      {!isCollapsed && (
-        <div className="px-4 py-3 border-t border-gray-200">
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" size="sm" className="text-xs">
-              <Focus className="h-3 w-3 mr-1" />
-              Focus
-            </Button>
-            <Button variant="outline" size="sm" className="text-xs">
-              <PhoneCall className="h-3 w-3 mr-1" />
-              Call
-            </Button>
-          </div>
-        </div>
-      )}
 
       {/* User Profile */}
       {!isCollapsed && (
@@ -624,14 +606,7 @@ export function BreezeSidebar() {
             </div>
           </div>
 
-          <Button
-            size="sm"
-            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-xs font-medium mb-2"
-          >
-            ↗️ Upgrade to Pro
-          </Button>
-
-          <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center justify-between text-xs pt-2">
             <button
               onClick={() => navigate('/settings')}
               className="text-gray-600 hover:text-gray-900 transition-colors"

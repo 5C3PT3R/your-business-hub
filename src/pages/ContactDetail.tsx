@@ -28,9 +28,9 @@ import {
   Mail,
   Building2,
   Edit2,
+  Briefcase,
   Loader2,
   Activity as ActivityIcon,
-  Briefcase,
   CheckCircle2,
   Linkedin,
 } from 'lucide-react';
@@ -52,7 +52,7 @@ export default function ContactDetail() {
   const navigate = useNavigate();
   const { getContactById, updateContact } = useContacts();
   const { activities, loading: activitiesLoading } = useActivities();
-  const { deals, loading: dealsLoading } = useDeals();
+  const { deals, loading: dealsLoading, addDeal } = useDeals();
   const { tasks, loading: tasksLoading } = useTasks();
   const { toast } = useToast();
 
@@ -107,6 +107,34 @@ export default function ContactDetail() {
       title: 'Call logged',
       description: 'Call has been logged to contact activity.',
     });
+  };
+
+  const handleConvertToDeal = async () => {
+    if (!contact) return;
+
+    // Create a new deal linked to this contact
+    const deal = await addDeal({
+      title: `${contact.company || contact.name} - Opportunity`,
+      value: 0,
+      stage: 'lead',
+      company: contact.company || null,
+      contact_id: contact.id,
+      expected_close_date: null,
+      probability: 50,
+    });
+
+    if (deal) {
+      // Update contact lifecycle stage to 'opportunity'
+      await updateContact(contact.id, { lifecycle_stage: 'opportunity' });
+
+      toast({
+        title: 'Converted to Deal',
+        description: `A new deal has been created for ${contact.name}.`,
+      });
+
+      // Navigate to the new deal
+      navigate(`/deal/${deal.id}`);
+    }
   };
 
   if (isLoading) {
@@ -445,23 +473,36 @@ export default function ContactDetail() {
                 )}
 
                 {/* Quick Actions */}
-                <div className="mt-6 grid grid-cols-2 gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsCallDialogOpen(true)}
-                    disabled={!contact.phone}
-                  >
-                    <Phone className="mr-2 h-4 w-4" />
-                    Call
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => window.open(`mailto:${contact.email}`)}
-                    disabled={!contact.email}
-                  >
-                    <Mail className="mr-2 h-4 w-4" />
-                    Email
-                  </Button>
+                <div className="mt-6 space-y-2">
+                  {/* Convert to Deal button - only show for leads */}
+                  {contact.lifecycle_stage && ['lead', 'mql', 'sql'].includes(contact.lifecycle_stage) && (
+                    <Button
+                      onClick={handleConvertToDeal}
+                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                    >
+                      <Briefcase className="mr-2 h-4 w-4" />
+                      Convert to Deal
+                    </Button>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsCallDialogOpen(true)}
+                      disabled={!contact.phone}
+                    >
+                      <Phone className="mr-2 h-4 w-4" />
+                      Call
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => window.open(`mailto:${contact.email}`)}
+                      disabled={!contact.email}
+                    >
+                      <Mail className="mr-2 h-4 w-4" />
+                      Email
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
