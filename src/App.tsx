@@ -28,6 +28,7 @@ import Forecast from "./pages/Forecast";
 import Tasks from "./pages/Tasks";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import Agents from "./pages/Agents";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -147,6 +148,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Forecast />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/agents"
+        element={
+          <ProtectedRoute>
+            <Agents />
           </ProtectedRoute>
         }
       />

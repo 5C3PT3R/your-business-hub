@@ -63,7 +63,7 @@ export default function Contacts() {
   const [callingContact, setCallingContact] = useState<any>(null);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [emailingContact, setEmailingContact] = useState<any>(null);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'favorites' | 'active' | 'inactive'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'favorites' | 'leads' | 'active' | 'inactive'>('all');
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { contacts, loading, addContact, updateContact, deleteContact } = useContacts();
@@ -91,6 +91,9 @@ export default function Contacts() {
     switch (activeFilter) {
       case 'favorites':
         return contact.is_favorite === true;
+      case 'leads':
+        // New Leads view: lifecycle_stage is lead, mql, or sql
+        return ['lead', 'mql', 'sql'].includes(contact.lifecycle_stage || '');
       case 'active':
         return contact.status === 'active';
       case 'inactive':
@@ -320,6 +323,14 @@ export default function Contacts() {
           >
             <Star className="h-4 w-4" />
             Favorites
+          </Button>
+          <Button
+            variant={activeFilter === 'leads' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveFilter('leads')}
+            className="flex items-center gap-2"
+          >
+            New Leads
           </Button>
           <Button
             variant={activeFilter === 'active' ? 'default' : 'ghost'}
