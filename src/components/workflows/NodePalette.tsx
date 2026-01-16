@@ -1,13 +1,11 @@
-import { NodePaletteItem } from '@/types/workflows';
 import { cn } from '@/lib/utils';
+import { LucideIcon } from 'lucide-react';
 import {
   Zap,
   Mail,
   UserPlus,
   Target,
   Calendar,
-  CheckCircle,
-  Bot,
   Send,
   Edit3,
   ListTodo,
@@ -15,14 +13,26 @@ import {
   Webhook,
   GitBranch,
   Clock,
+  Search,
+  FileText,
+  Sparkles,
 } from 'lucide-react';
 
 interface NodePaletteProps {
   onDragStart: (event: React.DragEvent, nodeType: string, data: any) => void;
 }
 
-const paletteItems: (NodePaletteItem & { icon: any })[] = [
-  // Triggers
+interface PaletteItem {
+  type: string;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  category: 'triggers' | 'ai' | 'actions' | 'logic';
+  defaultData: Record<string, any>;
+}
+
+const paletteItems: PaletteItem[] = [
+  // Triggers (Yellow/Green per PRD - "Events that wake up the robot")
   {
     type: 'trigger',
     label: 'New Contact',
@@ -55,16 +65,58 @@ const paletteItems: (NodePaletteItem & { icon: any })[] = [
     category: 'triggers',
     defaultData: { triggerType: 'form_submitted', label: 'Form Submitted' },
   },
-  // AI
+  {
+    type: 'trigger',
+    label: 'Meeting Scheduled',
+    description: 'When a meeting is booked',
+    icon: Calendar,
+    category: 'triggers',
+    defaultData: { triggerType: 'meeting_scheduled', label: 'Meeting Scheduled' },
+  },
+  // AI Smart Blocks (Purple per PRD - "The Core Feature")
   {
     type: 'ai_processor',
-    label: 'AI Analysis',
-    description: 'Analyze with GPT-4o',
-    icon: Bot,
+    label: 'The Analyst',
+    description: 'Classify & analyze content',
+    icon: Search,
     category: 'ai',
-    defaultData: { label: 'AI Analysis', model: 'gpt-4o-mini', instruction: '' },
+    defaultData: {
+      label: 'AI Analyst',
+      model: 'gpt-4o-mini',
+      instruction: 'Analyze the content and classify the intent or sentiment.',
+      contextSource: 'trigger_data',
+      outputVariable: 'analysis_result'
+    },
   },
-  // Actions
+  {
+    type: 'ai_processor',
+    label: 'The Extractor',
+    description: 'Extract data from text',
+    icon: FileText,
+    category: 'ai',
+    defaultData: {
+      label: 'AI Extractor',
+      model: 'gpt-4o-mini',
+      instruction: 'Extract key information and return as structured data.',
+      contextSource: 'trigger_data',
+      outputVariable: 'extracted_data'
+    },
+  },
+  {
+    type: 'ai_processor',
+    label: 'The Generator',
+    description: 'Generate text & drafts',
+    icon: Sparkles,
+    category: 'ai',
+    defaultData: {
+      label: 'AI Generator',
+      model: 'gpt-4o',
+      instruction: 'Generate a professional response based on the context.',
+      contextSource: 'trigger_data',
+      outputVariable: 'generated_content'
+    },
+  },
+  // Actions (Green/Blue per PRD - "The hands of the robot")
   {
     type: 'action',
     label: 'Draft Email',
@@ -113,18 +165,26 @@ const paletteItems: (NodePaletteItem & { icon: any })[] = [
     category: 'actions',
     defaultData: { actionType: 'send_notification', label: 'Notification' },
   },
-  // Logic
+  {
+    type: 'action',
+    label: 'Webhook',
+    description: 'Call external API',
+    icon: Webhook,
+    category: 'actions',
+    defaultData: { actionType: 'webhook', label: 'Webhook' },
+  },
+  // Logic (Orange per PRD - Flow Control)
   {
     type: 'condition',
-    label: 'Condition',
+    label: 'If/Else',
     description: 'Branch based on condition',
     icon: GitBranch,
     category: 'logic',
-    defaultData: { label: 'If/Then', conditionOperator: 'equals' },
+    defaultData: { label: 'If/Else', conditionOperator: 'equals' },
   },
   {
     type: 'delay',
-    label: 'Delay',
+    label: 'Wait',
     description: 'Wait before continuing',
     icon: Clock,
     category: 'logic',
@@ -133,25 +193,28 @@ const paletteItems: (NodePaletteItem & { icon: any })[] = [
 ];
 
 const categories = [
-  { id: 'triggers', label: 'Triggers', color: 'from-emerald-500 to-teal-600' },
-  { id: 'ai', label: 'AI', color: 'from-violet-500 to-purple-600' },
-  { id: 'actions', label: 'Actions', color: 'from-blue-500 to-cyan-600' },
-  { id: 'logic', label: 'Logic', color: 'from-amber-500 to-orange-600' },
+  { id: 'triggers', label: 'Triggers', color: 'from-emerald-500 to-teal-600', hint: 'Events that start the workflow' },
+  { id: 'ai', label: 'AI Smart Blocks', color: 'from-violet-500 to-purple-600', hint: 'The brain - uses natural language' },
+  { id: 'actions', label: 'Actions', color: 'from-blue-500 to-cyan-600', hint: 'The hands - do things' },
+  { id: 'logic', label: 'Logic', color: 'from-amber-500 to-orange-600', hint: 'Control flow' },
 ];
 
 export function NodePalette({ onDragStart }: NodePaletteProps) {
   return (
-    <div className="w-64 bg-white border-r border-gray-200 overflow-y-auto">
-      <div className="p-4 border-b border-gray-200">
-        <h3 className="font-semibold text-gray-900">Node Palette</h3>
-        <p className="text-xs text-gray-500 mt-1">Drag nodes to the canvas</p>
+    <div className="w-64 bg-card border-r border-border overflow-y-auto flex-shrink-0">
+      <div className="p-4 border-b border-border">
+        <h3 className="font-semibold text-foreground">Node Palette</h3>
+        <p className="text-xs text-muted-foreground mt-1">Drag nodes to the canvas</p>
       </div>
 
       {categories.map((category) => (
         <div key={category.id} className="p-3">
-          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-            {category.label}
-          </h4>
+          <div className="mb-2">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              {category.label}
+            </h4>
+            <p className="text-[10px] text-muted-foreground/70">{category.hint}</p>
+          </div>
           <div className="space-y-2">
             {paletteItems
               .filter((item) => item.category === category.id)
@@ -164,21 +227,23 @@ export function NodePalette({ onDragStart }: NodePaletteProps) {
                     onDragStart={(e) => onDragStart(e, item.type, item.defaultData)}
                     className={cn(
                       'flex items-center gap-3 p-2 rounded-lg cursor-grab active:cursor-grabbing',
-                      'bg-gray-50 hover:bg-gray-100 transition-colors',
-                      'border border-transparent hover:border-gray-200'
+                      'bg-muted/50 hover:bg-muted transition-colors',
+                      'border border-transparent hover:border-border',
+                      // Purple border for AI blocks (per PRD)
+                      category.id === 'ai' && 'hover:border-violet-300 dark:hover:border-violet-700'
                     )}
                   >
                     <div className={cn(
-                      'p-1.5 rounded-md bg-gradient-to-br text-white',
+                      'p-1.5 rounded-md bg-gradient-to-br text-white shadow-sm',
                       category.color
                     )}>
                       <Icon className="h-3.5 w-3.5" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
+                      <p className="text-sm font-medium text-foreground truncate">
                         {item.label}
                       </p>
-                      <p className="text-xs text-gray-500 truncate">
+                      <p className="text-xs text-muted-foreground truncate">
                         {item.description}
                       </p>
                     </div>
