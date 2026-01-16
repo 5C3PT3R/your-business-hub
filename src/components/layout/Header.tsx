@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/popover';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 
 interface HeaderProps {
   title: string;
@@ -25,18 +26,21 @@ export function Header({ title, subtitle, action, actions }: HeaderProps) {
   const isMobile = useIsMobile();
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-sm">
-      <div className="flex h-14 items-center justify-between px-4 md:px-6 gap-4">
+    <header className="sticky top-0 z-30 border-b border-gray-200 dark:border-white/[0.05] bg-white/80 dark:bg-background/80 backdrop-blur-2xl backdrop-saturate-150">
+      <div className="flex h-16 items-center justify-between px-4 md:px-6 gap-4">
         <div className={isMobile ? 'ml-12' : ''}>
-          <h1 className="text-lg font-semibold">{title}</h1>
+          <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">{title}</h1>
           {subtitle && (
-            <p className="text-sm text-muted-foreground">{subtitle}</p>
+            <p className="text-sm text-gray-500 dark:text-white/40">{subtitle}</p>
           )}
         </div>
 
         <div className="flex items-center gap-2">
           {/* Custom actions */}
           {actions}
+
+          {/* Theme Toggle */}
+          <ThemeToggle />
 
           {/* Notifications */}
           <Popover open={notificationsOpen} onOpenChange={setNotificationsOpen}>

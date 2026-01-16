@@ -505,35 +505,72 @@ export function BreezeSidebar() {
   return (
     <aside
       className={cn(
-        'bg-white border-r border-gray-200 flex flex-col transition-all duration-300',
-        isCollapsed ? 'w-16' : 'w-60'
+        'flex flex-col transition-all duration-300 relative overflow-hidden flex-shrink-0',
+        // Light mode: clean white with subtle shadows
+        'bg-white border-r border-gray-200/80',
+        // Dark mode: Premium glassmorphism - React Bits + Yutori blend
+        'dark:bg-gradient-to-b dark:from-[#0c0c0f]/95 dark:via-[#0a0a0d]/90 dark:to-[#080810]/95',
+        'dark:backdrop-blur-3xl dark:backdrop-saturate-200',
+        'dark:border-white/[0.08]',
+        // Light mode shadow
+        'shadow-lg shadow-gray-200/50',
+        // Dark mode: Ambient glow effects
+        'dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.03),0_0_80px_rgba(139,92,246,0.05)]',
+        isCollapsed ? 'w-20' : 'w-72'
       )}
     >
+      {/* Animated gradient orbs - React Bits style (dark mode only) */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none hidden dark:block">
+        <div className="absolute -top-24 -left-24 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute top-1/3 -right-12 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl animate-bounce-subtle" />
+        <div className="absolute bottom-20 -left-8 w-24 h-24 bg-pink-500/8 rounded-full blur-2xl animate-float" />
+      </div>
+
+      {/* Light mode: subtle gradient accent */}
+      <div className="absolute inset-0 bg-gradient-to-b from-blue-50/50 via-transparent to-purple-50/30 pointer-events-none dark:hidden" />
+
+      {/* Gradient overlay for depth (dark mode) */}
+      <div className="absolute inset-0 bg-gradient-to-b from-blue-500/[0.02] via-transparent to-purple-500/[0.02] pointer-events-none hidden dark:block" />
+
+      {/* Noise texture for premium feel (dark mode only) */}
+      <div className="absolute inset-0 opacity-0 dark:opacity-[0.015] pointer-events-none" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.8\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E")' }} />
+
       {/* Logo */}
-      <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
+      <div className="relative z-10 h-16 flex items-center justify-between px-4 border-b border-gray-100 dark:border-white/[0.05]">
         {!isCollapsed && (
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">🌬️</span>
-              <span className="font-semibold text-gray-900">Breeze</span>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                <span className="text-xl">🌬️</span>
+              </div>
+              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 blur-lg opacity-40 dark:opacity-40 hidden dark:block" />
             </div>
-            <p className="text-xs text-gray-500">Sales Made Breezy</p>
+            <div>
+              <span className="font-bold text-gray-900 dark:text-white tracking-tight text-lg">Breeze</span>
+              <p className="text-[10px] text-gray-500 dark:text-white/40 font-medium tracking-wide">SALES CRM</p>
+            </div>
           </div>
         )}
-        {isCollapsed && <span className="text-2xl mx-auto">🌬️</span>}
+        {isCollapsed && (
+          <div className="relative mx-auto">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
+              <span className="text-xl">🌬️</span>
+            </div>
+          </div>
+        )}
 
         {!isCollapsed && (
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1 hover:bg-gray-100 rounded transition-colors"
+            className="p-1 hover:bg-muted rounded transition-colors"
           >
-            <ChevronRight className="w-4 h-4 text-gray-600" />
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </button>
         )}
       </div>
 
       {/* Menu Items */}
-      <nav className="flex-1 overflow-y-auto py-4">
+      <nav className="relative z-10 flex-1 overflow-y-auto py-4">
         <div className="space-y-1 px-2">
           {/* Primary Navigation */}
           {menuStructure.map(item => (
@@ -549,11 +586,11 @@ export function BreezeSidebar() {
           ))}
 
           {/* Divider */}
-          <div className="my-3 border-t border-gray-200" />
+          <div className="my-3 border-t border-border" />
 
           {/* Automation & Intelligence */}
           {!isCollapsed && (
-            <div className="px-2 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <div className="px-2 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Automation
             </div>
           )}
@@ -574,27 +611,30 @@ export function BreezeSidebar() {
 
       {/* User Profile */}
       {!isCollapsed && (
-        <div className="p-4 border-t border-gray-200">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-semibold text-sm">
-              {userInitials}
+        <div className="relative z-10 p-4 border-t border-gray-100 dark:border-white/[0.05]">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="relative">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-purple-500/20">
+                {userInitials}
+              </div>
+              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white dark:border-[#0a0a0d]" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">{userName}</p>
-              <p className="text-xs text-gray-500 truncate">{userEmail}</p>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{userName}</p>
+              <p className="text-xs text-gray-500 dark:text-white/40 font-mono truncate">{userEmail}</p>
             </div>
           </div>
 
-          <div className="space-y-2 text-xs text-gray-600 mb-3">
-            <div className="flex justify-between">
-              <span>📊 Today:</span>
-              <span className="font-medium">
+          <div className="space-y-2.5 text-xs mb-4">
+            <div className="flex justify-between items-center px-3 py-2 rounded-lg bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.05]">
+              <span className="text-gray-500 dark:text-white/50">Today</span>
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
                 {stats?.completed || 0}/{(stats?.pending || 0) + (stats?.completed || 0)} done
               </span>
             </div>
-            <div className="flex justify-between">
-              <span>💰 Pipeline:</span>
-              <span className="font-medium">
+            <div className="flex justify-between items-center px-3 py-2 rounded-lg bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.05]">
+              <span className="text-gray-500 dark:text-white/50">Pipeline</span>
+              <span className="font-bold text-gray-900 dark:text-white font-mono">
                 {dealsStats.totalValue >= 1000000
                   ? `$${(dealsStats.totalValue / 1000000).toFixed(1)}M`
                   : dealsStats.totalValue >= 1000
@@ -606,14 +646,15 @@ export function BreezeSidebar() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-xs pt-2">
+          <div className="flex items-center gap-2 pt-2">
             <button
               onClick={() => navigate('/settings')}
-              className="text-gray-600 hover:text-gray-900 transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.05] transition-all text-xs"
             >
               <Settings className="h-4 w-4" />
+              Settings
             </button>
-            <button className="text-gray-600 hover:text-gray-900 transition-colors">
+            <button className="flex items-center justify-center px-3 py-2 rounded-lg text-gray-500 dark:text-white/50 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all">
               <LogOut className="h-4 w-4" />
             </button>
           </div>
@@ -621,25 +662,25 @@ export function BreezeSidebar() {
       )}
 
       {/* Command Palette Trigger */}
-      <div className="p-4 border-t border-gray-200">
+      <div className="relative z-10 p-4 border-t border-gray-100 dark:border-white/[0.05]">
         <button
-          className="w-full px-3 py-2 bg-gray-100 rounded-lg flex items-center justify-between hover:bg-gray-200 transition-colors"
+          className="w-full px-3 py-2.5 bg-gray-50 dark:bg-white/[0.03] rounded-xl flex items-center justify-between hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-all border border-gray-200 dark:border-white/[0.05] group"
           onClick={() => {
             /* TODO: Open command palette */
           }}
         >
           {!isCollapsed ? (
             <>
-              <span className="text-sm text-gray-600 flex items-center gap-2">
+              <span className="text-sm text-gray-400 dark:text-white/40 flex items-center gap-2 group-hover:text-gray-600 dark:group-hover:text-white/60 transition-colors">
                 <Search className="h-4 w-4" />
-                Search
+                Search...
               </span>
-              <kbd className="px-2 py-1 text-xs bg-white border border-gray-300 rounded font-mono">
+              <kbd className="px-2 py-1 text-[10px] bg-gray-100 dark:bg-white/[0.05] border border-gray-200 dark:border-white/[0.08] rounded-md font-mono text-gray-400 dark:text-white/40">
                 ⌘K
               </kbd>
             </>
           ) : (
-            <Search className="h-5 w-5 text-gray-600 mx-auto" />
+            <Search className="h-5 w-5 text-gray-400 dark:text-white/40 mx-auto group-hover:text-gray-600 dark:group-hover:text-white/60 transition-colors" />
           )}
         </button>
       </div>
@@ -649,9 +690,9 @@ export function BreezeSidebar() {
         <div className="p-2">
           <button
             onClick={() => setIsCollapsed(false)}
-            className="w-full p-2 hover:bg-gray-100 rounded transition-colors"
+            className="w-full p-2 hover:bg-muted rounded transition-colors"
           >
-            <ChevronRight className="h-5 w-5 text-gray-600 mx-auto" />
+            <ChevronRight className="h-5 w-5 text-muted-foreground mx-auto" />
           </button>
         </div>
       )}
@@ -671,7 +712,7 @@ function MenuItem({
   const Icon = item.icon;
 
   if (item.isDivider) {
-    return !isCollapsed ? <div className="my-2 border-t border-gray-200" /> : null;
+    return !isCollapsed ? <div className="my-2 border-t border-border" /> : null;
   }
 
   return (
@@ -679,10 +720,10 @@ function MenuItem({
       <button
         onClick={hasSubItems ? onToggle : () => onNavigate(item.path)}
         className={cn(
-          'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors',
+          'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300',
           isActive
-            ? 'bg-blue-50 text-blue-600'
-            : 'text-gray-700 hover:bg-gray-100',
+            ? 'bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/5 text-blue-600 dark:text-white border border-blue-200 dark:border-white/10 shadow-sm dark:shadow-[0_0_20px_rgba(139,92,246,0.15),inset_0_1px_0_rgba(255,255,255,0.05)]'
+            : 'text-gray-600 dark:text-white/60 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.05] border border-transparent',
           isCollapsed && 'justify-center'
         )}
       >
@@ -703,8 +744,9 @@ function MenuItem({
                 }
                 className={cn(
                   'text-xs font-semibold',
-                  item.badge.variant === 'info' && 'bg-blue-100 text-blue-700',
-                  item.badge.variant === 'success' && 'bg-green-100 text-green-700'
+                  item.badge.variant === 'info' && 'bg-primary/10 text-primary dark:bg-primary/20',
+                  item.badge.variant === 'success' && 'bg-success/10 text-success dark:bg-success/20',
+                  item.badge.variant === 'urgent' && 'animate-pulse-dot'
                 )}
               >
                 {item.badge.label || item.badge.count}
@@ -714,7 +756,7 @@ function MenuItem({
             {hasSubItems && (
               <ChevronDown
                 className={cn(
-                  'w-4 h-4 transition-transform',
+                  'w-4 h-4 transition-transform duration-200',
                   isExpanded ? 'rotate-0' : '-rotate-90'
                 )}
               />
@@ -728,7 +770,7 @@ function MenuItem({
         <div className="ml-6 mt-1 space-y-1">
           {item.subItems?.map(subItem => {
             if (subItem.isDivider) {
-              return <div key={subItem.id} className="my-2 border-t border-gray-200" />;
+              return <div key={subItem.id} className="my-2 border-t border-border" />;
             }
 
             const SubIcon = subItem.icon;
@@ -736,12 +778,12 @@ function MenuItem({
               <button
                 key={subItem.id}
                 onClick={() => onNavigate(subItem.path)}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
               >
                 {SubIcon && <SubIcon className="w-4 h-4" />}
                 <span className="flex-1 text-left">{subItem.label}</span>
                 {subItem.badge && (
-                  <span className="text-xs text-gray-500">({subItem.badge.count})</span>
+                  <span className="text-xs text-muted-foreground font-mono">({subItem.badge.count})</span>
                 )}
               </button>
             );

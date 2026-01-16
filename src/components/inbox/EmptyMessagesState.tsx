@@ -21,24 +21,24 @@ export function EmptyMessagesState({
     <Card className="flex-1 flex items-center justify-center p-12">
       <div className="text-center space-y-4 max-w-md">
         <div className="flex items-center justify-center">
-          <div className="h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center">
+          <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
             {platformConfig ? (
               <span className="text-3xl">{platformConfig.icon}</span>
             ) : (
-              <InboxIcon className="h-8 w-8 text-gray-400" />
+              <InboxIcon className="h-8 w-8 text-muted-foreground" />
             )}
           </div>
         </div>
 
         <div className="space-y-2">
-          <h3 className="text-lg font-semibold text-gray-900">
+          <h3 className="text-lg font-semibold text-foreground">
             {isLoading
               ? 'Loading messages...'
               : platform
               ? `No ${platformConfig?.name || platform} messages`
               : 'No messages'}
           </h3>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             {isLoading
               ? 'Fetching your latest messages from connected platforms.'
               : platform

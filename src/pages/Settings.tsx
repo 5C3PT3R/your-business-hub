@@ -13,15 +13,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { User, Bell, Shield, CreditCard, Users, Loader2, Plug } from 'lucide-react';
+import { User, Bell, Shield, CreditCard, Users, Loader2, Plug, Palette, Sun, Moon, Monitor } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useTheme } from '@/hooks/useTheme';
 import { GmailConnect } from '@/components/integrations/GmailConnect';
+import { SocialIntegrations } from '@/components/integrations/SocialIntegrations';
 
 export default function Settings() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState({
     firstName: '',
@@ -162,7 +165,13 @@ export default function Settings() {
         subtitle="Manage your account and preferences"
       />
       
-      <div className="p-4 md:p-6 max-w-4xl">
+      <div className="p-4 md:p-6 max-w-4xl relative overflow-hidden min-h-[calc(100vh-4rem)]">
+        {/* Animated background gradients */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-gradient-to-br from-blue-500/20 via-purple-500/15 to-pink-500/10 dark:from-blue-500/30 dark:via-purple-500/20 dark:to-pink-500/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-[-30%] left-[-15%] w-[500px] h-[500px] bg-gradient-to-tr from-cyan-500/15 via-blue-500/10 to-transparent dark:from-cyan-500/20 dark:via-blue-500/15 rounded-full blur-3xl" />
+          <div className="absolute top-[40%] left-[30%] w-[300px] h-[300px] bg-gradient-to-r from-violet-500/10 to-fuchsia-500/5 dark:from-violet-500/15 dark:to-fuchsia-500/10 rounded-full blur-2xl" />
+        </div>
         <Tabs defaultValue="profile" className="space-y-4 md:space-y-6">
           <TabsList className="animate-fade-in w-full overflow-x-auto flex-wrap h-auto gap-1 p-1">
             <TabsTrigger value="profile" className="gap-1.5 text-xs sm:text-sm">
@@ -184,6 +193,10 @@ export default function Settings() {
             <TabsTrigger value="integrations" className="gap-1.5 text-xs sm:text-sm">
               <Plug className="h-4 w-4" />
               <span className="hidden sm:inline">Integrations</span>
+            </TabsTrigger>
+            <TabsTrigger value="appearance" className="gap-1.5 text-xs sm:text-sm">
+              <Palette className="h-4 w-4" />
+              <span className="hidden sm:inline">Appearance</span>
             </TabsTrigger>
             <TabsTrigger value="billing" className="gap-1.5 text-xs sm:text-sm">
               <CreditCard className="h-4 w-4" />
@@ -405,16 +418,82 @@ export default function Settings() {
                 <p className="text-sm text-muted-foreground">Connect your accounts to automatically capture leads and conversations</p>
               </div>
 
-              <GmailConnect />
-
-              <div className="rounded-xl border border-border bg-card p-6 shadow-card">
-                <div className="text-center py-8">
-                  <Plug className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                  <h4 className="font-semibold text-foreground mb-2">More integrations coming soon</h4>
+              {/* Email Integration */}
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-base font-semibold text-foreground">Email</h4>
                   <p className="text-sm text-muted-foreground">
-                    Instagram, Facebook Messenger, and more will be available soon.
+                    Connect your email accounts for automatic lead capture.
                   </p>
                 </div>
+                <GmailConnect />
+              </div>
+
+              {/* Social Messaging Integrations */}
+              <SocialIntegrations />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="appearance" className="animate-slide-up">
+            <div className="rounded-xl border border-border bg-card p-6 shadow-card space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">Appearance</h3>
+                <p className="text-sm text-muted-foreground">Customize the look and feel of your workspace</p>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="font-medium text-foreground">Theme</h4>
+                <p className="text-sm text-muted-foreground">Select your preferred color scheme</p>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <button
+                    onClick={() => setTheme('light')}
+                    className={`flex flex-col items-center gap-3 p-4 rounded-lg border-2 transition-all ${
+                      theme === 'light'
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="w-full h-20 rounded-md bg-white border border-gray-200 flex items-center justify-center">
+                      <Sun className="h-8 w-8 text-amber-500" />
+                    </div>
+                    <span className="font-medium text-sm">Light</span>
+                  </button>
+
+                  <button
+                    onClick={() => setTheme('dark')}
+                    className={`flex flex-col items-center gap-3 p-4 rounded-lg border-2 transition-all ${
+                      theme === 'dark'
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="w-full h-20 rounded-md bg-gray-900 border border-gray-700 flex items-center justify-center">
+                      <Moon className="h-8 w-8 text-blue-400" />
+                    </div>
+                    <span className="font-medium text-sm">Dark</span>
+                  </button>
+
+                  <button
+                    onClick={() => setTheme('system')}
+                    className={`flex flex-col items-center gap-3 p-4 rounded-lg border-2 transition-all ${
+                      theme === 'system'
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="w-full h-20 rounded-md bg-gradient-to-r from-white to-gray-900 border border-gray-300 flex items-center justify-center">
+                      <Monitor className="h-8 w-8 text-gray-500" />
+                    </div>
+                    <span className="font-medium text-sm">System</span>
+                  </button>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  {theme === 'system'
+                    ? 'Theme will automatically match your device settings.'
+                    : `${theme.charAt(0).toUpperCase() + theme.slice(1)} mode is currently active.`}
+                </p>
               </div>
             </div>
           </TabsContent>

@@ -12,10 +12,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { WorkspaceProvider, useWorkspace } from "@/hooks/useWorkspace";
+import { ThemeProvider } from "@/hooks/useTheme";
 import Landing from "./pages/Landing";
 import Demo from "./pages/Demo";
 import Dashboard from "./pages/Dashboard";
-import Actions from "./pages/Actions";
 import NextActions from "./pages/NextActions";
 import Inbox from "./pages/Inbox";
 import Leads from "./pages/Leads";
@@ -29,6 +29,7 @@ import Tasks from "./pages/Tasks";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Agents from "./pages/Agents";
+import Workflows from "./pages/Workflows";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -68,14 +69,6 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/actions"
-        element={
-          <ProtectedRoute>
-            <Actions />
           </ProtectedRoute>
         }
       />
@@ -160,6 +153,22 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/workflows"
+        element={
+          <ProtectedRoute>
+            <Workflows />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/workflows/:id"
+        element={
+          <ProtectedRoute>
+            <Workflows />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/tasks"
         element={
           <ProtectedRoute>
@@ -196,17 +205,19 @@ const AuthPage = Auth;
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <WorkspaceProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </TooltipProvider>
-      </WorkspaceProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <WorkspaceProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </TooltipProvider>
+        </WorkspaceProvider>
+      </AuthProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

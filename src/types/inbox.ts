@@ -25,7 +25,7 @@ export type Platform =
 export type PlatformCategory = 'email' | 'social' | 'messaging' | 'ads' | 'support' | 'sms';
 
 export type MessageDirection = 'inbound' | 'outbound';
-export type MessageStatus = 'sent' | 'delivered' | 'read' | 'failed';
+export type MessageStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
 export type Sentiment = 'positive' | 'neutral' | 'negative';
 
 export interface Integration {
@@ -96,10 +96,22 @@ export interface UnifiedMessage {
   // Platform-Specific
   platformMetadata: Record<string, any>;
 
+  // Social Platform Specifics
+  messageType?: 'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker' | 'location' | 'contact' | 'template' | 'interactive' | 'reaction' | 'story_reply';
+  templateId?: string; // WhatsApp HSM template ID if sent via template
+  sourcePageName?: string; // "Via Acme Corp FB Page" for Meta messages
+  replyToId?: string; // For threaded replies
+  reactionEmoji?: string; // For reactions
+
+  // WhatsApp Session Status
+  sessionExpired?: boolean; // True if 24h window has closed
+  requiresTemplate?: boolean; // True if must use template to message
+
   // Timestamps
   sentAt: Date;
   receivedAt: Date;
   readAt?: Date;
+  deliveredAt?: Date;
 
   // AI Analysis
   sentiment?: Sentiment;
@@ -251,4 +263,100 @@ export interface PlatformConfig {
   };
   authType: 'oauth2' | 'api_key' | 'webhook';
   docs: string;
+}
+
+// Social Integration Types
+export type SocialPlatform = 'whatsapp' | 'messenger' | 'instagram' | 'linkedin';
+
+export interface SocialConnection {
+  id: string;
+  userId: string;
+  workspaceId: string;
+  platform: SocialPlatform;
+  platformAccountId: string;
+  platformAccountName?: string;
+  status: 'active' | 'disconnected' | 'expired' | 'error';
+  lastError?: string;
+  lastSyncAt?: Date;
+  // WhatsApp specific
+  phoneNumberId?: string;
+  whatsappBusinessId?: string;
+  // Meta specific
+  pageId?: string;
+  pageName?: string;
+  instagramAccountId?: string;
+  // LinkedIn specific
+  linkedinUrn?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WhatsAppTemplate {
+  id: string;
+  workspaceId: string;
+  connectionId: string;
+  templateId: string;
+  name: string;
+  language: string;
+  category: 'authentication' | 'marketing' | 'utility';
+  headerType?: 'text' | 'image' | 'video' | 'document';
+  headerText?: string;
+  bodyText: string;
+  footerText?: string;
+  variables: Array<{ name: string; example: string }>;
+  buttons: Array<{ type: string; text: string; url?: string; phoneNumber?: string }>;
+  status: 'pending' | 'approved' | 'rejected' | 'paused' | 'disabled';
+  rejectionReason?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SocialConversation {
+  id: string;
+  workspaceId: string;
+  connectionId: string;
+  contactId?: string;
+  platform: SocialPlatform;
+  platformConversationId: string;
+  platformUserId?: string;
+  platformUserName?: string;
+  platformUserAvatar?: string;
+  sessionExpiresAt?: Date;
+  requiresTemplate: boolean;
+  status: 'active' | 'archived' | 'blocked';
+  messageCount: number;
+  unreadCount: number;
+  lastMessageAt?: Date;
+  lastInboundAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SocialMessage {
+  id: string;
+  workspaceId: string;
+  conversationId: string;
+  platform: SocialPlatform;
+  externalId: string;
+  direction: 'inbound' | 'outbound';
+  messageType: 'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker' | 'location' | 'contact' | 'template' | 'interactive' | 'reaction' | 'story_reply';
+  body?: string;
+  caption?: string;
+  mediaUrl?: string;
+  mediaMimeType?: string;
+  mediaFilename?: string;
+  mediaSize?: number;
+  templateId?: string;
+  templateVariables?: Record<string, string>;
+  status: 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
+  statusUpdatedAt?: Date;
+  errorCode?: string;
+  errorMessage?: string;
+  replyToId?: string;
+  reactionEmoji?: string;
+  sourcePageName?: string;
+  sentAt: Date;
+  deliveredAt?: Date;
+  readAt?: Date;
+  createdAt: Date;
 }

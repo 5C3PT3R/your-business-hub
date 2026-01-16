@@ -69,6 +69,12 @@ CREATE INDEX IF NOT EXISTS idx_agents_templates ON agents(is_template) WHERE is_
 -- Enable Row Level Security
 ALTER TABLE agents ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist, then recreate
+DROP POLICY IF EXISTS "Users can view agents in their workspaces" ON agents;
+DROP POLICY IF EXISTS "Users can create agents in their workspaces" ON agents;
+DROP POLICY IF EXISTS "Users can update agents in their workspaces" ON agents;
+DROP POLICY IF EXISTS "Users can delete agents in their workspaces" ON agents;
+
 -- RLS Policy: Users can view agents in their workspaces OR template agents
 CREATE POLICY "Users can view agents in their workspaces"
   ON agents FOR SELECT
@@ -107,6 +113,7 @@ CREATE POLICY "Users can delete agents in their workspaces"
   );
 
 -- Trigger to automatically update updated_at timestamp
+DROP TRIGGER IF EXISTS update_agents_updated_at ON agents;
 CREATE TRIGGER update_agents_updated_at
   BEFORE UPDATE ON agents
   FOR EACH ROW
@@ -162,6 +169,10 @@ CREATE INDEX IF NOT EXISTS idx_agent_executions_workspace ON agent_executions(wo
 
 -- Enable Row Level Security for agent_executions
 ALTER TABLE agent_executions ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist, then recreate
+DROP POLICY IF EXISTS "Users can view executions in their workspaces" ON agent_executions;
+DROP POLICY IF EXISTS "Users can insert executions in their workspaces" ON agent_executions;
 
 -- RLS Policy: Users can view executions in their workspaces
 CREATE POLICY "Users can view executions in their workspaces"

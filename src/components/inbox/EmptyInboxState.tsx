@@ -49,10 +49,10 @@ export function EmptyInboxState({ onConnectPlatform }: EmptyInboxStateProps) {
               </div>
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900">
+          <h2 className="text-2xl font-bold text-foreground">
             Welcome to Your Unified Inbox
           </h2>
-          <p className="text-base text-gray-600 max-w-md mx-auto">
+          <p className="text-base text-muted-foreground max-w-md mx-auto">
             Connect your communication channels to see all messages in one place.
             Never miss an important conversation again.
           </p>
@@ -61,29 +61,29 @@ export function EmptyInboxState({ onConnectPlatform }: EmptyInboxStateProps) {
         {/* Benefits */}
         <div className="grid grid-cols-3 gap-4">
           <Card className="p-4 text-left">
-            <MessageSquare className="h-5 w-5 text-blue-600 mb-2" />
-            <h3 className="font-semibold text-sm text-gray-900 mb-1">
+            <MessageSquare className="h-5 w-5 text-primary mb-2" />
+            <h3 className="font-semibold text-sm text-foreground mb-1">
               All Channels
             </h3>
-            <p className="text-xs text-gray-600">
+            <p className="text-xs text-muted-foreground">
               Email, social, messaging - all in one view
             </p>
           </Card>
           <Card className="p-4 text-left">
-            <Users className="h-5 w-5 text-purple-600 mb-2" />
-            <h3 className="font-semibold text-sm text-gray-900 mb-1">
+            <Users className="h-5 w-5 text-accent-foreground mb-2" />
+            <h3 className="font-semibold text-sm text-foreground mb-1">
               Unified Threads
             </h3>
-            <p className="text-xs text-gray-600">
+            <p className="text-xs text-muted-foreground">
               See all messages with a contact across platforms
             </p>
           </Card>
           <Card className="p-4 text-left">
-            <Sparkles className="h-5 w-5 text-yellow-600 mb-2" />
-            <h3 className="font-semibold text-sm text-gray-900 mb-1">
+            <Sparkles className="h-5 w-5 text-warning mb-2" />
+            <h3 className="font-semibold text-sm text-foreground mb-1">
               AI Insights
             </h3>
-            <p className="text-xs text-gray-600">
+            <p className="text-xs text-muted-foreground">
               Smart sentiment analysis and prioritization
             </p>
           </Card>
@@ -104,13 +104,13 @@ export function EmptyInboxState({ onConnectPlatform }: EmptyInboxStateProps) {
 
         {/* Available Platforms Preview */}
         <div className="space-y-3 pt-4">
-          <p className="text-sm font-medium text-gray-700">
+          <p className="text-sm font-medium text-foreground/80">
             Available Platforms ({allPlatforms.length})
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2">
             {/* Email */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100">
-              <span className="text-sm font-medium text-gray-700">Email:</span>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted">
+              <span className="text-sm font-medium text-foreground/80">Email:</span>
               {emailPlatforms.slice(0, 2).map((platform) => (
                 <span key={platform.platform} className="text-lg">
                   {platform.icon}
@@ -118,8 +118,8 @@ export function EmptyInboxState({ onConnectPlatform }: EmptyInboxStateProps) {
               ))}
             </div>
             {/* Messaging */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100">
-              <span className="text-sm font-medium text-gray-700">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted">
+              <span className="text-sm font-medium text-foreground/80">
                 Messaging:
               </span>
               {messagingPlatforms.slice(0, 3).map((platform) => (
@@ -129,8 +129,8 @@ export function EmptyInboxState({ onConnectPlatform }: EmptyInboxStateProps) {
               ))}
             </div>
             {/* Social */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100">
-              <span className="text-sm font-medium text-gray-700">Social:</span>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted">
+              <span className="text-sm font-medium text-foreground/80">Social:</span>
               {socialPlatforms.slice(0, 3).map((platform) => (
                 <span key={platform.platform} className="text-lg">
                   {platform.icon}

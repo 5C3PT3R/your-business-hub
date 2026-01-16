@@ -186,6 +186,17 @@ export default function Inbox() {
             msg.platform === 'gmail' ||
             msg.platform === 'outlook'
           );
+        } else if (activeChannel === 'whatsapp') {
+          // WhatsApp messages
+          result = result.filter((msg) => msg.platform === 'whatsapp');
+        } else if (activeChannel === 'social') {
+          // Social includes messenger, instagram, linkedin
+          result = result.filter((msg) =>
+            msg.platform === 'messenger' ||
+            msg.platform === 'instagram' ||
+            msg.platform === 'linkedin' ||
+            msg.platform === 'facebook'
+          );
         } else {
           // Direct platform match
           result = result.filter((msg) => msg.platform === activeChannel);
@@ -237,9 +248,15 @@ export default function Inbox() {
       <MainLayout>
         <Header title="Inbox" subtitle="Loading..." />
         <div className="flex items-center justify-center min-h-[600px]">
-          <div className="flex flex-col items-center gap-3">
-            <div className="h-8 w-8 rounded-lg bg-foreground animate-pulse" />
-            <p className="text-sm text-muted-foreground">Loading inbox...</p>
+          <div className="flex flex-col items-center gap-4">
+            <div className="relative">
+              <div className="h-12 w-12 rounded-xl gradient-brand animate-pulse" />
+              <div className="absolute inset-0 h-12 w-12 rounded-xl gradient-brand blur-xl opacity-50 animate-pulse" />
+            </div>
+            <div className="space-y-2 text-center">
+              <p className="text-sm font-medium text-foreground">Loading inbox...</p>
+              <p className="text-xs text-muted-foreground">Fetching your messages</p>
+            </div>
           </div>
         </div>
       </MainLayout>
@@ -290,16 +307,22 @@ export default function Inbox() {
         onChannelChange={handleChannelChange}
       />
 
-      <div className="p-4 md:p-6">
+      <div className="p-4 md:p-6 relative overflow-hidden min-h-[calc(100vh-10rem)]">
+        {/* Animated background gradients */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-gradient-to-br from-blue-500/20 via-purple-500/15 to-pink-500/10 dark:from-blue-500/30 dark:via-purple-500/20 dark:to-pink-500/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-[-30%] left-[-15%] w-[500px] h-[500px] bg-gradient-to-tr from-cyan-500/15 via-blue-500/10 to-transparent dark:from-cyan-500/20 dark:via-blue-500/15 rounded-full blur-3xl" />
+          <div className="absolute top-[40%] left-[30%] w-[300px] h-[300px] bg-gradient-to-r from-violet-500/10 to-fuchsia-500/5 dark:from-violet-500/15 dark:to-fuchsia-500/10 rounded-full blur-2xl" />
+        </div>
         <div className="flex gap-6 h-[calc(100vh-16rem)]">
           {/* Left Sidebar - Message List */}
           <div className="w-96 flex flex-col gap-4">
             {/* Filters and Search */}
-            <Card className="p-4">
+            <Card variant="glass" className="p-4">
               <div className="space-y-3">
                 {/* Search */}
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search messages..."
                     value={searchQuery}
@@ -320,7 +343,7 @@ export default function Inbox() {
                     <TabsTrigger value="unread" className="text-xs">
                       Unread
                       {unreadCount > 0 && (
-                        <Badge variant="default" className="ml-1 text-xs bg-blue-600">
+                        <Badge variant="default" className="ml-1 text-xs">
                           {unreadCount}
                         </Badge>
                       )}
@@ -366,20 +389,20 @@ export default function Inbox() {
             </Card>
 
             {/* Message List */}
-            <Card className="flex-1 overflow-hidden">
+            <Card variant="glass" className="flex-1 overflow-hidden">
               <div className="h-full overflow-y-auto">
                 {filteredMessages.length === 0 ? (
-                  <div className="p-8 text-center text-gray-500">
-                    <Mail className="h-12 w-12 mx-auto mb-3 text-gray-400" />
+                  <div className="p-8 text-center text-muted-foreground">
+                    <Mail className="h-12 w-12 mx-auto mb-3 text-muted-foreground/60" />
                     <p className="text-sm font-medium">No messages found</p>
-                    <p className="text-xs text-gray-400 mt-1">
+                    <p className="text-xs text-muted-foreground/80 mt-1">
                       {searchQuery
                         ? 'Try adjusting your search'
                         : 'Your messages will appear here'}
                     </p>
                   </div>
                 ) : (
-                  <div className="divide-y">
+                  <div className="divide-y divide-border">
                     {filteredMessages.map((message) => {
                       const platformConfig = getPlatformConfig(message.platform);
                       return (
@@ -387,9 +410,9 @@ export default function Inbox() {
                           key={message.id}
                           onClick={() => handleSelectMessage(message)}
                           className={cn(
-                            'w-full p-4 text-left hover:bg-gray-50 transition-colors',
-                            selectedMessage?.id === message.id && 'bg-blue-50',
-                            !message.isRead && 'bg-blue-50/30'
+                            'w-full p-4 text-left hover:bg-muted/50 transition-colors',
+                            selectedMessage?.id === message.id && 'bg-primary/10',
+                            !message.isRead && 'bg-primary/5'
                           )}
                         >
                           <div className="flex items-start gap-3">
@@ -404,8 +427,8 @@ export default function Inbox() {
                                 <span
                                   className={cn(
                                     'font-semibold text-sm truncate',
-                                    !message.isRead && 'text-gray-900',
-                                    message.isRead && 'text-gray-700'
+                                    !message.isRead && 'text-foreground',
+                                    message.isRead && 'text-foreground/80'
                                   )}
                                 >
                                   {message.from.name}
@@ -416,13 +439,13 @@ export default function Inbox() {
                                   </Badge>
                                 )}
                                 {!message.isRead && (
-                                  <Circle className="h-2 w-2 fill-blue-600 text-blue-600" />
+                                  <Circle className="h-2 w-2 fill-primary text-primary" />
                                 )}
                               </div>
 
                               {/* Company */}
                               {message.from.company && (
-                                <div className="flex items-center gap-1.5 text-xs text-gray-600 mb-1">
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                                   <Building2 className="h-3 w-3" />
                                   <span>{message.from.company}</span>
                                 </div>
@@ -433,8 +456,8 @@ export default function Inbox() {
                                 <p
                                   className={cn(
                                     'text-sm mb-1 truncate',
-                                    !message.isRead && 'font-semibold text-gray-900',
-                                    message.isRead && 'text-gray-700'
+                                    !message.isRead && 'font-semibold text-foreground',
+                                    message.isRead && 'text-foreground/80'
                                   )}
                                 >
                                   {message.subject}
@@ -442,13 +465,13 @@ export default function Inbox() {
                               )}
 
                               {/* Preview */}
-                              <p className="text-xs text-gray-600 line-clamp-2">
+                              <p className="text-xs text-muted-foreground line-clamp-2">
                                 {message.preview}
                               </p>
 
                               {/* Footer */}
                               <div className="flex items-center justify-between mt-2">
-                                <span className="text-xs text-gray-500">
+                                <span className="text-xs text-muted-foreground">
                                   {formatTimestamp(new Date(message.timestamp))}
                                 </span>
                                 <button
@@ -463,7 +486,7 @@ export default function Inbox() {
                                       'h-4 w-4',
                                       message.isStarred
                                         ? 'fill-yellow-400 text-yellow-400'
-                                        : 'text-gray-400'
+                                        : 'text-muted-foreground'
                                     )}
                                   />
                                 </button>
@@ -481,7 +504,7 @@ export default function Inbox() {
 
           {/* Right Panel - Message Detail */}
           {selectedMessage ? (
-            <Card className="flex-1 flex flex-col">
+            <Card variant="glass" className="flex-1 flex flex-col animate-fade-in">
               {/* Message Header */}
               <div className="p-6 border-b">
                 <div className="flex items-start justify-between mb-4">
@@ -490,15 +513,15 @@ export default function Inbox() {
                       <span className="text-lg">
                         {getPlatformConfig(selectedMessage.platform)?.icon}
                       </span>
-                      <h2 className="text-xl font-bold text-gray-900">
+                      <h2 className="text-xl font-bold text-foreground">
                         {selectedMessage.subject || 'Message'}
                       </h2>
                     </div>
-                    <div className="flex items-center gap-3 text-sm text-gray-600">
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
                       <div className="flex items-center gap-2">
                         <User className="h-4 w-4" />
-                        <span className="font-medium">{selectedMessage.from.name}</span>
-                        <span className="text-gray-400">
+                        <span className="font-medium text-foreground">{selectedMessage.from.name}</span>
+                        <span className="text-muted-foreground/70">
                           &lt;{selectedMessage.from.email}&gt;
                         </span>
                       </div>
@@ -526,7 +549,7 @@ export default function Inbox() {
                         'h-5 w-5',
                         selectedMessage.isStarred
                           ? 'fill-yellow-400 text-yellow-400'
-                          : 'text-gray-400'
+                          : 'text-muted-foreground'
                       )}
                     />
                   </button>
@@ -554,11 +577,11 @@ export default function Inbox() {
 
               {/* AI Insights */}
               {(selectedMessage.sentiment || selectedMessage.intent) && (
-                <div className="p-4 bg-purple-50 border-b border-purple-100">
+                <div className="p-4 bg-accent/10 border-b border-accent/20 dark:bg-accent/5 dark:border-accent/10">
                   <div className="flex items-start gap-3">
-                    <Sparkles className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
+                    <Sparkles className="h-5 w-5 text-accent-foreground flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
-                      <h3 className="font-semibold text-purple-900 text-sm mb-2">
+                      <h3 className="font-semibold text-foreground text-sm mb-2">
                         AI Insights
                       </h3>
                       <div className="flex items-center gap-2">
@@ -568,11 +591,11 @@ export default function Inbox() {
                             className={cn(
                               'capitalize',
                               selectedMessage.sentiment === 'positive' &&
-                                'bg-green-50 text-green-700 border-green-200',
+                                'bg-success/10 text-success border-success/30 dark:bg-success/20',
                               selectedMessage.sentiment === 'neutral' &&
-                                'bg-gray-50 text-gray-700 border-gray-200',
+                                'bg-muted text-muted-foreground border-border',
                               selectedMessage.sentiment === 'negative' &&
-                                'bg-red-50 text-red-700 border-red-200'
+                                'bg-destructive/10 text-destructive border-destructive/30 dark:bg-destructive/20'
                             )}
                           >
                             {selectedMessage.sentiment}
@@ -593,12 +616,12 @@ export default function Inbox() {
               <div className="flex-1 p-6 overflow-y-auto">
                 {selectedMessage.bodyHtml ? (
                   <div
-                    className="prose prose-sm max-w-none"
+                    className="prose prose-sm max-w-none dark:prose-invert"
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedMessage.bodyHtml) }}
                   />
                 ) : (
-                  <div className="prose prose-sm max-w-none">
-                    <p className="whitespace-pre-wrap text-gray-700">
+                  <div className="prose prose-sm max-w-none dark:prose-invert">
+                    <p className="whitespace-pre-wrap text-foreground/80">
                       {selectedMessage.body}
                     </p>
                   </div>

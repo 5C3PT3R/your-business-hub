@@ -40,8 +40,8 @@ const getReadNotificationIds = (): Set<string> => {
 
 // Singleton state to share across components
 let globalNotifications: Notification[] = getStoredNotifications();
-let globalReadIds: Set<string> = getReadNotificationIds();
-let listeners: Set<() => void> = new Set();
+const globalReadIds: Set<string> = getReadNotificationIds();
+const listeners: Set<() => void> = new Set();
 
 const notifyListeners = () => {
   listeners.forEach(listener => listener());

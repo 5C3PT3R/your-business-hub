@@ -30,7 +30,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Search, Plus, Loader2, Trash2, MoreHorizontal, Undo2 } from 'lucide-react';
+import { Search, Plus, Loader2, Trash2, MoreHorizontal, Undo2, Sparkles, TrendingUp, Users } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -171,10 +171,59 @@ export default function Leads() {
         title="Leads"
         subtitle="Manage and track your sales leads"
       />
-      
-      <div className="p-4 md:p-6 space-y-4 md:space-y-6">
-        {/* Filters */}
-        <div className="flex flex-col gap-3 animate-fade-in">
+
+      <div className="p-4 md:p-6 space-y-6 relative overflow-hidden min-h-[calc(100vh-4rem)]">
+        {/* Dramatic animated background - React Bits style */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-gradient-to-br from-blue-500/30 via-purple-500/20 to-pink-500/10 rounded-full blur-3xl animate-pulse-glow" />
+          <div className="absolute bottom-[-30%] left-[-15%] w-[500px] h-[500px] bg-gradient-to-tr from-cyan-500/20 via-blue-500/15 to-transparent rounded-full blur-3xl animate-float" />
+          <div className="absolute top-[40%] left-[30%] w-[300px] h-[300px] bg-gradient-to-r from-violet-500/15 to-fuchsia-500/10 rounded-full blur-2xl animate-bounce-subtle" />
+        </div>
+
+        {/* Stats Cards - Yutori glass style */}
+        <div className="relative grid grid-cols-1 sm:grid-cols-3 gap-4 animate-fade-in-up">
+          <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-blue-500/10 via-card/80 to-card/60 backdrop-blur-xl p-5 transition-all duration-500 hover:border-blue-500/30 hover:shadow-[0_0_40px_rgba(59,130,246,0.15)]">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="relative flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30">
+                <Users className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Total Leads</p>
+                <p className="text-2xl font-bold text-foreground">{leads.length}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-emerald-500/10 via-card/80 to-card/60 backdrop-blur-xl p-5 transition-all duration-500 hover:border-emerald-500/30 hover:shadow-[0_0_40px_rgba(16,185,129,0.15)]">
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="relative flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30">
+                <TrendingUp className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Qualified</p>
+                <p className="text-2xl font-bold text-foreground">{leads.filter(l => l.status === 'qualified').length}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-violet-500/10 via-card/80 to-card/60 backdrop-blur-xl p-5 transition-all duration-500 hover:border-violet-500/30 hover:shadow-[0_0_40px_rgba(139,92,246,0.15)]">
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="relative flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/20 text-violet-400 ring-1 ring-violet-500/30">
+                <Sparkles className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Pipeline Value</p>
+                <p className="text-2xl font-bold text-foreground">${leads.reduce((sum, l) => sum + l.value, 0).toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Filters - Glass morphism */}
+        <div className="relative flex flex-col gap-3 animate-fade-in delay-100">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -183,14 +232,14 @@ export default function Leads() {
                 placeholder="Search leads..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
+                className="pl-9 h-11 bg-card/60 backdrop-blur-xl border-white/10 rounded-xl focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all"
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-40">
+              <SelectTrigger className="w-full sm:w-44 h-11 bg-card/60 backdrop-blur-xl border-white/10 rounded-xl">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-card/95 backdrop-blur-xl border-white/10">
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="new">New</SelectItem>
                 <SelectItem value="contacted">Contacted</SelectItem>
@@ -199,17 +248,17 @@ export default function Leads() {
               </SelectContent>
             </Select>
           </div>
-          
+
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="gradient">
-                <Plus className="h-4 w-4 mr-2" />
+              <Button className="w-fit gap-2 h-11 px-6 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 hover:from-blue-600 hover:via-purple-600 hover:to-pink-600 text-white font-medium rounded-xl shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-all duration-300 hover:-translate-y-0.5">
+                <Plus className="h-4 w-4" />
                 Add Lead
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="bg-card/95 backdrop-blur-2xl border-white/10 shadow-2xl">
               <DialogHeader>
-                <DialogTitle>Add New Lead</DialogTitle>
+                <DialogTitle className="text-xl font-semibold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Add New Lead</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-4">
                 <div className="space-y-2">
@@ -291,7 +340,10 @@ export default function Leads() {
                     step="100"
                   />
                 </div>
-                <Button className="w-full" variant="gradient" onClick={handleAddLead}>
+                <Button
+                  className="w-full h-11 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 hover:from-blue-600 hover:via-purple-600 hover:to-pink-600 text-white font-medium rounded-xl shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-all duration-300"
+                  onClick={handleAddLead}
+                >
                   Add Lead
                 </Button>
               </div>
@@ -306,86 +358,105 @@ export default function Leads() {
           </div>
         )}
 
-        {/* Table */}
+        {/* Table - Premium glass design */}
         {!loading && (
-          <div className="rounded-xl border border-border bg-card shadow-card animate-slide-up overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead className="min-w-[120px]">Name</TableHead>
-                  <TableHead className="hidden md:table-cell">Company</TableHead>
-                  <TableHead className="hidden lg:table-cell">Email</TableHead>
-                  <TableHead className="hidden sm:table-cell">Source</TableHead>
-                  <TableHead>Value</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="hidden md:table-cell">Created</TableHead>
-                  <TableHead className="w-12"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredLeads.map((lead) => (
-                  <TableRow 
-                    key={lead.id} 
-                    className="hover:bg-muted/30 cursor-pointer"
-                    onClick={() => navigate(`/leads/${lead.id}`)}
-                  >
-                    <TableCell className="font-medium">{lead.name}</TableCell>
-                    <TableCell className="hidden md:table-cell">{lead.company || '-'}</TableCell>
-                    <TableCell className="hidden lg:table-cell">{lead.email || '-'}</TableCell>
-                    <TableCell className="hidden sm:table-cell capitalize">{lead.source?.replace('_', ' ') || '-'}</TableCell>
-                    <TableCell>${lead.value.toLocaleString()}</TableCell>
-                    <TableCell>
-                      <Select 
-                        value={lead.status} 
-                        onValueChange={(value) => handleStatusChange(lead.id, value as LeadStatus)}
-                      >
-                        <SelectTrigger className="h-7 w-28 border-0 p-0">
-                          <Badge variant="outline" className={statusColors[lead.status]}>
-                            {lead.status}
-                          </Badge>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="new">New</SelectItem>
-                          <SelectItem value="contacted">Contacted</SelectItem>
-                          <SelectItem value="qualified">Qualified</SelectItem>
-                          <SelectItem value="lost">Lost</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell text-muted-foreground">
-                      {format(new Date(lead.created_at), 'MMM d, yyyy')}
-                    </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem 
-                            className="text-destructive"
-                            onClick={() => handleDelete(lead)}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+          <div className="relative animate-fade-in-up delay-200">
+            {/* Gradient border effect */}
+            <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 blur-sm" />
+            <div className="relative rounded-2xl border border-white/10 bg-card/70 backdrop-blur-2xl overflow-hidden shadow-2xl shadow-purple-500/5">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5 border-b border-white/10">
+                    <TableHead className="min-w-[120px] text-foreground/80 font-semibold">Name</TableHead>
+                    <TableHead className="hidden md:table-cell text-foreground/80 font-semibold">Company</TableHead>
+                    <TableHead className="hidden lg:table-cell text-foreground/80 font-semibold">Email</TableHead>
+                    <TableHead className="hidden sm:table-cell text-foreground/80 font-semibold">Source</TableHead>
+                    <TableHead className="text-foreground/80 font-semibold">Value</TableHead>
+                    <TableHead className="text-foreground/80 font-semibold">Status</TableHead>
+                    <TableHead className="hidden md:table-cell text-foreground/80 font-semibold">Created</TableHead>
+                    <TableHead className="w-12"></TableHead>
                   </TableRow>
-                ))}
-                {filteredLeads.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                      {searchQuery || statusFilter !== 'all' 
-                        ? 'No leads found matching your filters.' 
-                        : 'No leads yet. Add your first lead!'}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredLeads.map((lead, index) => (
+                    <TableRow
+                      key={lead.id}
+                      className="group relative hover:bg-gradient-to-r hover:from-blue-500/5 hover:via-purple-500/5 hover:to-transparent cursor-pointer transition-all duration-300 border-b border-white/5"
+                      onClick={() => navigate(`/leads/${lead.id}`)}
+                      style={{ animationDelay: `${index * 50}ms` }}
+                    >
+                      <TableCell className="font-medium">
+                        <span className="group-hover:text-blue-400 transition-colors">{lead.name}</span>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-muted-foreground">{lead.company || '-'}</TableCell>
+                      <TableCell className="hidden lg:table-cell text-muted-foreground">{lead.email || '-'}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-muted-foreground capitalize">{lead.source?.replace('_', ' ') || '-'}</TableCell>
+                      <TableCell className="font-semibold text-emerald-400">${lead.value.toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Select
+                          value={lead.status}
+                          onValueChange={(value) => handleStatusChange(lead.id, value as LeadStatus)}
+                        >
+                          <SelectTrigger className="h-7 w-28 border-0 p-0 bg-transparent" onClick={(e) => e.stopPropagation()}>
+                            <Badge variant="outline" className={`${statusColors[lead.status]} rounded-full px-3 py-0.5 text-xs font-medium`}>
+                              {lead.status}
+                            </Badge>
+                          </SelectTrigger>
+                          <SelectContent className="bg-card/95 backdrop-blur-xl border-white/10">
+                            <SelectItem value="new">New</SelectItem>
+                            <SelectItem value="contacted">Contacted</SelectItem>
+                            <SelectItem value="qualified">Qualified</SelectItem>
+                            <SelectItem value="lost">Lost</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
+                        {format(new Date(lead.created_at), 'MMM d, yyyy')}
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="bg-card/95 backdrop-blur-xl border-white/10">
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => handleDelete(lead)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {filteredLeads.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-16">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-blue-500/20 via-purple-500/20 to-pink-500/20 flex items-center justify-center">
+                            <Users className="h-8 w-8 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <p className="text-lg font-medium text-foreground">
+                              {searchQuery || statusFilter !== 'all' ? 'No leads found' : 'No leads yet'}
+                            </p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {searchQuery || statusFilter !== 'all'
+                                ? 'Try adjusting your filters'
+                                : 'Add your first lead to get started'}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         )}
       </div>
