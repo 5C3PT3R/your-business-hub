@@ -15,6 +15,8 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        display: ['Geist Sans', 'Inter', 'system-ui', 'sans-serif'],
+        mono: ['Geist Mono', 'ui-monospace', 'monospace'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -85,6 +87,12 @@ export default {
         'card-hover': 'var(--shadow-card-hover)',
         'glow': 'var(--shadow-glow)',
         'glow-lg': 'var(--shadow-glow-lg)',
+        'glow-accent': '0 0 20px hsl(217 91% 60% / 0.4)',
+        'glow-success': '0 0 20px hsl(142 71% 45% / 0.4)',
+        'glow-danger': '0 0 20px hsl(0 84% 60% / 0.4)',
+      },
+      backdropBlur: {
+        xs: '2px',
       },
       keyframes: {
         "accordion-down": {
@@ -115,6 +123,27 @@ export default {
           "0%, 100%": { boxShadow: "0 0 30px hsl(217 91% 60% / 0.15)" },
           "50%": { boxShadow: "0 0 50px hsl(217 91% 60% / 0.25)" },
         },
+        "shimmer": {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
+        "shine": {
+          "0%": { left: "-100%", opacity: "0" },
+          "50%": { opacity: "1" },
+          "100%": { left: "100%", opacity: "0" },
+        },
+        "decrypt": {
+          "0%": { opacity: "0", filter: "blur(4px)" },
+          "100%": { opacity: "1", filter: "blur(0)" },
+        },
+        "float": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-5px)" },
+        },
+        "pulse-dot": {
+          "0%, 100%": { opacity: "1", transform: "scale(1)" },
+          "50%": { opacity: "0.5", transform: "scale(1.2)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -124,6 +153,11 @@ export default {
         "slide-up": "slide-up 0.5s ease-out forwards",
         "scale-in": "scale-in 0.3s ease-out forwards",
         "glow-pulse": "glow-pulse 3s ease-in-out infinite",
+        "shimmer": "shimmer 2s linear infinite",
+        "shine": "shine 1.5s ease-in-out",
+        "decrypt": "decrypt 0.3s ease-out forwards",
+        "float": "float 3s ease-in-out infinite",
+        "pulse-dot": "pulse-dot 2s ease-in-out infinite",
       },
     },
   },
