@@ -30,6 +30,7 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Agents from "./pages/Agents";
 import Workflows from "./pages/Workflows";
+import WorkflowEditor from "./pages/WorkflowEditor";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -164,7 +165,7 @@ function AppRoutes() {
         path="/workflows/:id"
         element={
           <ProtectedRoute>
-            <Workflows />
+            <WorkflowEditor />
           </ProtectedRoute>
         }
       />
