@@ -105,7 +105,7 @@ export function BreezeSidebar() {
       id: 'command-center',
       label: 'Command Center',
       icon: Crown,
-      path: '/approvals',
+      path: '/command-center',
     },
     {
       id: 'dashboard',
