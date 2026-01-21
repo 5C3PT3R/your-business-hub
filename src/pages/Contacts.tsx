@@ -5,7 +5,7 @@ import { useContacts } from '@/hooks/useContacts';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Search, LayoutGrid, List, Plus, Loader2, Mail, Phone, Building, MoreHorizontal, Trash2, Edit, Undo2, Star, CheckSquare, Download, X } from 'lucide-react';
+import { Search, LayoutGrid, List, Plus, Loader2, Mail, Phone, Building, MoreHorizontal, Trash2, Edit, Undo2, Star, CheckSquare, Download, X, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DialerRecorder } from '@/components/voice/DialerRecorder';
 import {
@@ -32,6 +32,8 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { ContactEmailDialog } from '@/components/contacts/ContactEmailDialog';
 import { ContactCard } from '@/components/contacts/ContactCard';
+import { RunScoutModal } from '@/components/RunScoutModal';
+import { useAuth } from '@/hooks/useAuth';
 
 const statusOptions = [
   { value: 'active', label: 'Active' },
@@ -66,8 +68,10 @@ export default function Contacts() {
   const [activeFilter, setActiveFilter] = useState<'all' | 'favorites' | 'leads' | 'active' | 'inactive'>('all');
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isRunScoutModalOpen, setIsRunScoutModalOpen] = useState(false);
   const { contacts, loading, addContact, updateContact, deleteContact } = useContacts();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const [newContact, setNewContact] = useState({
     name: '',
@@ -411,6 +415,23 @@ export default function Contacts() {
               )}
             </Button>
 
+            {/* Run Scout Button - Only enabled when leads are selected */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsRunScoutModalOpen(true)}
+              disabled={selectedIds.size === 0}
+              className="gap-2"
+            >
+              <Sparkles className="h-4 w-4" />
+              Run Scout
+              {selectedIds.size > 0 && (
+                <span className="ml-1 bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs">
+                  {selectedIds.size}
+                </span>
+              )}
+            </Button>
+
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="gradient">
@@ -702,6 +723,15 @@ export default function Contacts() {
             </p>
           </div>
         )}
+
+        {/* Run Scout Modal */}
+        <RunScoutModal
+          open={isRunScoutModalOpen}
+          onOpenChange={setIsRunScoutModalOpen}
+          selectedLeadIds={Array.from(selectedIds)}
+          workspaceId={user?.user_metadata?.workspace_id || 'default-workspace'}
+          userId={user?.id || ''}
+        />
       </div>
     </MainLayout>
   );

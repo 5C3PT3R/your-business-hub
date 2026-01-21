@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Search, Filter, LayoutGrid, Table as TableIcon, Loader2, MessageSquare, TrendingUp } from 'lucide-react';
 import { useDeals, DealStage } from '@/hooks/useDeals';
 import { useActivities } from '@/hooks/useActivities';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Dialog,
   DialogContent,
@@ -53,22 +54,32 @@ export default function Deals() {
   const [searchParams] = useSearchParams();
   const filterParam = searchParams.get('filter');
   const viewParam = searchParams.get('view');
+  const isMobile = useIsMobile();
 
+  // On mobile, default to 'list' view; on desktop, default to 'pipeline'
   const [viewMode, setViewMode] = useState<'pipeline' | 'table'>('pipeline');
   const [searchQuery, setSearchQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('all');
+  const [mobileStageFilter, setMobileStageFilter] = useState<string>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isConversationModalOpen, setIsConversationModalOpen] = useState(false);
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
   const { deals, loading, addDeal, updateDeal, deleteDeal } = useDeals();
   const { addActivity } = useActivities();
 
-  // Handle view mode from URL
+  // Handle view mode from URL and mobile responsiveness
   useEffect(() => {
     if (viewParam === 'list') {
       setViewMode('table');
     }
   }, [viewParam]);
+
+  // On mobile, force table/list view (Kanban doesn't work well)
+  useEffect(() => {
+    if (isMobile && viewMode === 'pipeline') {
+      setViewMode('table');
+    }
+  }, [isMobile]);
 
   // V1: Simplified new deal form - only essential fields
   const [newDeal, setNewDeal] = useState({
@@ -88,7 +99,8 @@ export default function Deals() {
     })
   );
 
-  const filteredDeals = deals.filter((deal) => {
+  // Calculate filtered deals immediately after state declarations
+  const filteredDeals = (deals || []).filter((deal) => {
     const matchesSearch =
       deal.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (deal.company?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
@@ -127,6 +139,11 @@ export default function Deals() {
 
     return matchesSearch && matchesStage && matchesFilter;
   });
+
+  // Filter deals for mobile stage filter
+  const mobileFilteredDeals = filteredDeals.filter((deal) =>
+    mobileStageFilter === 'all' || deal.stage === mobileStageFilter
+  );
 
   const getDealsByStage = (stageId: DealStage) =>
     filteredDeals.filter((deal) => deal.stage === stageId);
@@ -359,141 +376,82 @@ export default function Deals() {
             </Button>
           </div>
           
-          <div className="flex items-center gap-1 rounded-lg border border-border p-1 self-start">
-            <Button
-              variant={viewMode === 'pipeline' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('pipeline')}
-            >
-              <LayoutGrid className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Pipeline</span>
-            </Button>
-            <Button
-              variant={viewMode === 'table' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('table')}
-            >
-              <TableIcon className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Table</span>
-            </Button>
-          </div>
-        </div>
-
-        {/* V1: Simplified Add Deal Dialog - essential fields only */}
-        <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
-          setIsAddDialogOpen(open);
-          if (!open) {
-            setEditingDeal(null);
-            setNewDeal({ title: '', company: '', value: '', stage: 'lead' });
-          }
-        }}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingDeal ? 'Edit Deal' : 'Add New Deal'}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label htmlFor="deal-title">Title *</Label>
-                <Input
-                  id="deal-title"
-                  value={newDeal.title}
-                  onChange={(e) => setNewDeal({ ...newDeal, title: e.target.value })}
-                  placeholder="Enterprise License Deal"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="deal-company">Company</Label>
-                <Input
-                  id="deal-company"
-                  value={newDeal.company}
-                  onChange={(e) => setNewDeal({ ...newDeal, company: e.target.value })}
-                  placeholder="Acme Inc."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="deal-value">Value ($)</Label>
-                <Input
-                  id="deal-value"
-                  type="number"
-                  value={newDeal.value}
-                  onChange={(e) => setNewDeal({ ...newDeal, value: e.target.value })}
-                  placeholder="50000"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="deal-stage">Stage</Label>
-                <Select value={newDeal.stage} onValueChange={(value) => setNewDeal({ ...newDeal, stage: value as DealStage })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select stage" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stages.map((stage) => (
-                      <SelectItem key={stage.id} value={stage.id}>
-                        {stage.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {/* V1: probability, expected_close_date, contact_id hidden */}
-              <Button className="w-full" variant="gradient" onClick={handleAddDeal}>
-                {editingDeal ? 'Save Changes' : 'Add Deal'}
+          {/* Mobile: Stage filter dropdown instead of view toggle */}
+          {isMobile ? (
+            <Select value={mobileStageFilter} onValueChange={setMobileStageFilter}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="All Stages" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Stages</SelectItem>
+                {stages.map((stage) => (
+                  <SelectItem key={stage.id} value={stage.id}>
+                    {stage.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex items-center gap-1 rounded-lg border border-border p-1 self-start">
+              <Button
+                variant={viewMode === 'pipeline' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('pipeline')}
+              >
+                <LayoutGrid className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Pipeline</span>
+              </Button>
+              <Button
+                variant={viewMode === 'table' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('table')}
+              >
+                <TableIcon className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Table</span>
               </Button>
             </div>
-          </DialogContent>
-        </Dialog>
+          )}
+        </div>
 
-        {/* Add Conversation Modal */}
-        <AddConversationModal
-          open={isConversationModalOpen}
-          onOpenChange={setIsConversationModalOpen}
-          deals={deals}
-          onAddConversation={handleAddConversation}
-          onCreateDealWithConversation={handleCreateDealWithConversation}
-        />
-
-        {/* Loading State */}
+        {/* Loading state */}
         {loading && (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         )}
 
-        {/* Empty State */}
-        {!loading && deals.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
-              <MessageSquare className="h-8 w-8 text-muted-foreground" />
+        {/* Empty state */}
+        {!loading && filteredDeals.length === 0 && (
+          <div className="text-center py-12">
+            <div className="mx-auto w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-4">
+              <MessageSquare className="h-12 w-12 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-medium text-foreground mb-2">No deals yet</h3>
-            <p className="text-muted-foreground mb-4 max-w-sm">
-              Start by adding a conversation or creating your first deal.
+            <h3 className="text-lg font-semibold mb-2">No deals yet</h3>
+            <p className="text-muted-foreground mb-6">
+              Start by adding your first deal or conversation
             </p>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setIsConversationModalOpen(true)}>
-                <MessageSquare className="mr-2 h-4 w-4" />
-                Add Conversation
-              </Button>
+            <div className="flex gap-3 justify-center">
               <Button onClick={() => setIsAddDialogOpen(true)}>
                 Add Deal
+              </Button>
+              <Button variant="outline" onClick={() => setIsConversationModalOpen(true)}>
+                Add Conversation
               </Button>
             </div>
           </div>
         )}
 
         {/* Pipeline View */}
-        {!loading && deals.length > 0 && viewMode === 'pipeline' && (
+        {!loading && filteredDeals.length > 0 && viewMode === 'pipeline' && !isMobile && (
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            <div className="flex gap-4 overflow-x-auto pb-4 animate-slide-up">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
               {stages.map((stage) => {
                 const stageDeals = getDealsByStage(stage.id);
-                const totalValue = getStageValue(stage.id);
-
                 return (
                   <DroppableColumn
                     key={stage.id}
@@ -501,7 +459,7 @@ export default function Deals() {
                     name={stage.name}
                     color={stage.color}
                     count={stageDeals.length}
-                    value={totalValue}
+                    value={getStageValue(stage.id)}
                   >
                     {stageDeals.map((deal) => (
                       <DraggableDealCard
@@ -517,20 +475,115 @@ export default function Deals() {
               })}
             </div>
             <DragOverlay>
-              {activeDeal && <DraggableDealCard deal={activeDeal} isDragging />}
+              {activeDeal && (
+                <DraggableDealCard
+                  deal={activeDeal}
+                  isDragging
+                  onClick={() => handleDealClick(activeDeal.id)}
+                  onEdit={() => handleEditDeal(activeDeal.id)}
+                  onDelete={() => handleDeleteDeal(activeDeal.id)}
+                />
+              )}
             </DragOverlay>
           </DndContext>
         )}
 
         {/* Table View */}
-        {!loading && deals.length > 0 && viewMode === 'table' && (
-          <DealsTable 
-            deals={filteredDeals} 
-            stages={stages} 
+        {!loading && filteredDeals.length > 0 && (viewMode === 'table' || isMobile) && (
+          <DealsTable
+            deals={isMobile ? mobileFilteredDeals : filteredDeals}
+            stages={stages}
             onUpdateDeal={updateDeal}
             onDealClick={handleDealClick}
+            isMobile={isMobile}
           />
         )}
+
+        {/* Add Deal Dialog */}
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>{editingDeal ? 'Edit Deal' : 'Add New Deal'}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Deal Title *</Label>
+                <Input
+                  id="title"
+                  value={newDeal.title}
+                  onChange={(e) => setNewDeal({ ...newDeal, title: e.target.value })}
+                  placeholder="e.g., Enterprise Contract"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="company">Company</Label>
+                <Input
+                  id="company"
+                  value={newDeal.company}
+                  onChange={(e) => setNewDeal({ ...newDeal, company: e.target.value })}
+                  placeholder="e.g., Acme Inc."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="value">Value ($)</Label>
+                <Input
+                  id="value"
+                  type="number"
+                  value={newDeal.value}
+                  onChange={(e) => setNewDeal({ ...newDeal, value: e.target.value })}
+                  placeholder="e.g., 50000"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="stage">Stage</Label>
+                <Select
+                  value={newDeal.stage}
+                  onValueChange={(value: DealStage) => setNewDeal({ ...newDeal, stage: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select stage" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stages.map((stage) => (
+                      <SelectItem key={stage.id} value={stage.id}>
+                        {stage.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsAddDialogOpen(false);
+                    setEditingDeal(null);
+                    setNewDeal({
+                      title: '',
+                      company: '',
+                      value: '',
+                      stage: 'lead',
+                    });
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleAddDeal} disabled={!newDeal.title}>
+                  {editingDeal ? 'Update Deal' : 'Add Deal'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Conversation Modal */}
+        <AddConversationModal
+          open={isConversationModalOpen}
+          onOpenChange={setIsConversationModalOpen}
+          onAddConversation={handleAddConversation}
+          onCreateDealWithConversation={handleCreateDealWithConversation}
+          deals={deals}
+        />
       </div>
     </MainLayout>
   );

@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Menu,
   Zap,
+  Crown,
   LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useState } from 'react';
+import { CreditsBadge } from '@/components/layout/CreditsBadge';
 
 interface NavItem {
   name: string;
@@ -35,6 +37,7 @@ interface NavItem {
 
 // V1: Fixed navigation for Sales CRM only
 const navigation: NavItem[] = [
+  { name: 'Approvals', href: '/approvals', icon: Crown },
   { name: 'Next Actions', href: '/next-actions', icon: Zap },
   { name: 'Pipeline', href: '/deals', icon: Briefcase },
   { name: 'Leads', href: '/leads', icon: Users },
@@ -124,9 +127,19 @@ function SidebarContent({ collapsed, setCollapsed, showCollapseButton = true, on
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{fullName}</p>
               <p className="text-xs text-muted-foreground truncate">Sales CRM</p>
+              {/* Credits Badge */}
+              <div className="mt-2">
+                <CreditsBadge variant="compact" />
+              </div>
             </div>
           )}
         </div>
+        {/* Show CreditsBadge in collapsed mode (icon only) */}
+        {collapsed && (
+          <div className="mt-2 flex justify-center">
+            <CreditsBadge variant="compact" showTooltip={true} />
+          </div>
+        )}
       </div>
     </div>
   );

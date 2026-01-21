@@ -1,6 +1,7 @@
 import { ReactNode, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BreezeSidebar } from './BreezeSidebar';
+import { MobileNavigation } from './MobileNavigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AgentButton } from '@/components/agent/AgentButton';
@@ -60,10 +61,14 @@ export function MainLayout({ children }: MainLayoutProps) {
       </div>
 
       {!isMobile && <BreezeSidebar />}
-      <main className="flex-1 min-h-screen relative z-10">
+      <main className={cn(
+        'flex-1 min-h-screen relative z-10',
+        isMobile && 'pb-20' // Add bottom padding for mobile nav
+      )}>
         {children}
       </main>
       <AgentButton />
+      {isMobile && <MobileNavigation />}
     </div>
   );
 }

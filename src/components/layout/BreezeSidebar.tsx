@@ -46,6 +46,7 @@ import {
   PhoneCall,
   LogOut,
   UserPlus,
+  Crown,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useActionStats } from '@/hooks/useNextActions';
@@ -100,6 +101,12 @@ export function BreezeSidebar() {
     .slice(0, 2);
 
   const menuStructure: MenuItem[] = [
+    {
+      id: 'command-center',
+      label: 'Command Center',
+      icon: Crown,
+      path: '/approvals',
+    },
     {
       id: 'dashboard',
       label: 'Dashboard',

@@ -31,7 +31,9 @@ import {
   User,
   Building2,
   Sparkles,
+  ArrowLeft,
 } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { useIntegrations } from '@/hooks/useIntegrations';
@@ -53,6 +55,7 @@ export default function Inbox() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { integrations, loading: integrationsLoading, refreshIntegrations } = useIntegrations();
   const { syncGmail, isSyncing: isGmailSyncing } = useGmailSync();
+  const isMobile = useIsMobile();
 
   // Read initial values from URL query parameters
   const filterParam = searchParams.get('filter') || 'all';
@@ -236,6 +239,11 @@ export default function Inbox() {
     }
   };
 
+  // Mobile: Go back to message list
+  const handleBackToList = () => {
+    setSelectedMessage(null);
+  };
+
   // Calculate counts
   const unreadCount = messages.filter((msg) => !msg.isRead).length;
   const urgentCount = messages.filter((msg) => msg.isUrgent).length;
@@ -314,9 +322,185 @@ export default function Inbox() {
           <div className="absolute bottom-[-30%] left-[-15%] w-[500px] h-[500px] bg-gradient-to-tr from-cyan-500/15 via-blue-500/10 to-transparent dark:from-cyan-500/20 dark:via-blue-500/15 rounded-full blur-3xl" />
           <div className="absolute top-[40%] left-[30%] w-[300px] h-[300px] bg-gradient-to-r from-violet-500/10 to-fuchsia-500/5 dark:from-violet-500/15 dark:to-fuchsia-500/10 rounded-full blur-2xl" />
         </div>
-        <div className="flex gap-6 h-[calc(100vh-16rem)]">
-          {/* Left Sidebar - Message List */}
-          <div className="w-96 flex flex-col gap-4">
+
+        {/* Mobile: Show either list or detail, not both */}
+        {isMobile ? (
+          selectedMessage ? (
+            // Mobile Message Detail View
+            <div className="h-[calc(100vh-12rem)]">
+              <Card variant="glass" className="h-full flex flex-col animate-fade-in">
+                {/* Back Button + Header */}
+                <div className="p-4 border-b flex items-center gap-3">
+                  <Button variant="ghost" size="sm" onClick={handleBackToList}>
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="font-semibold text-foreground truncate">
+                      {selectedMessage.subject || 'Message'}
+                    </h2>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {selectedMessage.from.name}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleToggleStar(selectedMessage.id)}
+                    className="hover:scale-110 transition-transform"
+                  >
+                    <Star
+                      className={cn(
+                        'h-5 w-5',
+                        selectedMessage.isStarred
+                          ? 'fill-yellow-400 text-yellow-400'
+                          : 'text-muted-foreground'
+                      )}
+                    />
+                  </button>
+                </div>
+
+                {/* Message Actions */}
+                <div className="p-3 border-b flex items-center gap-2 overflow-x-auto">
+                  <Button size="sm">
+                    <Reply className="h-4 w-4 mr-1" />
+                    Reply
+                  </Button>
+                  <Button size="sm" variant="outline">
+                    <Forward className="h-4 w-4 mr-1" />
+                    Forward
+                  </Button>
+                  <Button size="sm" variant="outline">
+                    <Archive className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {/* AI Insights */}
+                {(selectedMessage.sentiment || selectedMessage.intent) && (
+                  <div className="p-3 bg-accent/10 border-b border-accent/20">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-accent-foreground" />
+                      {selectedMessage.sentiment && (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            'capitalize text-xs',
+                            selectedMessage.sentiment === 'positive' && 'bg-success/10 text-success',
+                            selectedMessage.sentiment === 'neutral' && 'bg-muted text-muted-foreground',
+                            selectedMessage.sentiment === 'negative' && 'bg-destructive/10 text-destructive'
+                          )}
+                        >
+                          {selectedMessage.sentiment}
+                        </Badge>
+                      )}
+                      {selectedMessage.intent && (
+                        <Badge variant="outline" className="capitalize text-xs">
+                          {selectedMessage.intent}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Message Body */}
+                <div className="flex-1 p-4 overflow-y-auto">
+                  {selectedMessage.bodyHtml ? (
+                    <div
+                      className="prose prose-sm max-w-none dark:prose-invert"
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedMessage.bodyHtml) }}
+                    />
+                  ) : (
+                    <p className="whitespace-pre-wrap text-sm text-foreground/80">
+                      {selectedMessage.body}
+                    </p>
+                  )}
+                </div>
+              </Card>
+            </div>
+          ) : (
+            // Mobile Message List View
+            <div className="space-y-3">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search messages..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+
+              {/* Quick Filter Tabs */}
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                {['all', 'unread', 'starred'].map((tab) => (
+                  <Button
+                    key={tab}
+                    variant={activeTab === tab ? 'secondary' : 'ghost'}
+                    size="sm"
+                    onClick={() => handleTabChange(tab)}
+                    className="capitalize flex-shrink-0"
+                  >
+                    {tab}
+                    {tab === 'unread' && unreadCount > 0 && (
+                      <Badge variant="default" className="ml-1 text-xs">{unreadCount}</Badge>
+                    )}
+                  </Button>
+                ))}
+              </div>
+
+              {/* Message List */}
+              <div className="space-y-2">
+                {filteredMessages.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">
+                    <Mail className="h-12 w-12 mx-auto mb-3 text-muted-foreground/60" />
+                    <p className="text-sm font-medium">No messages found</p>
+                  </div>
+                ) : (
+                  filteredMessages.map((message) => {
+                    const platformConfig = getPlatformConfig(message.platform);
+                    return (
+                      <Card
+                        key={message.id}
+                        variant="glass"
+                        onClick={() => handleSelectMessage(message)}
+                        className={cn(
+                          'p-3 cursor-pointer active:scale-[0.98] transition-transform',
+                          !message.isRead && 'border-primary/30 bg-primary/5'
+                        )}
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className="text-lg flex-shrink-0">{platformConfig?.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className={cn(
+                                'font-medium text-sm truncate',
+                                !message.isRead && 'font-semibold'
+                              )}>
+                                {message.from.name}
+                              </span>
+                              {!message.isRead && (
+                                <Circle className="h-2 w-2 fill-primary text-primary flex-shrink-0" />
+                              )}
+                            </div>
+                            {message.subject && (
+                              <p className="text-sm text-foreground/80 truncate">{message.subject}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground line-clamp-1">{message.preview}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {formatTimestamp(new Date(message.timestamp))}
+                            </p>
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )
+        ) : (
+          // Desktop: Two-column layout
+          <div className="flex gap-6 h-[calc(100vh-16rem)]">
+            {/* Left Sidebar - Message List */}
+            <div className="w-96 flex flex-col gap-4">
             {/* Filters and Search */}
             <Card variant="glass" className="p-4">
               <div className="space-y-3">
@@ -635,6 +819,7 @@ export default function Inbox() {
             />
           )}
         </div>
+        )}
       </div>
 
       {/* Compose Modal */}
