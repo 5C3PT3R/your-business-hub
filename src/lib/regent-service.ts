@@ -45,23 +45,10 @@ export interface SendEmailResponse {
  */
 export async function fetchPendingDrafts(): Promise<DraftDisplayInfo[]> {
   try {
-    // Use type assertion to bypass TypeScript checking since ai_drafts is not in the Database type
-    // Query ai_drafts and join with contacts/leads for display info (including email)
+    // Simple query without joins (MVP table structure)
     const { data, error } = await (supabase as any)
       .from('ai_drafts')
-      .select(`
-        *,
-        contacts:contact_id (
-          name,
-          company,
-          email
-        ),
-        leads:lead_id (
-          name,
-          company,
-          email
-        )
-      `)
+      .select('*')
       .eq('status', 'PENDING_APPROVAL')
       .order('created_at', { ascending: false });
 
@@ -72,14 +59,16 @@ export async function fetchPendingDrafts(): Promise<DraftDisplayInfo[]> {
 
     // Map the data to our DraftDisplayInfo interface for UI compatibility
     return (data || []).map((item: any) => {
-      // Try to get name/company/email from contacts or leads
-      const leadName = item.leads?.name || item.contacts?.name || null;
-      const company = item.leads?.company || item.contacts?.company || null;
-      const targetEmail = item.leads?.email || item.contacts?.email || item.metadata?.target_email || null;
+      // Extract target_email from metadata
+      const targetEmail = item.metadata?.target_email || null;
 
-      // Extract confidence from metadata if present
+      // Extract confidence and context from metadata if present
       const confidence = item.metadata?.confidence || null;
       const context = item.metadata?.context || item.plain_text || null;
+
+      // Extract lead name and company from metadata if present
+      const leadName = item.metadata?.lead_name || 'Unknown Lead';
+      const company = item.metadata?.company || 'Unknown Company';
 
       return {
         id: item.id,

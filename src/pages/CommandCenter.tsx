@@ -96,7 +96,7 @@ const mapDraftToIntelligence = (draft: DraftDisplayInfo): IntelligenceDraft => {
 // COMPONENT
 // ============================================
 
-export default function Approvals() {
+export default function CommandCenter() {
   const { toast } = useToast();
   const [drafts, setDrafts] = useState<IntelligenceDraft[]>([]);
   const [selectedDraft, setSelectedDraft] = useState<IntelligenceDraft | null>(null);
@@ -372,56 +372,52 @@ export default function Approvals() {
         {/* Main Content */}
         <div className="flex-1 flex overflow-hidden relative z-10">
           {/* Left Sidebar - The Queue */}
-          <div className="w-1/3 min-w-[400px] border-r border-border flex flex-col">
+          <div className="w-[380px] lg:w-[420px] flex-shrink-0 border-r border-border flex flex-col">
             {/* Queue Header */}
-            <div className="p-4 md:p-6 border-b border-border">
-              <div className="flex items-center justify-between mb-4">
+            <div className="p-4 border-b border-border">
+              <div className="flex items-center justify-between mb-3">
                 <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 font-['Cinzel'] tracking-wide uppercase">
                   <Target className="h-5 w-5 text-[#D4AF37]" />
-                  Intelligence Queue
+                  Queue
                 </h2>
-                <div className="flex items-center gap-2">
-                  <div className="relative w-48">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
-                    <Input
-                      type="search"
-                      placeholder="Search targets..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9 bg-background/50 border-border"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1 bg-background/50 border border-border rounded-lg p-1">
-                    <Button
-                      variant={filterAgent === 'ALL' ? 'secondary' : 'ghost'}
-                      size="sm"
-                      className={cn("h-7 px-2 text-xs", filterAgent === 'ALL' && "bg-muted")}
-                      onClick={() => setFilterAgent('ALL')}
-                    >
-                      All
-                    </Button>
-                    <Button
-                      variant={filterAgent === 'ENVOY' ? 'secondary' : 'ghost'}
-                      size="sm"
-                      className={cn("h-7 px-2 text-xs flex items-center gap-1",
-                        filterAgent === 'ENVOY' && "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30")}
-                      onClick={() => setFilterAgent('ENVOY')}
-                    >
-                      <Crown className="h-3 w-3" />
-                      Envoy
-                    </Button>
-                    <Button
-                      variant={filterAgent === 'STEWARD' ? 'secondary' : 'ghost'}
-                      size="sm"
-                      className={cn("h-7 px-2 text-xs flex items-center gap-1",
-                        filterAgent === 'STEWARD' && "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30")}
-                      onClick={() => setFilterAgent('STEWARD')}
-                    >
-                      <Shield className="h-3 w-3" />
-                      Steward
-                    </Button>
-                  </div>
+                <div className="flex items-center gap-1 bg-background/50 border border-border rounded-lg p-1">
+                  <Button
+                    variant={filterAgent === 'ALL' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className={cn("h-7 px-2 text-xs", filterAgent === 'ALL' && "bg-muted")}
+                    onClick={() => setFilterAgent('ALL')}
+                  >
+                    All
+                  </Button>
+                  <Button
+                    variant={filterAgent === 'ENVOY' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className={cn("h-7 px-2 text-xs flex items-center gap-1",
+                      filterAgent === 'ENVOY' && "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30")}
+                    onClick={() => setFilterAgent('ENVOY')}
+                  >
+                    <Crown className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant={filterAgent === 'STEWARD' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className={cn("h-7 px-2 text-xs flex items-center gap-1",
+                      filterAgent === 'STEWARD' && "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30")}
+                    onClick={() => setFilterAgent('STEWARD')}
+                  >
+                    <Shield className="h-3 w-3" />
+                  </Button>
                 </div>
+              </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+                <Input
+                  type="search"
+                  placeholder="Search targets..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 bg-background/50 border-border"
+                />
               </div>
               
               {/* Stats */}
@@ -570,6 +566,29 @@ export default function Approvals() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Target Email Card */}
+                  {selectedDraft.target_email && (
+                    <div className="bg-[#10B981]/10 border border-[#10B981]/30 rounded-lg p-3 mb-4">
+                      <div className="flex items-center gap-2">
+                        <Send className="h-4 w-4 text-[#10B981]" />
+                        <span className="text-sm text-muted-foreground">Sending to:</span>
+                        <span className="text-sm font-medium text-[#10B981]">{selectedDraft.target_email}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Email Subject */}
+                  {selectedDraft.email_subject && (
+                    <div className="bg-card/50 border border-border rounded-lg p-3 mb-4">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-[#D4AF37]" />
+                        <span className="text-sm text-muted-foreground">Subject:</span>
+                        <span className="text-sm font-medium text-foreground">{selectedDraft.email_subject}</span>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="bg-card/50 border border-border rounded-lg p-4">
                     <div className="flex items-start gap-3">
                       <div className="h-8 w-8 rounded-full bg-amber-500/10 flex items-center justify-center flex-shrink-0">
@@ -577,7 +596,7 @@ export default function Approvals() {
                       </div>
                       <div>
                         <p className="text-foreground text-sm leading-relaxed">{selectedDraft.context_brief}</p>
-                        <div className="flex items-center gap-4 mt-3">
+                        <div className="flex flex-wrap items-center gap-4 mt-3">
                           <div className="flex items-center gap-2">
                             <User className="h-4 w-4 text-muted-foreground" />
                             <span className="text-sm text-muted-foreground">{selectedDraft.target_name}</span>
@@ -599,45 +618,27 @@ export default function Approvals() {
                 </div>
 
                 {/* The Editor */}
-                <div className="flex-1 flex flex-col p-6">
+                <div className="flex-1 flex flex-col p-6 overflow-hidden">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-xl font-bold text-foreground flex items-center gap-2 font-['Cinzel'] tracking-wide uppercase">
-                      <FileText className="h-5 w-5 text-[#10B981]" />
-                      Draft Content
+                      <Edit3 className="h-5 w-5 text-[#10B981]" />
+                      Email Body
                     </h2>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" className="gap-2">
-                        <Edit3 className="h-4 w-4" />
-                        Edit Mode
-                      </Button>
-                      <Button variant="outline" size="sm" className="gap-2">
-                        <Send className="h-4 w-4" />
-                        Send Test
-                      </Button>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
+                      <span>Editable</span>
+                      <span className="mx-2">|</span>
+                      <span>{editedContent.length} characters</span>
                     </div>
                   </div>
-                  <div className="flex-1 bg-card/50 border border-border rounded-lg overflow-hidden">
+                  <div className="flex-1 bg-card/50 border border-border rounded-lg overflow-hidden min-h-0">
                     <textarea
-                      className="w-full h-full bg-transparent text-foreground font-mono text-sm p-4 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="w-full h-full bg-transparent text-foreground text-sm p-4 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
                       value={editedContent}
                       onChange={(e) => setEditedContent(e.target.value)}
-                      spellCheck={false}
-                      rows={20}
+                      spellCheck={true}
+                      placeholder="Email body will appear here..."
                     />
-                  </div>
-                  <div className="mt-4 text-xs text-muted-foreground flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
-                      <span>Monospace font for data integrity</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-amber-500"></div>
-                      <span>Real-time syntax highlighting</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-muted-foreground"></div>
-                      <span>Character count: {editedContent.length}</span>
-                    </div>
                   </div>
                 </div>
 

@@ -36,7 +36,7 @@ import Analytics from "./pages/Analytics";
 import Companies from "./pages/Companies";
 import CompanyDetail from "./pages/CompanyDetail";
 import Import from "./pages/Import";
-import Approvals from "./pages/Approvals";
+import CommandCenter from "./pages/CommandCenter";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 import { FeedbackWidget } from "./components/feedback/FeedbackWidget";
@@ -250,13 +250,15 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/approvals"
+        path="/command-center"
         element={
           <ProtectedRoute>
-            <Approvals />
+            <CommandCenter />
           </ProtectedRoute>
         }
       />
+      {/* Redirect old /approvals route to new /command-center */}
+      <Route path="/approvals" element={<Navigate to="/command-center" replace />} />
       {/* V1: SelectCRM route disabled - redirect to deals */}
       <Route path="/select-crm" element={<Navigate to="/deals" replace />} />
       <Route path="*" element={<NotFound />} />
