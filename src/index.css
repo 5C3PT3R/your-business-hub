@@ -1,4 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import url('https://fonts.cdnfonts.com/css/geist');
 @import url('https://fonts.cdnfonts.com/css/geist-mono');
 
@@ -952,4 +954,185 @@
 
 .dark .prose-invert {
   @apply text-foreground;
+}
+
+/* ============================================
+   REGENT COMMAND CENTER - ROYAL INDUSTRIAL THEME
+   Dark, Expensive, Dangerous, Precise
+   ============================================ */
+
+/* Royal Industrial Color Palette */
+:root {
+  --regent-void: #0B0C10;
+  --regent-navy: #1F2833;
+  --regent-platinum: #E5E7EB;
+  --regent-silver: #C5C6C7;
+  --regent-gold: #D4AF37;
+  --regent-gold-dim: #B8962D;
+  --regent-signal-green: #10B981;
+  --regent-crimson: #991B1B;
+}
+
+/* Regent page specific styles */
+.regent-page {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* Serif headers for authority */
+.regent-header,
+.regent-title {
+  font-family: 'Cinzel', Georgia, serif;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Monospace for data integrity */
+.regent-data,
+.regent-mono {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-feature-settings: 'liga' 0;
+}
+
+/* Royal gold accent */
+.regent-gold {
+  color: var(--regent-gold);
+}
+
+.regent-gold-bg {
+  background-color: var(--regent-gold);
+}
+
+.regent-gold-border {
+  border-color: var(--regent-gold);
+}
+
+/* Signal green for approval/assent */
+.regent-assent {
+  background: linear-gradient(135deg, var(--regent-signal-green) 0%, #059669 100%);
+  color: white;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.regent-assent:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+}
+
+/* Crimson for rejection/discard */
+.regent-discard {
+  background: var(--regent-crimson);
+  color: white;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.regent-discard:hover {
+  background: #7F1D1D;
+}
+
+/* Void background for Regent pages */
+.regent-void-bg {
+  background-color: var(--regent-void);
+}
+
+/* Terminal/HFT style card */
+.regent-terminal {
+  background: linear-gradient(180deg, rgba(31, 40, 51, 0.9) 0%, rgba(11, 12, 16, 0.95) 100%);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.regent-terminal:hover {
+  border-color: rgba(212, 175, 55, 0.4);
+}
+
+/* Confidence score styling */
+.regent-confidence-high {
+  color: var(--regent-signal-green);
+}
+
+.regent-confidence-medium {
+  color: var(--regent-gold);
+}
+
+.regent-confidence-low {
+  color: var(--regent-crimson);
+}
+
+/* Selection highlight with gold accent */
+.regent-selected {
+  border-left: 4px solid var(--regent-gold);
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0.1) 0%, transparent 100%);
+}
+
+/* Keyboard shortcut styling */
+.regent-kbd {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(212, 175, 55, 0.1);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  border-radius: 4px;
+  color: var(--regent-gold);
+}
+
+/* Agent badges */
+.regent-agent-envoy {
+  background: rgba(212, 175, 55, 0.15);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  color: var(--regent-gold);
+}
+
+.regent-agent-steward {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: var(--regent-signal-green);
+}
+
+/* Priority badges */
+.regent-priority-high {
+  background: rgba(153, 27, 27, 0.2);
+  color: #EF4444;
+}
+
+.regent-priority-medium {
+  background: rgba(212, 175, 55, 0.2);
+  color: var(--regent-gold);
+}
+
+.regent-priority-low {
+  background: rgba(107, 114, 128, 0.2);
+  color: #9CA3AF;
+}
+
+/* Animated glow effect for important elements */
+@keyframes regent-glow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(212, 175, 55, 0.3), 0 0 10px rgba(212, 175, 55, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.5), 0 0 20px rgba(212, 175, 55, 0.3);
+  }
+}
+
+.regent-glow {
+  animation: regent-glow 2s ease-in-out infinite;
+}
+
+/* Scanline effect for terminal feel */
+.regent-scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.05) 0px,
+    rgba(0, 0, 0, 0.05) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+  opacity: 0.3;
 }

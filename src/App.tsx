@@ -29,9 +29,17 @@ import Tasks from "./pages/Tasks";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Agents from "./pages/Agents";
+import AgentDetail from "./pages/AgentDetail";
 import Workflows from "./pages/Workflows";
 import WorkflowEditor from "./pages/WorkflowEditor";
+import Analytics from "./pages/Analytics";
+import Companies from "./pages/Companies";
+import CompanyDetail from "./pages/CompanyDetail";
+import Import from "./pages/Import";
+import Approvals from "./pages/Approvals";
+import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
+import { FeedbackWidget } from "./components/feedback/FeedbackWidget";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -63,6 +71,14 @@ function AppRoutes() {
       <Route path="/" element={<Landing />} />
       <Route path="/auth" element={<AuthPage />} />
       <Route path="/demo" element={<Demo />} />
+      <Route
+        path="/onboarding"
+        element={
+          <ProtectedRoute>
+            <Onboarding />
+          </ProtectedRoute>
+        }
+      />
 
       {/* PROTECTED ROUTES - Auth required */}
       <Route
@@ -154,6 +170,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/agents/:id"
+        element={
+          <ProtectedRoute>
+            <AgentDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/workflows"
         element={
           <ProtectedRoute>
@@ -186,10 +210,50 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/analytics"
+        element={
+          <ProtectedRoute>
+            <Analytics />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/companies"
+        element={
+          <ProtectedRoute>
+            <Companies />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/companies/:id"
+        element={
+          <ProtectedRoute>
+            <CompanyDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/settings"
         element={
           <ProtectedRoute>
             <Settings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/import"
+        element={
+          <ProtectedRoute>
+            <Import />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/approvals"
+        element={
+          <ProtectedRoute>
+            <Approvals />
           </ProtectedRoute>
         }
       />
@@ -214,6 +278,7 @@ const App = () => (
             <Sonner />
             <BrowserRouter>
               <AppRoutes />
+              <FeedbackWidget />
             </BrowserRouter>
           </TooltipProvider>
         </WorkspaceProvider>

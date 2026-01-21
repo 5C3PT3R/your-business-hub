@@ -199,15 +199,9 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
     );
   }
 
-  console.log('JWT verification succeeded - user id:', user.id);
-
-  // Rate limiting (skip if function not available)
-  try {
-    const rateLimitResponse = await enforceRateLimit(supabaseAdmin, user.id, 'gmail-oauth');
-    if (rateLimitResponse) return rateLimitResponse;
-  } catch (e) {
-    console.warn('Rate limiting skipped:', e);
-  }
+  // SECURITY: Enforce rate limiting - do NOT skip on errors
+  const rateLimitResponse = await enforceRateLimit(supabaseAdmin, user.id, 'gmail-oauth');
+  if (rateLimitResponse) return rateLimitResponse;
 
   // Generate state parameter for CSRF protection
   const state = crypto.randomUUID();

@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Mail, Send, X } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface ComposeModalProps {
   open: boolean;
@@ -19,6 +20,7 @@ interface ComposeModalProps {
 }
 
 export function ComposeModal({ open, onClose, onSend }: ComposeModalProps) {
+  const { toast } = useToast();
   const [to, setTo] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -26,7 +28,11 @@ export function ComposeModal({ open, onClose, onSend }: ComposeModalProps) {
 
   const handleSend = async () => {
     if (!to || !subject || !body) {
-      alert('Please fill in all fields');
+      toast({
+        title: 'Missing fields',
+        description: 'Please fill in all fields',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -39,10 +45,18 @@ export function ComposeModal({ open, onClose, onSend }: ComposeModalProps) {
       setTo('');
       setSubject('');
       setBody('');
+      toast({
+        title: 'Message sent',
+        description: 'Your email has been sent successfully',
+      });
       onClose();
     } catch (error) {
       console.error('Failed to send:', error);
-      alert('Failed to send message');
+      toast({
+        title: 'Failed to send',
+        description: 'Unable to send your message. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setSending(false);
     }

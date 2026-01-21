@@ -150,11 +150,13 @@ export async function checkRateLimit(
     };
   } catch (error) {
     console.error('Rate limit check failed:', error);
-    // Fail open - allow request if rate limiting system is down
+    // SECURITY: Fail closed - deny request if rate limiting system is down
+    // This prevents abuse if the rate limit table is unavailable
     return {
-      allowed: true,
+      allowed: false,
       remaining: 0,
-      resetAt: new Date(),
+      resetAt: new Date(Date.now() + 60000), // Retry in 1 minute
+      retryAfter: 60,
     };
   }
 }

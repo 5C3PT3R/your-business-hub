@@ -1,18 +1,13 @@
-import { useState, ReactNode } from 'react';
-import { Bell, Plus, X } from 'lucide-react';
+import { ReactNode } from 'react';
+import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import { useNotifications } from '@/hooks/useNotifications';
+import { NotificationCenter } from '@/components/notifications/NotificationCenter';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 
 interface HeaderProps {
-  title: string;
-  subtitle?: string;
+  title: ReactNode;
+  subtitle?: ReactNode;
   action?: {
     label: string;
     onClick: () => void;
@@ -21,8 +16,6 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle, action, actions }: HeaderProps) {
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const { notifications, unreadCount, markAsRead, markAllAsRead, clearNotification } = useNotifications();
   const isMobile = useIsMobile();
 
   return (
@@ -42,62 +35,8 @@ export function Header({ title, subtitle, action, actions }: HeaderProps) {
           {/* Theme Toggle */}
           <ThemeToggle />
 
-          {/* Notifications */}
-          <Popover open={notificationsOpen} onOpenChange={setNotificationsOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative h-8 w-8">
-                <Bell className="h-4 w-4" />
-                {unreadCount > 0 && (
-                  <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-destructive" />
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-72 p-0">
-              <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                <h4 className="font-medium text-sm">Notifications</h4>
-                {unreadCount > 0 && (
-                  <Button variant="ghost" size="sm" onClick={markAllAsRead} className="text-xs h-7">
-                    Mark all as read
-                  </Button>
-                )}
-              </div>
-              <div className="max-h-80 overflow-y-auto">
-                {notifications.length === 0 ? (
-                  <div className="py-8 text-center text-sm text-muted-foreground">
-                    No notifications
-                  </div>
-                ) : (
-                  notifications.map((notification) => (
-                    <div
-                      key={notification.id}
-                      className={`relative flex items-start gap-3 border-b border-border px-4 py-3 hover:bg-muted/50 cursor-pointer ${!notification.read ? 'bg-primary/5' : ''}`}
-                      onClick={() => markAsRead(notification.id)}
-                    >
-                      {!notification.read && (
-                        <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
-                      )}
-                      <div className={`flex-1 ${notification.read ? 'ml-4' : ''}`}>
-                        <p className="text-sm font-medium">{notification.title}</p>
-                        <p className="text-xs text-muted-foreground">{notification.message}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{notification.time}</p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          clearNotification(notification.id);
-                        }}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </PopoverContent>
-          </Popover>
+          {/* AI-Powered Notification Center */}
+          <NotificationCenter />
 
           {/* Action button */}
           {action && (

@@ -376,6 +376,27 @@ export default function Settings() {
                   Update Password
                 </Button>
               </div>
+
+              {/* Developer/Debug Section - Only in development */}
+              {import.meta.env.DEV && (
+                <div className="mt-8 pt-6 border-t border-destructive/20">
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+                    <h4 className="font-medium text-destructive mb-2">Developer Tools</h4>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      These tools are only visible in development mode.
+                    </p>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        throw new Error('Test Crash: This is a deliberate error to test the Error Boundary component.');
+                      }}
+                    >
+                      Trigger Test Crash
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </TabsContent>
 
