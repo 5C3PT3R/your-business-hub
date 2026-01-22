@@ -1,24 +1,21 @@
 /**
- * DAY 4 + DAY 5 + DAY 6: BISHOP SWEEP SCRIPT (MULTI-TENANT + GATED)
+ * BISHOP SWEEP SCRIPT (MASTER PRD VERSION)
  *
- * Daily sweep over leads table.
- * Applies: INTRO_SENT → FOLLOW_UP_NEEDED → NUDGE_SENT → BREAKUP_SENT
+ * Daily sweep over leads table with full persona support.
+ * State Machine: NEW → CONTACTED → INTERESTED/STALLED/CLOSED
  *
- * Rules (non-negotiable):
- * - Strategy 1 (Intro Follow-up): INTRO_SENT + ≥2 days → FOLLOW_UP_NEEDED
- * - Strategy 2 (Nudge): FOLLOW_UP_NEEDED + ≥3 days → NUDGE_SENT
- * - Strategy 3 (Breakup): NUDGE_SENT + ≥4 days → BREAKUP_SENT
+ * STRATEGIES:
+ * - 🟢 SNIPER_INTRO: First contact (NEW leads)
+ * - 🟡 VALUE_NUDGE: Bump after 3+ days (CONTACTED)
+ * - 🔴 BREAKUP: Final message after 7+ days (CONTACTED)
  *
- * DAY 5 ADDITIONS:
- * - USER_ID environment variable required for multi-tenancy
- * - Bishop only processes leads belonging to the specified user
- * - Drafts are created with user_id attached
- *
- * DAY 6 ADDITIONS:
- * - Subscription gate: Bishop checks user's is_active status before running
- * - Unsubscribed users are blocked from running Bishop
- *
- * Drafts are STORED ONLY. No emails sent.
+ * FEATURES:
+ * - Multi-tenant (user_id scoping)
+ * - Subscription gating
+ * - Persona from bishop_settings (voice_tone, golden_samples)
+ * - Blacklist filtering
+ * - Strategy toggles
+ * - Configurable timing
  *
  * Run: USER_ID=<uuid> npx tsx scripts/bishop-sweep.ts
  * Or:  npx tsx scripts/bishop-sweep.ts (uses BISHOP_USER_ID from .env)
@@ -76,25 +73,144 @@ const openai = new OpenAI({
 });
 
 // ============================================
-// USER SCOPING (DAY 5: MULTI-TENANCY)
+// USER SCOPING
 // ============================================
 
-// User ID can be passed via:
-// 1. USER_ID environment variable (runtime)
-// 2. BISHOP_USER_ID in .env (default)
 const USER_ID = process.env.USER_ID || process.env.BISHOP_USER_ID;
 
 if (!USER_ID) {
   console.error('[BISHOP] ERROR: No user_id provided');
   console.error('[BISHOP] Set USER_ID environment variable or BISHOP_USER_ID in .env');
-  console.error('[BISHOP] Example: USER_ID=<your-uuid> npx tsx scripts/bishop-sweep.ts');
   process.exit(1);
 }
 
 console.log(`[BISHOP] User scope: ${USER_ID.substring(0, 8)}...`);
 
 // ============================================
-// DAY 6: SUBSCRIPTION SAFETY CHECK
+// TYPES
+// ============================================
+
+type BishopStatus =
+  | 'NEW'
+  | 'CONTACTED'
+  | 'INTERESTED'
+  | 'STALLED'
+  | 'CLOSED'
+  | 'BLACKLISTED'
+  // Legacy statuses (backwards compatible)
+  | 'INTRO_SENT'
+  | 'FOLLOW_UP_NEEDED'
+  | 'NUDGE_SENT'
+  | 'BREAKUP_SENT'
+  | 'ESCALATE_TO_KING';
+
+type Strategy = 'SNIPER_INTRO' | 'VALUE_NUDGE' | 'BREAKUP' | 'NONE';
+
+interface Lead {
+  id: string;
+  user_id: string;
+  name: string;
+  email: string;
+  company: string;
+  linkedin_url?: string;
+  bishop_status: BishopStatus;
+  last_contact_date: string;
+  next_action_due: string;
+  notes: string | null;
+  context_log?: any[];
+}
+
+interface BishopSettings {
+  user_id: string;
+  linkedin_profile_url: string | null;
+  voice_tone: string;
+  signature_html: string | null;
+  golden_samples: string[];
+  blacklisted_domains: string[];
+  enable_sniper_intro: boolean;
+  enable_value_nudge: boolean;
+  enable_breakup: boolean;
+  days_to_first_followup: number;
+  days_to_second_followup: number;
+  days_to_breakup: number;
+  persona_prompt: string | null;
+}
+
+interface Draft {
+  subject: string;
+  body: string;
+}
+
+// Default settings if none exist
+const DEFAULT_SETTINGS: BishopSettings = {
+  user_id: USER_ID,
+  linkedin_profile_url: null,
+  voice_tone: 'Professional',
+  signature_html: null,
+  golden_samples: [],
+  blacklisted_domains: [],
+  enable_sniper_intro: true,
+  enable_value_nudge: true,
+  enable_breakup: true,
+  days_to_first_followup: 3,
+  days_to_second_followup: 4,
+  days_to_breakup: 7,
+  persona_prompt: null,
+};
+
+// ============================================
+// HELPERS
+// ============================================
+
+function daysSince(dateStr: string): number {
+  const date = new Date(dateStr);
+  const now = new Date();
+  return Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function daysFromNow(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString();
+}
+
+function appendNote(existingNotes: string | null, newNote: string): string {
+  const timestamp = new Date().toISOString().split('T')[0];
+  const entry = `[${timestamp}] ${newNote}`;
+  return existingNotes ? `${existingNotes}\n${entry}` : entry;
+}
+
+function getDomain(email: string): string {
+  return email.split('@')[1]?.toLowerCase() || '';
+}
+
+function isBlacklisted(email: string, blacklist: string[]): boolean {
+  const domain = getDomain(email);
+  return blacklist.some((b) => domain.includes(b.toLowerCase()));
+}
+
+// ============================================
+// FETCH SETTINGS
+// ============================================
+
+async function fetchBishopSettings(): Promise<BishopSettings> {
+  const { data, error } = await supabase
+    .from('bishop_settings')
+    .select('*')
+    .eq('user_id', USER_ID)
+    .single();
+
+  if (error || !data) {
+    console.log('[BISHOP] No custom settings found, using defaults');
+    return DEFAULT_SETTINGS;
+  }
+
+  console.log(`[BISHOP] Loaded settings: voice_tone=${data.voice_tone}, samples=${data.golden_samples?.length || 0}`);
+  return data as BishopSettings;
+}
+
+// ============================================
+// SUBSCRIPTION CHECK
 // ============================================
 
 async function checkUserSubscription(): Promise<boolean> {
@@ -116,16 +232,12 @@ async function checkUserSubscription(): Promise<boolean> {
     return false;
   }
 
-  // Check if subscription is active
   const isActive = profile.is_active === true;
-  const notExpired = !profile.subscription_expires_at ||
-    new Date(profile.subscription_expires_at) > new Date();
+  const notExpired =
+    !profile.subscription_expires_at || new Date(profile.subscription_expires_at) > new Date();
 
   if (!isActive || !notExpired) {
     console.error('[BISHOP] User subscription is not active');
-    console.error(`  is_active: ${profile.is_active}`);
-    console.error(`  tier: ${profile.subscription_tier}`);
-    console.error(`  expires_at: ${profile.subscription_expires_at || 'N/A'}`);
     return false;
   }
 
@@ -134,164 +246,156 @@ async function checkUserSubscription(): Promise<boolean> {
 }
 
 // ============================================
-// TYPES
-// ============================================
-
-type BishopStatus =
-  | 'INTRO_SENT'
-  | 'FOLLOW_UP_NEEDED'
-  | 'NUDGE_SENT'
-  | 'BREAKUP_SENT'
-  | 'ESCALATE_TO_KING';
-
-interface Lead {
-  id: string;
-  user_id: string;
-  name: string;
-  email: string;
-  company: string;
-  bishop_status: BishopStatus;
-  last_contact_date: string;
-  next_action_due: string;
-  notes: string | null;
-}
-
-type Strategy = 'INTRO_FOLLOW_UP' | 'NUDGE' | 'BREAKUP' | 'NONE' | 'ESCALATE';
-
-// ============================================
-// TIMING CONSTANTS (Hardcoded per PRD)
-// ============================================
-
-const TIMING = {
-  INTRO_FOLLOW_UP_DAYS: 2,    // ≥2 days since last contact
-  NUDGE_DAYS: 3,              // ≥3 days since last contact
-  BREAKUP_DAYS: 4,            // ≥4 days since last contact
-  NEXT_ACTION_INTRO: 3,       // Next action in 3 days
-  NEXT_ACTION_NUDGE: 4,       // Next action in 4 days
-};
-
-// ============================================
-// HELPERS
-// ============================================
-
-function daysSince(dateStr: string): number {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  return Math.floor(diff / (1000 * 60 * 60 * 24));
-}
-
-function daysFromNow(days: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  return date.toISOString();
-}
-
-function appendNote(existingNotes: string | null, newNote: string): string {
-  const timestamp = new Date().toISOString().split('T')[0];
-  const entry = `[${timestamp}] ${newNote}`;
-  return existingNotes ? `${existingNotes}\n${entry}` : entry;
-}
-
-// ============================================
 // STRATEGY RESOLVER
 // ============================================
 
-function determineStrategy(lead: Lead): Strategy {
+function determineStrategy(lead: Lead, settings: BishopSettings): Strategy {
   const daysSinceContact = daysSince(lead.last_contact_date);
+  const status = lead.bishop_status;
 
-  console.log(`  Status: ${lead.bishop_status}, Days since contact: ${daysSinceContact}`);
+  console.log(`  Status: ${status}, Days since contact: ${daysSinceContact}`);
 
-  switch (lead.bishop_status) {
-    case 'INTRO_SENT':
-      // Strategy 1: Intro Follow-up (≥2 days)
-      if (daysSinceContact >= TIMING.INTRO_FOLLOW_UP_DAYS) {
-        return 'INTRO_FOLLOW_UP';
-      }
-      break;
+  // Map legacy statuses to new ones
+  const isNew = status === 'NEW' || status === 'INTRO_SENT';
+  const isContacted =
+    status === 'CONTACTED' ||
+    status === 'FOLLOW_UP_NEEDED' ||
+    status === 'NUDGE_SENT';
 
-    case 'FOLLOW_UP_NEEDED':
-      // Strategy 2: Nudge (≥3 days)
-      if (daysSinceContact >= TIMING.NUDGE_DAYS) {
-        return 'NUDGE';
-      }
-      break;
+  // Terminal states
+  if (
+    status === 'INTERESTED' ||
+    status === 'CLOSED' ||
+    status === 'BLACKLISTED' ||
+    status === 'BREAKUP_SENT' ||
+    status === 'STALLED' ||
+    status === 'ESCALATE_TO_KING'
+  ) {
+    return 'NONE';
+  }
 
-    case 'NUDGE_SENT':
-      // Strategy 3: Breakup (≥4 days)
-      if (daysSinceContact >= TIMING.BREAKUP_DAYS) {
-        return 'BREAKUP';
-      }
-      break;
+  // Strategy 1: Sniper Intro (NEW leads, ≥0 days)
+  if (isNew && settings.enable_sniper_intro) {
+    if (daysSinceContact >= 0) {
+      return 'SNIPER_INTRO';
+    }
+  }
 
-    case 'BREAKUP_SENT':
-    case 'ESCALATE_TO_KING':
-      // Terminal states - no action
-      return 'NONE';
+  // Strategy 2: Value Nudge (CONTACTED, 3-6 days)
+  if (isContacted && settings.enable_value_nudge) {
+    if (
+      daysSinceContact >= settings.days_to_first_followup &&
+      daysSinceContact < settings.days_to_breakup
+    ) {
+      return 'VALUE_NUDGE';
+    }
+  }
+
+  // Strategy 3: Breakup (CONTACTED, ≥7 days)
+  if (isContacted && settings.enable_breakup) {
+    if (daysSinceContact >= settings.days_to_breakup) {
+      return 'BREAKUP';
+    }
   }
 
   return 'NONE';
 }
 
 // ============================================
-// DRAFT GENERATION
+// PROMPT BUILDING (The Identity Engine)
 // ============================================
 
-interface Draft {
-  subject: string;
-  body: string;
+function buildSystemPrompt(settings: BishopSettings): string {
+  let prompt = 'You write short, professional, human-sounding sales emails. Return JSON only.\n\n';
+
+  // Add persona
+  if (settings.persona_prompt) {
+    prompt += `PERSONA: ${settings.persona_prompt}\n\n`;
+  }
+
+  // Add voice tone
+  prompt += `VOICE TONE: ${settings.voice_tone}\n`;
+  prompt += `- Write in a ${settings.voice_tone.toLowerCase()} style\n`;
+
+  // Add golden samples for few-shot learning
+  if (settings.golden_samples && settings.golden_samples.length > 0) {
+    prompt += '\nSTYLE EXAMPLES (mimic this style):\n';
+    settings.golden_samples.slice(0, 3).forEach((sample, i) => {
+      prompt += `Example ${i + 1}:\n${sample}\n\n`;
+    });
+  }
+
+  prompt += '\nRULES:\n';
+  prompt += '- Keep emails SHORT (2-4 sentences)\n';
+  prompt += '- Sound human, not robotic\n';
+  prompt += '- Do NOT mention AI or automation\n';
+  prompt += '- Do NOT say "just checking in" or "following up"\n';
+  prompt += '- End with ONE clear call-to-action\n';
+
+  return prompt;
 }
 
-async function generateDraft(lead: Lead, strategy: Strategy): Promise<Draft> {
+function buildUserPrompt(lead: Lead, strategy: Strategy, settings: BishopSettings): string {
   const prompts: Record<string, string> = {
-    INTRO_FOLLOW_UP: `Write a SHORT follow-up email (2-4 sentences) to ${lead.name} at ${lead.company}.
-This is a follow-up to an intro email sent a few days ago.
-- Be value-anchored, not pushy
-- Ask ONE clear question
-- Sound human and calm
-- Do NOT say "just checking in"
-- Do NOT mention AI
+    SNIPER_INTRO: `Write a SHORT intro email (2-4 sentences) to ${lead.name} at ${lead.company}.
+This is FIRST CONTACT - they don't know you yet.
+- Reference their company if relevant
+- Be curious about their challenges
+- Ask ONE thoughtful question
+- Be value-anchored, not salesy
 
 Return JSON only: {"subject": "...", "body": "..."}`,
 
-    NUDGE: `Write a SHORT gentle nudge email (2-4 sentences) to ${lead.name} at ${lead.company}.
-They haven't replied to previous emails.
-- Offer an easy next step OR an easy exit
-- No urgency or pressure
-- Be professional and calm
-- Sound human
-- Do NOT mention AI
+    VALUE_NUDGE: `Write a SHORT follow-up email (2-4 sentences) to ${lead.name} at ${lead.company}.
+They received an intro email ${daysSince(lead.last_contact_date)} days ago but haven't replied.
+- Offer value (insight, case study, or resource)
+- OR offer an easy next step
+- No pressure or urgency
+- Be helpful, not pushy
 
 Return JSON only: {"subject": "...", "body": "..."}`,
 
-    BREAKUP: `Write a SHORT close-the-loop email (2-4 sentences) to ${lead.name} at ${lead.company}.
-This is a final message - they haven't replied to multiple emails.
+    BREAKUP: `Write a SHORT breakup email (2-4 sentences) to ${lead.name} at ${lead.company}.
+They haven't replied to multiple emails over ${daysSince(lead.last_contact_date)} days.
+- Use negative reverse psychology: "I'll assume this isn't a priority"
+- Leave the door open gracefully
+- Be professional, not passive-aggressive
 - Thank them for their time
-- Leave the door open
-- Be gracious and professional
-- No guilt-tripping
-- Do NOT mention AI
 
 Return JSON only: {"subject": "...", "body": "..."}`,
   };
 
-  const prompt = prompts[strategy];
-  if (!prompt) {
-    throw new Error(`No prompt for strategy: ${strategy}`);
+  let prompt = prompts[strategy] || prompts.SNIPER_INTRO;
+
+  // Add signature instruction if available
+  if (settings.signature_html) {
+    prompt += `\n\nNOTE: Do NOT include a signature - it will be added automatically.`;
   }
+
+  return prompt;
+}
+
+// ============================================
+// DRAFT GENERATION
+// ============================================
+
+async function generateDraft(
+  lead: Lead,
+  strategy: Strategy,
+  settings: BishopSettings
+): Promise<Draft> {
+  const systemPrompt = buildSystemPrompt(settings);
+  const userPrompt = buildUserPrompt(lead, strategy, settings);
 
   try {
     const response = await openai.chat.completions.create({
       model: currentConfig.model,
       messages: [
-        {
-          role: 'system',
-          content: 'You write short, professional, human-sounding emails. Return JSON only.',
-        },
-        { role: 'user', content: prompt },
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
       ],
       temperature: 0.7,
-      max_tokens: 300,
+      max_tokens: 400,
     });
 
     const content = response.choices[0]?.message?.content?.trim();
@@ -306,27 +410,34 @@ Return JSON only: {"subject": "...", "body": "..."}`,
     }
 
     const parsed = JSON.parse(jsonStr.trim());
-    return { subject: parsed.subject, body: parsed.body };
+    let body = parsed.body;
+
+    // Append signature if configured
+    if (settings.signature_html) {
+      body += `\n\n${settings.signature_html}`;
+    }
+
+    return { subject: parsed.subject, body };
   } catch (error) {
     console.error('[BISHOP] Draft generation error:', error);
 
     // Fallback drafts
     const fallbacks: Record<string, Draft> = {
-      INTRO_FOLLOW_UP: {
-        subject: `Quick follow-up - ${lead.company}`,
-        body: `Hi ${lead.name},\n\nWanted to follow up on my previous note. Would love to hear if this resonates with what ${lead.company} is working on.\n\nWould a brief call next week work?\n\nBest`,
+      SNIPER_INTRO: {
+        subject: `Quick question for ${lead.company}`,
+        body: `Hi ${lead.name},\n\nI came across ${lead.company} and was curious about how you're currently handling [relevant challenge].\n\nWould love to hear your thoughts if you have a moment.\n\nBest`,
       },
-      NUDGE: {
-        subject: `One more thought - ${lead.company}`,
-        body: `Hi ${lead.name},\n\nI know things get busy. If now isn't the right time, no worries at all. Otherwise, happy to find 15 minutes that works for you.\n\nBest`,
+      VALUE_NUDGE: {
+        subject: `Thought you might find this useful - ${lead.company}`,
+        body: `Hi ${lead.name},\n\nI know things get busy. Wanted to share a quick insight that might be relevant to what ${lead.company} is working on.\n\nHappy to find 15 minutes if this resonates.\n\nBest`,
       },
       BREAKUP: {
         subject: `Closing the loop - ${lead.company}`,
-        body: `Hi ${lead.name},\n\nI'll assume the timing isn't right and won't follow up again. If anything changes down the road, I'm always happy to reconnect.\n\nWishing you and the team all the best.`,
+        body: `Hi ${lead.name},\n\nI'll assume the timing isn't right and close the loop on my end. If anything changes down the road, always happy to reconnect.\n\nWishing you and the team all the best.`,
       },
     };
 
-    return fallbacks[strategy] || fallbacks.INTRO_FOLLOW_UP;
+    return fallbacks[strategy] || fallbacks.SNIPER_INTRO;
   }
 }
 
@@ -334,23 +445,26 @@ Return JSON only: {"subject": "...", "body": "..."}`,
 // STATE TRANSITIONS
 // ============================================
 
-function getNextState(strategy: Strategy): { status: BishopStatus; nextActionDue: string | null } {
+function getNextState(
+  strategy: Strategy,
+  settings: BishopSettings
+): { status: BishopStatus; nextActionDue: string | null } {
   switch (strategy) {
-    case 'INTRO_FOLLOW_UP':
+    case 'SNIPER_INTRO':
       return {
-        status: 'FOLLOW_UP_NEEDED',
-        nextActionDue: daysFromNow(TIMING.NEXT_ACTION_INTRO),
+        status: 'CONTACTED',
+        nextActionDue: daysFromNow(settings.days_to_first_followup),
       };
 
-    case 'NUDGE':
+    case 'VALUE_NUDGE':
       return {
-        status: 'NUDGE_SENT',
-        nextActionDue: daysFromNow(TIMING.NEXT_ACTION_NUDGE),
+        status: 'CONTACTED',
+        nextActionDue: daysFromNow(settings.days_to_second_followup),
       };
 
     case 'BREAKUP':
       return {
-        status: 'BREAKUP_SENT',
+        status: 'STALLED',
         nextActionDue: null, // Terminal state
       };
 
@@ -363,51 +477,51 @@ function getNextState(strategy: Strategy): { status: BishopStatus; nextActionDue
 // PROCESS LEAD
 // ============================================
 
-async function processLead(lead: Lead): Promise<boolean> {
+async function processLead(lead: Lead, settings: BishopSettings): Promise<boolean> {
   console.log(`\n[BISHOP] Processing: ${lead.name} @ ${lead.company}`);
 
+  // Check blacklist
+  if (isBlacklisted(lead.email, settings.blacklisted_domains)) {
+    console.log('  → SKIPPED: Domain is blacklisted');
+    await supabase
+      .from('leads')
+      .update({ bishop_status: 'BLACKLISTED' })
+      .eq('id', lead.id);
+    return false;
+  }
+
   // Determine strategy
-  const strategy = determineStrategy(lead);
+  const strategy = determineStrategy(lead, settings);
 
   if (strategy === 'NONE') {
     console.log('  → No action needed');
     return false;
   }
 
-  if (strategy === 'ESCALATE') {
-    console.log('  → Escalating to King');
-    await supabase
-      .from('leads')
-      .update({
-        bishop_status: 'ESCALATE_TO_KING',
-        notes: appendNote(lead.notes, 'Escalated due to uncertainty'),
-      })
-      .eq('id', lead.id);
-    return false;
-  }
-
   console.log(`  → Strategy: ${strategy}`);
 
-  // Generate draft
+  // Generate draft with persona
   console.log('  → Generating draft...');
-  const draft = await generateDraft(lead, strategy);
+  const draft = await generateDraft(lead, strategy, settings);
   console.log(`  → Subject: "${draft.subject}"`);
 
-  // Insert draft into ai_drafts (DAY 5: Include user_id for multi-tenancy)
+  // Insert draft into ai_drafts
   const { error: draftError } = await supabase.from('ai_drafts').insert({
-    user_id: USER_ID, // CRITICAL: Attach user_id for RLS
+    user_id: USER_ID,
     lead_id: lead.id,
     subject: draft.subject,
     body: draft.body,
-    plain_text: draft.body,
-    persona_used: 'BISHOP_SWEEP',
+    plain_text: draft.body.replace(/<[^>]*>/g, ''), // Strip HTML
+    persona_used: settings.voice_tone,
     is_ai_draft: true,
     status: 'PENDING_APPROVAL',
+    strategy_used: strategy,
     metadata: {
       strategy,
       lead_name: lead.name,
       company: lead.company,
-      generated_by: 'bishop-sweep',
+      voice_tone: settings.voice_tone,
+      generated_by: 'bishop-sweep-v2',
       generated_at: new Date().toISOString(),
     },
   });
@@ -420,12 +534,22 @@ async function processLead(lead: Lead): Promise<boolean> {
   console.log('  → Draft saved to ai_drafts');
 
   // Update lead state
-  const { status: nextStatus, nextActionDue } = getNextState(strategy);
+  const { status: nextStatus, nextActionDue } = getNextState(strategy, settings);
   const noteMessage = {
-    INTRO_FOLLOW_UP: 'Sent intro follow-up',
-    NUDGE: 'Sent nudge',
-    BREAKUP: 'Sent breakup',
+    SNIPER_INTRO: 'Sent sniper intro',
+    VALUE_NUDGE: 'Sent value nudge',
+    BREAKUP: 'Sent breakup email',
   }[strategy];
+
+  // Update context_log
+  const newContextEntry = {
+    date: new Date().toISOString(),
+    strategy,
+    subject: draft.subject,
+  };
+
+  const contextLog = lead.context_log || [];
+  contextLog.push(newContextEntry);
 
   const { error: updateError } = await supabase
     .from('leads')
@@ -434,6 +558,7 @@ async function processLead(lead: Lead): Promise<boolean> {
       last_contact_date: new Date().toISOString(),
       next_action_due: nextActionDue,
       notes: appendNote(lead.notes, noteMessage || `Processed with ${strategy}`),
+      context_log: contextLog,
     })
     .eq('id', lead.id);
 
@@ -453,9 +578,9 @@ async function processLead(lead: Lead): Promise<boolean> {
 async function runSweep() {
   console.log('');
   console.log('╔════════════════════════════════════════════════════════════╗');
-  console.log('║       BISHOP SWEEP (MULTI-TENANT / DAY 6)                  ║');
+  console.log('║            BISHOP SWEEP (MASTER PRD VERSION)               ║');
   console.log('║                                                             ║');
-  console.log('║   INTRO_SENT → FOLLOW_UP_NEEDED → NUDGE_SENT → BREAKUP    ║');
+  console.log('║   NEW → CONTACTED → INTERESTED/STALLED/CLOSED              ║');
   console.log('╚════════════════════════════════════════════════════════════╝');
   console.log('');
   console.log(`[BISHOP] Provider: ${LLM_PROVIDER.toUpperCase()}`);
@@ -463,7 +588,7 @@ async function runSweep() {
   console.log(`[BISHOP] Time: ${new Date().toISOString()}`);
   console.log('');
 
-  // DAY 6: Subscription gate - Bishop will not run for unsubscribed users
+  // Subscription gate
   const hasSubscription = await checkUserSubscription();
   if (!hasSubscription) {
     console.error('[BISHOP] BLOCKED: User does not have an active subscription');
@@ -471,17 +596,23 @@ async function runSweep() {
     process.exit(1);
   }
 
-  // Phase 1: The Sweep
-  console.log('[BISHOP] Phase 1: Fetching eligible leads...');
+  // Load persona settings
+  const settings = await fetchBishopSettings();
+  console.log(`[BISHOP] Voice: ${settings.voice_tone}`);
+  console.log(`[BISHOP] Strategies: intro=${settings.enable_sniper_intro}, nudge=${settings.enable_value_nudge}, breakup=${settings.enable_breakup}`);
+  console.log(`[BISHOP] Timing: ${settings.days_to_first_followup}d → ${settings.days_to_second_followup}d → ${settings.days_to_breakup}d`);
+  console.log(`[BISHOP] Blacklist: ${settings.blacklisted_domains.length} domains`);
+  console.log('');
 
-  // DAY 5: Filter by user_id for multi-tenancy
+  // Fetch eligible leads
+  console.log('[BISHOP] Fetching eligible leads...');
+
   const { data: leads, error } = await supabase
     .from('leads')
-    .select('id, user_id, name, email, company, bishop_status, last_contact_date, next_action_due, notes')
-    .eq('user_id', USER_ID) // CRITICAL: Only process this user's leads
-    .lte('next_action_due', new Date().toISOString())
-    .not('bishop_status', 'eq', 'ESCALATE_TO_KING')
-    .not('bishop_status', 'eq', 'BREAKUP_SENT');
+    .select('id, user_id, name, email, company, linkedin_url, bishop_status, last_contact_date, next_action_due, notes, context_log')
+    .eq('user_id', USER_ID)
+    .or('next_action_due.lte.now(),next_action_due.is.null')
+    .not('bishop_status', 'in', '(INTERESTED,CLOSED,BLACKLISTED,STALLED,BREAKUP_SENT,ESCALATE_TO_KING)');
 
   if (error) {
     console.error('[BISHOP] Sweep query failed:', error.message);
@@ -497,11 +628,11 @@ async function runSweep() {
   console.log(`[BISHOP] Found ${leads.length} leads to process`);
   console.log('═'.repeat(60));
 
-  // Phase 2 & 3: Process each lead
+  // Process each lead
   let draftsCreated = 0;
 
   for (const lead of leads as Lead[]) {
-    const created = await processLead(lead);
+    const created = await processLead(lead, settings);
     if (created) draftsCreated++;
   }
 
@@ -516,10 +647,6 @@ async function runSweep() {
   console.log('[BISHOP] Drafts are in ai_drafts table with status PENDING_APPROVAL');
   console.log('[BISHOP] Review in Command Center: /command-center');
   console.log('');
-
-  if (draftsCreated === 3) {
-    console.log('✓ DAY 4 COMPLETE: 3 drafts generated');
-  }
 }
 
 // Run
