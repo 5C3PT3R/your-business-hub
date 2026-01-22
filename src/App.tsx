@@ -39,6 +39,7 @@ import Import from "./pages/Import";
 import CommandCenter from "./pages/CommandCenter";
 import Onboarding from "./pages/Onboarding";
 import Subscribe from "./pages/Subscribe";
+import BishopSettings from "./pages/BishopSettings";
 import NotFound from "./pages/NotFound";
 import { FeedbackWidget } from "./components/feedback/FeedbackWidget";
 import { Loader2 } from "lucide-react";
@@ -183,6 +184,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AgentDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/bishop"
+        element={
+          <ProtectedRoute>
+            <BishopSettings />
           </ProtectedRoute>
         }
       />
