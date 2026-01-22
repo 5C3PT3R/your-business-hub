@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Zap, Mail, Lock, User } from 'lucide-react';
+import { Zap, Mail, Lock, User, Chrome } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Auth() {
@@ -14,8 +15,10 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signInWithGoogle } = useAuth();
 
   // V1: Redirect authenticated users to /deals (not /)
   useEffect(() => {
@@ -90,6 +93,20 @@ export default function Auth() {
     setLoading(false);
   };
 
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+    } catch (error: any) {
+      toast({
+        title: "Google sign-in failed",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+      setGoogleLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen gradient-hero flex items-center justify-center p-4">
       {/* Background decorations */}
@@ -155,6 +172,26 @@ export default function Auth() {
                 <Button type="submit" className="w-full" variant="gradient" disabled={loading}>
                   {loading ? "Signing in..." : "Sign In"}
                 </Button>
+
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleGoogleSignIn}
+                  disabled={googleLoading}
+                >
+                  <Chrome className="mr-2 h-4 w-4" />
+                  {googleLoading ? "Connecting..." : "Google"}
+                </Button>
               </form>
             </TabsContent>
 
@@ -208,6 +245,26 @@ export default function Auth() {
                 </div>
                 <Button type="submit" className="w-full" variant="gradient" disabled={loading}>
                   {loading ? "Creating account..." : "Create Account"}
+                </Button>
+
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleGoogleSignIn}
+                  disabled={googleLoading}
+                >
+                  <Chrome className="mr-2 h-4 w-4" />
+                  {googleLoading ? "Connecting..." : "Google"}
                 </Button>
               </form>
             </TabsContent>

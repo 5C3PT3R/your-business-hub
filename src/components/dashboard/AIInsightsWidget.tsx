@@ -29,7 +29,7 @@ export function AIInsightsWidget() {
       id: '1',
       type: 'opportunity',
       icon: Target,
-      color: 'text-green-600 bg-green-50',
+      color: 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30',
       title: 'High-Value Quick Wins',
       description: `${stats?.pending || 0} actions could close ${formatCurrency(stats?.totalRevenue || 0)} in revenue`,
       action: 'View Actions',
@@ -39,7 +39,7 @@ export function AIInsightsWidget() {
       id: '2',
       type: 'risk',
       icon: AlertTriangle,
-      color: 'text-red-600 bg-red-50',
+      color: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30',
       title: 'At-Risk Deals',
       description: `${stats?.urgent || 0} urgent actions need immediate attention`,
       action: 'Take Action',
@@ -49,7 +49,7 @@ export function AIInsightsWidget() {
       id: '3',
       type: 'trend',
       icon: TrendingUp,
-      color: 'text-blue-600 bg-blue-50',
+      color: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30',
       title: 'Productivity Trend',
       description: `${stats?.completed || 0} actions completed today`,
       action: 'View Progress',
@@ -69,15 +69,15 @@ export function AIInsightsWidget() {
   return (
     <div className="space-y-4">
       {/* AI Insights Header Card */}
-      <Card className="p-5 bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-200">
+      <Card className="p-5 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-950/30 dark:to-yellow-950/30 border-amber-200 dark:border-amber-800">
         <div className="flex items-start justify-between">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <Lightbulb className="h-5 w-5 text-indigo-600" />
-              <h3 className="text-lg font-bold text-gray-900">AI Insights</h3>
-              <Badge className="bg-indigo-600">Live</Badge>
+              <Lightbulb className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">AI Insights</h3>
+              <Badge className="bg-amber-600 dark:bg-amber-700">Live</Badge>
             </div>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Real-time recommendations to maximize your revenue
             </p>
           </div>
@@ -104,13 +104,13 @@ export function AIInsightsWidget() {
                   <Icon className="h-5 w-5" />
                 </div>
                 <div>
-                  <h4 className="font-semibold text-gray-900 mb-1">{insight.title}</h4>
-                  <p className="text-sm text-gray-600">{insight.description}</p>
+                  <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">{insight.title}</h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{insight.description}</p>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="w-full justify-between group-hover:bg-gray-100"
+                  className="w-full justify-between group-hover:bg-gray-100 dark:group-hover:bg-gray-800"
                 >
                   {insight.action}
                   <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
@@ -123,11 +123,11 @@ export function AIInsightsWidget() {
 
       {/* Top Urgent Actions */}
       {urgentActions.length > 0 && (
-        <Card className="p-4 border-red-200 bg-red-50/50">
+        <Card className="p-4 border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/30">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
-              <h4 className="font-semibold text-gray-900">Urgent Actions</h4>
+              <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+              <h4 className="font-semibold text-gray-900 dark:text-gray-100">Urgent Actions</h4>
               <Badge variant="destructive">{urgentActions.length}</Badge>
             </div>
             <Button variant="outline" size="sm" onClick={() => navigate('/next-actions')}>
@@ -139,14 +139,14 @@ export function AIInsightsWidget() {
             {urgentActions.map((action) => (
               <div
                 key={action.id}
-                className="flex items-center justify-between p-3 bg-white rounded-lg border border-red-100 hover:border-red-200 transition-colors cursor-pointer"
+                className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-lg border border-red-100 dark:border-red-900 hover:border-red-200 dark:hover:border-red-800 transition-colors cursor-pointer"
                 onClick={() => navigate('/next-actions')}
               >
                 <div className="flex-1">
-                  <div className="font-medium text-gray-900 text-sm mb-0.5">
+                  <div className="font-medium text-gray-900 dark:text-gray-100 text-sm mb-0.5">
                     {action.title}
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-gray-600">
+                  <div className="flex items-center gap-3 text-xs text-gray-600 dark:text-gray-400">
                     {action.effortMinutes && (
                       <div className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
@@ -154,14 +154,14 @@ export function AIInsightsWidget() {
                       </div>
                     )}
                     {action.revenueImpact > 0 && (
-                      <div className="flex items-center gap-1 font-semibold text-green-700">
+                      <div className="flex items-center gap-1 font-semibold text-green-700 dark:text-green-400">
                         <DollarSign className="h-3 w-3" />
                         {formatCurrency(action.revenueImpact)}
                       </div>
                     )}
                   </div>
                 </div>
-                <ArrowRight className="h-4 w-4 text-gray-400" />
+                <ArrowRight className="h-4 w-4 text-gray-400 dark:text-gray-500" />
               </div>
             ))}
           </div>

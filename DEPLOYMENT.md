@@ -171,6 +171,69 @@ Vercel will automatically deploy:
 - [ ] Test all core features
 - [ ] Monitor error logs in Vercel dashboard
 
+---
+
+## Day 7: Production Deployment Additions
+
+### Bishop Edge Function
+
+Deploy the Bishop sweep Edge Function for production:
+
+```bash
+npx supabase functions deploy bishop-sweep
+```
+
+Set required secrets:
+```bash
+npx supabase secrets set OPENAI_API_KEY=sk-xxx
+npx supabase secrets set LLM_PROVIDER=openai
+```
+
+### Database Migrations (Day 4-6)
+
+Run these SQL migrations in Supabase Dashboard → SQL Editor:
+
+**Day 4: Bishop Leads**
+```sql
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS last_contact_date TIMESTAMPTZ;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS next_action_due TIMESTAMPTZ;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS bishop_status TEXT DEFAULT 'INTRO_SENT';
+```
+
+**Day 5: AI Drafts**
+```sql
+ALTER TABLE public.ai_drafts ADD COLUMN IF NOT EXISTS lead_id UUID REFERENCES leads(id);
+ALTER TABLE public.ai_drafts ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id);
+```
+
+**Day 6: Subscription Gating**
+```sql
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS subscription_tier TEXT DEFAULT 'free';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMPTZ;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
+```
+
+### Verification Script
+
+Run the production verification script:
+```bash
+npx tsx scripts/verify-production.ts
+```
+
+### Day 7 Checklist
+
+- [ ] Git repo pushed to GitHub
+- [ ] Vercel connected and building
+- [ ] Bishop Edge Function deployed
+- [ ] All Day 4-6 migrations applied
+- [ ] Domain configured (HTTPS active)
+- [ ] Verification script passes
+- [ ] Can log in from fresh browser
+- [ ] Bishop runs without localhost
+- [ ] Drafts appear in Command Center
+
 ## Useful Commands
 
 ```bash

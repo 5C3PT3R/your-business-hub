@@ -13,13 +13,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { User, Bell, Shield, CreditCard, Users, Loader2, Plug, Palette, Sun, Moon, Monitor } from 'lucide-react';
+import { User, Bell, Shield, CreditCard, Users, Loader2, Plug, Palette, Sun, Moon, Monitor, Bot } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useTheme } from '@/hooks/useTheme';
 import { GmailConnect } from '@/components/integrations/GmailConnect';
 import { SocialIntegrations } from '@/components/integrations/SocialIntegrations';
+import { BishopTrigger } from '@/components/admin/BishopTrigger';
 
 export default function Settings() {
   const { user, signOut } = useAuth();
@@ -201,6 +202,10 @@ export default function Settings() {
             <TabsTrigger value="billing" className="gap-1.5 text-xs sm:text-sm">
               <CreditCard className="h-4 w-4" />
               <span className="hidden sm:inline">Billing</span>
+            </TabsTrigger>
+            <TabsTrigger value="admin" className="gap-1.5 text-xs sm:text-sm">
+              <Bot className="h-4 w-4" />
+              <span className="hidden sm:inline">Admin</span>
             </TabsTrigger>
           </TabsList>
 
@@ -555,6 +560,17 @@ export default function Settings() {
                   </Button>
                 </div>
               </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="admin" className="animate-slide-up">
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">Admin Tools</h3>
+                <p className="text-sm text-muted-foreground">Manage AI agents and system tools</p>
+              </div>
+
+              <BishopTrigger />
             </div>
           </TabsContent>
         </Tabs>

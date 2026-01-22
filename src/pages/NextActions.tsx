@@ -369,9 +369,9 @@ export default function NextActions() {
     return (
       <MainLayout>
         <Card className="p-8 text-center">
-          <AlertTriangle className="h-12 w-12 text-red-600 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Error loading actions</h3>
-          <p className="text-gray-600 mb-4">{(error as Error).message}</p>
+          <AlertTriangle className="h-12 w-12 text-red-600 dark:text-red-400 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Error loading actions</h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">{(error as Error).message}</p>
           <Button onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Try Again
@@ -446,7 +446,7 @@ export default function NextActions() {
 
         {/* Enhanced Today's Focus Card - Only show for pending tab */}
         {activeTab === 'pending' && !isLoading && topAction && (
-          <Card className="p-5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-2 border-blue-300 shadow-lg">
+          <Card className="p-5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-950/50 dark:via-indigo-950/50 dark:to-purple-950/50 border-2 border-blue-300 dark:border-blue-800 shadow-lg">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -454,8 +454,8 @@ export default function NextActions() {
                     <Flame className="h-5 w-5 text-white" />
                   </div>
                   <div>
-                    <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">Today's Focus</div>
-                    <div className="text-sm font-bold text-gray-900">Most Important Action</div>
+                    <div className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">Today's Focus</div>
+                    <div className="text-sm font-bold text-gray-900 dark:text-gray-100">Most Important Action</div>
                   </div>
                 </div>
                 <Badge variant="destructive" className="text-xs font-bold px-2 py-1">
@@ -464,30 +464,30 @@ export default function NextActions() {
               </div>
 
               <div className="space-y-2">
-                <h3 className="text-lg font-bold text-gray-900 leading-tight">{topAction.title}</h3>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 leading-tight">{topAction.title}</h3>
                 {topAction.aiReasoning && (
-                  <p className="text-sm text-gray-700 border-l-3 border-blue-400 pl-3 py-1 bg-white/50 rounded">
+                  <p className="text-sm text-gray-700 dark:text-gray-300 border-l-3 border-blue-400 dark:border-blue-600 pl-3 py-1 bg-white/50 dark:bg-gray-800/50 rounded">
                     💡 {topAction.aiReasoning}
                   </p>
                 )}
 
                 <div className="flex items-center gap-4 text-sm pt-1">
                   {topAction.effortMinutes && (
-                    <div className="flex items-center gap-1.5 text-gray-700">
-                      <Clock className="h-4 w-4 text-blue-600" />
+                    <div className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300">
+                      <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                       <span className="font-medium">{topAction.effortMinutes} min</span>
                     </div>
                   )}
                   {topAction.revenueImpact > 0 && (
-                    <div className="flex items-center gap-1.5 text-green-700">
-                      <DollarSign className="h-4 w-4 text-green-600" />
+                    <div className="flex items-center gap-1.5 text-green-700 dark:text-green-400">
+                      <DollarSign className="h-4 w-4 text-green-600 dark:text-green-500" />
                       <span className="font-bold">{formatCurrency(topAction.revenueImpact)}</span>
                     </div>
                   )}
                   {topAction.closeProbability !== undefined && (
                     <div className="flex items-center gap-1.5">
-                      <TrendingUp className="h-4 w-4 text-purple-600" />
-                      <span className="font-semibold text-purple-700">{topAction.closeProbability}% close</span>
+                      <TrendingUp className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                      <span className="font-semibold text-purple-700 dark:text-purple-400">{topAction.closeProbability}% close</span>
                     </div>
                   )}
                 </div>
@@ -573,7 +573,7 @@ export default function NextActions() {
           {activeTab === 'pending' && (
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Filter:</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">Filter:</span>
                 <Button
                   variant={activeFilter === 'all' ? 'default' : 'outline'}
                   size="sm"
@@ -631,23 +631,23 @@ export default function NextActions() {
           <TabsContent value="pending" className="space-y-4 mt-4">
             {isLoading ? (
               <Card className="p-8 text-center">
-                <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-3" />
-                <p className="text-sm text-gray-600">Loading actions...</p>
+                <RefreshCw className="h-8 w-8 animate-spin text-blue-600 dark:text-blue-400 mx-auto mb-3" />
+                <p className="text-sm text-gray-600 dark:text-gray-400">Loading actions...</p>
               </Card>
             ) : filteredActions.length === 0 ? (
               <Card className="p-8 text-center">
-                <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-3" />
-                <h3 className="text-base font-semibold text-gray-900 mb-1">All caught up!</h3>
-                <p className="text-sm text-gray-600">No pending actions. Great work! 🎉</p>
+                <CheckCircle2 className="h-12 w-12 text-green-600 dark:text-green-400 mx-auto mb-3" />
+                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">All caught up!</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">No pending actions. Great work! 🎉</p>
               </Card>
             ) : activeFilter === 'all' ? (
               <div className="space-y-6">
                 {/* 🚨 URGENT Section */}
                 {groupedActions.urgent.length > 0 && (
                   <div className="space-y-3">
-                    <div className="flex items-center gap-2 pb-2 border-b-2 border-red-200">
-                      <AlertTriangle className="h-5 w-5 text-red-600" />
-                      <h3 className="text-base font-bold text-red-900">URGENT - Do First</h3>
+                    <div className="flex items-center gap-2 pb-2 border-b-2 border-red-200 dark:border-red-800">
+                      <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                      <h3 className="text-base font-bold text-red-900 dark:text-red-300">URGENT - Do First</h3>
                       <Badge variant="destructive" className="ml-1">{groupedActions.urgent.length}</Badge>
                     </div>
                     {groupedActions.urgent.map((action) => (
@@ -668,10 +668,10 @@ export default function NextActions() {
                 {/* ⏰ DUE TODAY Section */}
                 {groupedActions.dueToday.length > 0 && (
                   <div className="space-y-3">
-                    <div className="flex items-center gap-2 pb-2 border-b-2 border-orange-200">
-                      <Calendar className="h-5 w-5 text-orange-600" />
-                      <h3 className="text-base font-bold text-orange-900">DUE TODAY - Do Soon</h3>
-                      <Badge variant="secondary" className="ml-1 bg-orange-100">{groupedActions.dueToday.length}</Badge>
+                    <div className="flex items-center gap-2 pb-2 border-b-2 border-orange-200 dark:border-orange-800">
+                      <Calendar className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                      <h3 className="text-base font-bold text-orange-900 dark:text-orange-300">DUE TODAY - Do Soon</h3>
+                      <Badge variant="secondary" className="ml-1 bg-orange-100 dark:bg-orange-900/40">{groupedActions.dueToday.length}</Badge>
                     </div>
                     {groupedActions.dueToday.map((action) => (
                       <ActionCard
@@ -691,10 +691,10 @@ export default function NextActions() {
                 {/* 📅 UPCOMING Section */}
                 {groupedActions.upcoming.length > 0 && (
                   <div className="space-y-3">
-                    <div className="flex items-center gap-2 pb-2 border-b-2 border-blue-200">
-                      <Calendar className="h-5 w-5 text-blue-600" />
-                      <h3 className="text-base font-bold text-blue-900">UPCOMING - This Week</h3>
-                      <Badge variant="secondary" className="ml-1 bg-blue-100">{groupedActions.upcoming.length}</Badge>
+                    <div className="flex items-center gap-2 pb-2 border-b-2 border-blue-200 dark:border-blue-800">
+                      <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      <h3 className="text-base font-bold text-blue-900 dark:text-blue-300">UPCOMING - This Week</h3>
+                      <Badge variant="secondary" className="ml-1 bg-blue-100 dark:bg-blue-900/40">{groupedActions.upcoming.length}</Badge>
                     </div>
                     {groupedActions.upcoming.map((action) => (
                       <ActionCard
@@ -714,11 +714,11 @@ export default function NextActions() {
                 {/* 🎯 QUICK WINS Section */}
                 {groupedActions.quickWins.length > 0 && (
                   <div className="space-y-3">
-                    <div className="flex items-center gap-2 pb-2 border-b-2 border-green-200">
-                      <Zap className="h-5 w-5 text-green-600" />
-                      <h3 className="text-base font-bold text-green-900">QUICK WINS - Fast Money</h3>
-                      <Badge variant="secondary" className="ml-1 bg-green-100">{groupedActions.quickWins.length}</Badge>
-                      <span className="text-xs text-gray-600">≤15 min, high value</span>
+                    <div className="flex items-center gap-2 pb-2 border-b-2 border-green-200 dark:border-green-800">
+                      <Zap className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      <h3 className="text-base font-bold text-green-900 dark:text-green-300">QUICK WINS - Fast Money</h3>
+                      <Badge variant="secondary" className="ml-1 bg-green-100 dark:bg-green-900/40">{groupedActions.quickWins.length}</Badge>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">≤15 min, high value</span>
                     </div>
                     {groupedActions.quickWins.map((action) => (
                       <ActionCard
@@ -738,11 +738,11 @@ export default function NextActions() {
                 {/* 🔮 AI SUGGESTED Section */}
                 {groupedActions.aiSuggested.length > 0 && (
                   <div className="space-y-3">
-                    <div className="flex items-center gap-2 pb-2 border-b-2 border-purple-200">
-                      <Zap className="h-5 w-5 text-purple-600" />
-                      <h3 className="text-base font-bold text-purple-900">AI SUGGESTED - Proactive</h3>
-                      <Badge variant="secondary" className="ml-1 bg-purple-100">{groupedActions.aiSuggested.length}</Badge>
-                      <span className="text-xs text-gray-600">High AI priority</span>
+                    <div className="flex items-center gap-2 pb-2 border-b-2 border-purple-200 dark:border-purple-800">
+                      <Zap className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                      <h3 className="text-base font-bold text-purple-900 dark:text-purple-300">AI SUGGESTED - Proactive</h3>
+                      <Badge variant="secondary" className="ml-1 bg-purple-100 dark:bg-purple-900/40">{groupedActions.aiSuggested.length}</Badge>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">High AI priority</span>
                     </div>
                     {groupedActions.aiSuggested.map((action) => (
                       <ActionCard
@@ -762,8 +762,8 @@ export default function NextActions() {
                 {/* Other Actions */}
                 {groupedActions.other.length > 0 && (
                   <div className="space-y-3">
-                    <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
-                      <h3 className="text-sm font-semibold text-gray-700">Other Actions</h3>
+                    <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Other Actions</h3>
                       <Badge variant="outline" className="ml-1">{groupedActions.other.length}</Badge>
                     </div>
                     {groupedActions.other.map((action) => (
@@ -802,19 +802,19 @@ export default function NextActions() {
           <TabsContent value="completed" className="space-y-3 mt-4">
             {isLoading ? (
               <Card className="p-8 text-center">
-                <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-3" />
-                <p className="text-sm text-gray-600">Loading completed actions...</p>
+                <RefreshCw className="h-8 w-8 animate-spin text-blue-600 dark:text-blue-400 mx-auto mb-3" />
+                <p className="text-sm text-gray-600 dark:text-gray-400">Loading completed actions...</p>
               </Card>
             ) : filteredActions.length === 0 ? (
               <Card className="p-8 text-center">
-                <CheckCircle2 className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                <h3 className="text-base font-semibold text-gray-900 mb-1">No completed actions yet</h3>
-                <p className="text-sm text-gray-600">Completed actions will appear here.</p>
+                <CheckCircle2 className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-3" />
+                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">No completed actions yet</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Completed actions will appear here.</p>
               </Card>
             ) : (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-900">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                     {filteredActions.length} completed action{filteredActions.length !== 1 ? 's' : ''}
                   </h3>
                 </div>
@@ -836,19 +836,19 @@ export default function NextActions() {
           <TabsContent value="skipped" className="space-y-3 mt-4">
             {isLoading ? (
               <Card className="p-8 text-center">
-                <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-3" />
-                <p className="text-sm text-gray-600">Loading skipped actions...</p>
+                <RefreshCw className="h-8 w-8 animate-spin text-blue-600 dark:text-blue-400 mx-auto mb-3" />
+                <p className="text-sm text-gray-600 dark:text-gray-400">Loading skipped actions...</p>
               </Card>
             ) : filteredActions.length === 0 ? (
               <Card className="p-8 text-center">
-                <SkipForward className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                <h3 className="text-base font-semibold text-gray-900 mb-1">No skipped actions</h3>
-                <p className="text-sm text-gray-600">Skipped actions will appear here.</p>
+                <SkipForward className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-3" />
+                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">No skipped actions</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Skipped actions will appear here.</p>
               </Card>
             ) : (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-900">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                     {filteredActions.length} skipped action{filteredActions.length !== 1 ? 's' : ''}
                   </h3>
                 </div>
@@ -872,10 +872,10 @@ export default function NextActions() {
         {activeTab === 'pending' && stats && filteredActions.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Progress Widget */}
-            <Card className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 col-span-1 md:col-span-2">
+            <Card className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border-green-200 dark:border-green-800 col-span-1 md:col-span-2">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-semibold text-gray-900">Today's Progress</h4>
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Today's Progress</h4>
                   <div className="text-2xl">
                     {stats.completed >= (stats.today || 1) * 0.7 ? '🎯' : '💪'}
                   </div>
@@ -883,13 +883,13 @@ export default function NextActions() {
 
                 {/* Progress bar */}
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between text-xs text-gray-600">
+                  <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
                     <span>{stats.completed} completed</span>
                     <span>{stats.pending} remaining</span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                     <div
-                      className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full transition-all"
+                      className="bg-gradient-to-r from-green-500 to-emerald-600 dark:from-green-600 dark:to-emerald-700 h-2 rounded-full transition-all"
                       style={{
                         width: `${Math.min(100, ((stats.completed || 0) / ((stats.pending || 0) + (stats.completed || 0)) * 100))}%`,
                       }}
@@ -898,20 +898,20 @@ export default function NextActions() {
                 </div>
 
                 {/* Stats grid */}
-                <div className="grid grid-cols-3 gap-3 pt-2 border-t border-green-200">
+                <div className="grid grid-cols-3 gap-3 pt-2 border-t border-green-200 dark:border-green-800">
                   <div>
-                    <div className="text-xs text-gray-600">Revenue</div>
-                    <div className="text-sm font-bold text-green-700">
+                    <div className="text-xs text-gray-600 dark:text-gray-400">Revenue</div>
+                    <div className="text-sm font-bold text-green-700 dark:text-green-400">
                       {formatCurrency(stats.totalRevenue)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-gray-600">Urgent</div>
-                    <div className="text-sm font-bold text-red-600">{stats.urgent}</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">Urgent</div>
+                    <div className="text-sm font-bold text-red-600 dark:text-red-400">{stats.urgent}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-gray-600">Completion</div>
-                    <div className="text-sm font-bold text-gray-900">
+                    <div className="text-xs text-gray-600 dark:text-gray-400">Completion</div>
+                    <div className="text-sm font-bold text-gray-900 dark:text-gray-100">
                       {Math.round(((stats.completed || 0) / ((stats.pending || 0) + (stats.completed || 0)) * 100) || 0)}%
                     </div>
                   </div>
@@ -920,28 +920,28 @@ export default function NextActions() {
             </Card>
 
             {/* Keyboard Shortcuts */}
-            <Card className="p-4 bg-gray-50">
-              <h4 className="text-sm font-semibold text-gray-900 mb-3">⌨️ Shortcuts</h4>
+            <Card className="p-4 bg-gray-50 dark:bg-gray-900/50">
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">⌨️ Shortcuts</h4>
               <div className="space-y-2 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Refresh</span>
-                  <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-gray-700 font-mono">R</kbd>
+                  <span className="text-gray-600 dark:text-gray-400">Refresh</span>
+                  <kbd className="px-2 py-0.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-300 font-mono">R</kbd>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Batch Mode</span>
-                  <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-gray-700 font-mono">B</kbd>
+                  <span className="text-gray-600 dark:text-gray-400">Batch Mode</span>
+                  <kbd className="px-2 py-0.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-300 font-mono">B</kbd>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Pending/Done/Skip</span>
+                  <span className="text-gray-600 dark:text-gray-400">Pending/Done/Skip</span>
                   <div className="flex gap-1">
-                    <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-gray-700 font-mono">1</kbd>
-                    <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-gray-700 font-mono">2</kbd>
-                    <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-gray-700 font-mono">3</kbd>
+                    <kbd className="px-2 py-0.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-300 font-mono">1</kbd>
+                    <kbd className="px-2 py-0.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-300 font-mono">2</kbd>
+                    <kbd className="px-2 py-0.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-300 font-mono">3</kbd>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Exit Batch</span>
-                  <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-gray-700 font-mono">ESC</kbd>
+                  <span className="text-gray-600 dark:text-gray-400">Exit Batch</span>
+                  <kbd className="px-2 py-0.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-300 font-mono">ESC</kbd>
                 </div>
               </div>
             </Card>
