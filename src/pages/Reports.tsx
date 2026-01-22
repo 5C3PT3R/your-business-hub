@@ -159,7 +159,6 @@ export default function Reports() {
                 value={`$${(metrics.totalRevenue / 1000).toFixed(0)}k`}
                 change={12.5}
                 icon={<DollarSign className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />}
-                iconBg="gradient-primary"
               />
               <MetricCard
                 title="Win Rate"
@@ -173,14 +172,14 @@ export default function Reports() {
                 value={metrics.activeDeals.toString()}
                 change={8.1}
                 icon={<TrendingUp className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />}
-                iconBg="gradient-warm"
+                iconBg="gradient-warning"
               />
               <MetricCard
                 title="Leads"
                 value={metrics.newLeads.toString()}
                 change={15.4}
                 icon={<Users className="h-5 w-5 md:h-6 md:w-6 text-primary-foreground" />}
-                iconBg="bg-info"
+                iconBg="gradient-info"
               />
             </div>
 

@@ -18,9 +18,9 @@ export function SalesDashboard() {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6">
+    <div className="space-y-6">
       {/* Metrics Grid */}
-      <div className="grid gap-4 md:gap-6 grid-cols-2 lg:grid-cols-4 animate-fade-in">
+      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in">
         <MetricCard
           title="Total Leads"
           value={metrics.totalLeads.toString()}
@@ -51,7 +51,7 @@ export function SalesDashboard() {
       </div>
 
       {/* Charts Row */}
-      <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-3 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-3 animate-slide-up" style={{ animationDelay: '0.1s' }}>
         <div className="lg:col-span-2">
           <RevenueChart />
         </div>
@@ -59,7 +59,7 @@ export function SalesDashboard() {
       </div>
 
       {/* Activity Row */}
-      <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2 animate-slide-up" style={{ animationDelay: '0.2s' }}>
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2 animate-slide-up" style={{ animationDelay: '0.2s' }}>
         <RecentDeals />
         <UpcomingTasks />
       </div>

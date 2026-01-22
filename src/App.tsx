@@ -38,15 +38,16 @@ import CompanyDetail from "./pages/CompanyDetail";
 import Import from "./pages/Import";
 import CommandCenter from "./pages/CommandCenter";
 import Onboarding from "./pages/Onboarding";
+import Subscribe from "./pages/Subscribe";
 import NotFound from "./pages/NotFound";
 import { FeedbackWidget } from "./components/feedback/FeedbackWidget";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
 
-// Protected route that requires authentication
+// Protected route that requires authentication and subscription
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isSubscribed, profile } = useAuth();
   const { loading: workspaceLoading } = useWorkspace();
 
   if (authLoading || workspaceLoading) {
@@ -57,8 +58,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Not logged in -> redirect to auth
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  // Logged in but not subscribed -> redirect to subscribe page
+  // (Skip this check if profile hasn't loaded yet to avoid flash)
+  if (profile && !isSubscribed) {
+    return <Navigate to="/subscribe" replace />;
   }
 
   return <>{children}</>;
@@ -71,6 +79,7 @@ function AppRoutes() {
       <Route path="/" element={<Landing />} />
       <Route path="/auth" element={<AuthPage />} />
       <Route path="/demo" element={<Demo />} />
+      <Route path="/subscribe" element={<SubscribePage />} />
       <Route
         path="/onboarding"
         element={
@@ -269,6 +278,7 @@ function AppRoutes() {
 // Lazy import to avoid circular deps
 import Auth from "./pages/Auth";
 const AuthPage = Auth;
+const SubscribePage = Subscribe;
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -280,7 +290,6 @@ const App = () => (
             <Sonner />
             <BrowserRouter>
               <AppRoutes />
-              <FeedbackWidget />
             </BrowserRouter>
           </TooltipProvider>
         </WorkspaceProvider>

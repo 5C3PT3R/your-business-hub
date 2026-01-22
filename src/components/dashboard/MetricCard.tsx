@@ -40,7 +40,7 @@ export function MetricCard({ title, value, change, icon, iconBg = 'gradient-prim
           {icon}
         </div>
       </div>
-      
+
       {/* Decorative gradient */}
       <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-primary/5 blur-2xl transition-all duration-300 group-hover:bg-primary/10" />
     </div>

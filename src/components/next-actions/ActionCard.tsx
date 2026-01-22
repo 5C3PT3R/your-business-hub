@@ -35,22 +35,22 @@ interface ActionCardProps {
 
 const urgencyConfig = {
   critical: {
-    color: 'text-red-600 bg-red-50 border-red-200',
+    color: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800',
     icon: '🔴',
     label: 'Critical',
   },
   high: {
-    color: 'text-orange-600 bg-orange-50 border-orange-200',
+    color: 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800',
     icon: '🟠',
     label: 'High',
   },
   medium: {
-    color: 'text-yellow-600 bg-yellow-50 border-yellow-200',
+    color: 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-800',
     icon: '🟡',
     label: 'Medium',
   },
   low: {
-    color: 'text-gray-600 bg-gray-50 border-gray-200',
+    color: 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/30 border-gray-200 dark:border-gray-700',
     icon: '⚪',
     label: 'Low',
   },
@@ -104,9 +104,9 @@ export function ActionCard({
 
   const getSentimentIcon = () => {
     const trend = action.aiContext?.sentimentTrend;
-    if (trend === 'positive') return <TrendingUp className="h-4 w-4 text-green-600" />;
-    if (trend === 'negative') return <TrendingDown className="h-4 w-4 text-red-600" />;
-    return <Minus className="h-4 w-4 text-gray-600" />;
+    if (trend === 'positive') return <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />;
+    if (trend === 'negative') return <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />;
+    return <Minus className="h-4 w-4 text-gray-600 dark:text-gray-400" />;
   };
 
   if (compact) {
@@ -121,15 +121,15 @@ export function ActionCard({
           <div className="flex-1 space-y-1">
             <div className="flex items-center gap-2">
               <span className="text-lg">{urgency.icon}</span>
-              <h4 className="font-semibold text-gray-900">{action.title}</h4>
+              <h4 className="font-semibold text-gray-900 dark:text-gray-100">{action.title}</h4>
             </div>
-            <p className="text-sm text-gray-600">{action.description}</p>
-            <div className="flex items-center gap-3 text-xs text-gray-500 mt-2">
+            <p className="text-sm text-gray-600 dark:text-gray-400">{action.description}</p>
+            <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 mt-2">
               <div className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
                 {action.effortMinutes} min
               </div>
-              <div className="flex items-center gap-1 font-medium text-gray-700">
+              <div className="flex items-center gap-1 font-medium text-gray-700 dark:text-gray-300">
                 <DollarSign className="h-3 w-3" />
                 {formatCurrency(action.revenueImpact)}
               </div>
@@ -147,7 +147,7 @@ export function ActionCard({
   }
 
   return (
-    <Card className={cn('p-4 hover:shadow-md transition-all border-l-4', urgency.color, isSelected && 'ring-2 ring-blue-500 bg-blue-50/50')}>
+    <Card className={cn('p-4 hover:shadow-md transition-all border-l-4', urgency.color, isSelected && 'ring-2 ring-blue-500 dark:ring-blue-400 bg-blue-50/50 dark:bg-blue-950/30')}>
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2 flex-1">
@@ -158,15 +158,15 @@ export function ActionCard({
               className="mt-1"
             />
           )}
-          <div className="p-1.5 bg-blue-100 rounded">
-            <ActionIcon className="h-4 w-4 text-blue-600" />
+          <div className="p-1.5 bg-blue-100 dark:bg-blue-900/40 rounded">
+            <ActionIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           </div>
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-0.5">
               <span className="text-base">{urgency.icon}</span>
-              <h3 className="text-base font-semibold text-gray-900">{action.title}</h3>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{action.title}</h3>
             </div>
-            <p className="text-sm text-gray-600">{action.description}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{action.description}</p>
           </div>
         </div>
         <Badge variant="outline" className={cn(urgency.color, 'text-xs h-6')}>
@@ -176,37 +176,37 @@ export function ActionCard({
 
       {/* Deal Context */}
       {action.dealId && (
-        <div className="flex items-center gap-4 mb-3 p-2 bg-gray-50 rounded text-sm">
+        <div className="flex items-center gap-4 mb-3 p-2 bg-gray-50 dark:bg-gray-900/30 rounded text-sm">
           <div>
-            <div className="text-xs text-gray-500">Deal</div>
-            <div className="font-medium text-sm">{action.contactName || 'Unknown'}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Deal</div>
+            <div className="font-medium text-sm dark:text-gray-200">{action.contactName || 'Unknown'}</div>
           </div>
           <div>
-            <div className="text-xs text-gray-500">Value</div>
-            <div className="font-medium text-sm">{formatCurrency(action.dealValue || 0)}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Value</div>
+            <div className="font-medium text-sm dark:text-gray-200">{formatCurrency(action.dealValue || 0)}</div>
           </div>
           <div>
-            <div className="text-xs text-gray-500">Stage</div>
-            <div className="font-medium text-sm">{action.dealStage || 'N/A'}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Stage</div>
+            <div className="font-medium text-sm dark:text-gray-200">{action.dealStage || 'N/A'}</div>
           </div>
           {action.dealHealthScore !== undefined && (
             <div>
-              <div className="text-xs text-gray-500">Health</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Health</div>
               <div className="flex items-center gap-1">
                 <span
                   className={cn(
                     'font-medium text-sm',
                     action.dealHealthScore >= 70
-                      ? 'text-green-600'
+                      ? 'text-green-600 dark:text-green-400'
                       : action.dealHealthScore >= 40
-                      ? 'text-yellow-600'
-                      : 'text-red-600'
+                      ? 'text-yellow-600 dark:text-yellow-400'
+                      : 'text-red-600 dark:text-red-400'
                   )}
                 >
                   {action.dealHealthScore}/100
                 </span>
                 {action.dealHealthScore < 50 && (
-                  <AlertTriangle className="h-3 w-3 text-red-600" />
+                  <AlertTriangle className="h-3 w-3 text-red-600 dark:text-red-400" />
                 )}
               </div>
             </div>
@@ -218,14 +218,14 @@ export function ActionCard({
       {action.aiContext && (
         <div className="mb-3 space-y-1.5">
           {action.aiReasoning && (
-            <div className="text-sm text-gray-600 border-l-2 border-blue-200 pl-2 py-1">
+            <div className="text-sm text-gray-600 dark:text-gray-400 border-l-2 border-blue-200 dark:border-blue-700 pl-2 py-1">
               {action.aiReasoning}
             </div>
           )}
 
           <div className="flex flex-wrap gap-2 items-center">
             {action.aiContext.sentimentTrend && (
-              <div className="flex items-center gap-1 text-xs text-gray-600">
+              <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
                 {getSentimentIcon()}
                 <span className="capitalize">{action.aiContext.sentimentTrend}</span>
               </div>
@@ -273,16 +273,16 @@ export function ActionCard({
       )}
 
       {/* Metadata Footer */}
-      <div className="flex items-center justify-between pt-3 border-t">
+      <div className="flex items-center justify-between pt-3 border-t dark:border-gray-700">
         <div className="flex items-center gap-4 text-xs">
           {action.effortMinutes && (
-            <div className="flex items-center gap-1 text-gray-600">
+            <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
               <Clock className="h-3.5 w-3.5" />
               <span>{action.effortMinutes} min</span>
             </div>
           )}
           {action.revenueImpact > 0 && (
-            <div className="flex items-center gap-1 font-semibold text-green-700">
+            <div className="flex items-center gap-1 font-semibold text-green-700 dark:text-green-400">
               <DollarSign className="h-3.5 w-3.5" />
               <span>{formatCurrency(action.revenueImpact)}</span>
             </div>
@@ -291,15 +291,15 @@ export function ActionCard({
             <div className="flex items-center gap-1">
               <TrendingUp className={cn(
                 'h-3.5 w-3.5',
-                action.closeProbability >= 70 ? 'text-green-600' :
-                action.closeProbability >= 40 ? 'text-yellow-600' :
-                'text-red-600'
+                action.closeProbability >= 70 ? 'text-green-600 dark:text-green-400' :
+                action.closeProbability >= 40 ? 'text-yellow-600 dark:text-yellow-400' :
+                'text-red-600 dark:text-red-400'
               )} />
               <span className={cn(
                 'font-semibold',
-                action.closeProbability >= 70 ? 'text-green-700' :
-                action.closeProbability >= 40 ? 'text-yellow-700' :
-                'text-red-700'
+                action.closeProbability >= 70 ? 'text-green-700 dark:text-green-400' :
+                action.closeProbability >= 40 ? 'text-yellow-700 dark:text-yellow-400' :
+                'text-red-700 dark:text-red-400'
               )}>
                 {action.closeProbability}% close
               </span>

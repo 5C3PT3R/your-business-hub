@@ -41,7 +41,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background flex relative overflow-hidden">
+    <div className="h-screen bg-background flex relative overflow-hidden">
       {/* Dramatic animated gradient background - React Bits style */}
       <div className="fixed inset-0 pointer-events-none">
         {/* Primary gradient mesh - works in both light and dark */}
@@ -62,7 +62,7 @@ export function MainLayout({ children }: MainLayoutProps) {
 
       {!isMobile && <BreezeSidebar />}
       <main className={cn(
-        'flex-1 min-h-screen relative z-10',
+        'flex-1 h-screen overflow-y-auto relative z-10',
         isMobile && 'pb-20' // Add bottom padding for mobile nav
       )}>
         {children}
