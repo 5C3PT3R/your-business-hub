@@ -44,10 +44,13 @@ export default function MetaCallback() {
 
   const handleCallback = async () => {
     console.log('[MetaCallback] Starting callback handler...');
+    console.log('[MetaCallback] Current URL:', window.location.href);
 
-    const code = searchParams.get('code');
-    const error = searchParams.get('error');
-    const errorDescription = searchParams.get('error_description');
+    // Use URLSearchParams directly from window.location to avoid React Router timing issues
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const error = urlParams.get('error');
+    const errorDescription = urlParams.get('error_description');
 
     console.log('[MetaCallback] URL params:', { code: code ? 'present' : 'missing', error, errorDescription });
 
