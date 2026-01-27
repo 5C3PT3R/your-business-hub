@@ -481,14 +481,13 @@ export function BreezeSidebar() {
       path: '/integrations',
       badge: undefined, // TODO: Add integrations needing attention count when available
       subItems: [
-        // Meta integration temporarily disabled - needs Supabase schema setup
-        // {
-        //   id: 'meta-integration',
-        //   label: 'Meta (FB/IG/WA)',
-        //   icon: Users2,
-        //   path: '/integrations/meta',
-        //   badge: { count: 0, variant: 'info' as const, label: 'Soon' },
-        // },
+        {
+          id: 'meta-integration',
+          label: 'Meta (FB/IG/WA)',
+          icon: Users2,
+          path: '/integrations/meta',
+          badge: undefined,
+        },
         {
           id: 'connected',
           label: 'Connected',
