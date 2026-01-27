@@ -27,67 +27,54 @@ export function useLeads() {
   const { toast } = useToast();
 
   const fetchLeads = async () => {
-    console.log('[useLeads] fetchLeads called - user:', !!user, 'workspace:', workspace?.id);
-
     if (!user) {
-      console.log('[useLeads] No user, clearing leads');
       setLoading(false);
       setLeads([]);
       return;
     }
 
     if (!workspace) {
-      // Wait for workspace to load - DON'T clear leads
-      console.log('[useLeads] No workspace yet, waiting...');
-      setLoading(true);
+      // No workspace yet - set loading false to not block UI
+      setLoading(false);
       return;
     }
 
-    console.log('[useLeads] Fetching leads for workspace:', workspace.id);
     setLoading(true);
 
     const { data, error } = await supabase
       .from('leads')
       .select('*')
       .eq('workspace_id', workspace.id)
-      .order('created_at', { ascending: false});
+      .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('[useLeads] Error fetching leads:', error);
       toast({
         title: "Error fetching leads",
         description: error.message,
         variant: "destructive",
       });
     } else {
-      console.log('[useLeads] Successfully fetched', data?.length || 0, 'leads');
-      if (data && data.length > 0) {
-        console.log('[useLeads] First lead:', data[0]);
-      }
       setLeads(data || []);
     }
     setLoading(false);
   };
 
   useEffect(() => {
-    console.log('[useLeads] Effect triggered - user:', !!user, 'workspace:', workspace?.id);
     if (user && workspace?.id) {
       fetchLeads();
     } else if (!user) {
       setLeads([]);
       setLoading(false);
+    } else {
+      // No workspace - don't block loading
+      setLoading(false);
     }
   }, [user, workspace?.id]);
 
   const addLead = async (lead: Omit<Lead, 'id' | 'created_at' | 'workspace_id'>) => {
-    if (!user || !workspace) {
-      console.error('[useLeads] Cannot add lead - user:', !!user, 'workspace:', workspace?.id);
-      return;
-    }
+    if (!user || !workspace) return;
 
-    console.log('[useLeads] Adding lead to workspace:', workspace.id, 'user:', user.id);
     const leadToInsert = { ...lead, user_id: user.id, workspace_id: workspace.id };
-    console.log('[useLeads] Lead data:', leadToInsert);
 
     const { data, error } = await supabase
       .from('leads')
@@ -96,7 +83,6 @@ export function useLeads() {
       .single();
 
     if (error) {
-      console.error('[useLeads] Error adding lead:', error);
       toast({
         title: "Error adding lead",
         description: error.message,
@@ -105,7 +91,6 @@ export function useLeads() {
       return null;
     }
 
-    console.log('[useLeads] Lead added successfully:', data);
     toast({
       title: "Lead added",
       description: `${lead.name} has been added to your leads.`,

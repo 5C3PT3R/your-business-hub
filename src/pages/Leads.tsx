@@ -30,7 +30,10 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Search, Plus, Loader2, Trash2, MoreHorizontal, Undo2, Sparkles, TrendingUp, Users } from 'lucide-react';
+import { Search, Plus, Loader2, Trash2, MoreHorizontal, Undo2, Sparkles, TrendingUp, Users, Swords, Mail } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,8 +68,11 @@ export default function Leads() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
+  const [isGenerating, setIsGenerating] = useState(false);
   const { leads, loading, addLead, updateLead, deleteLead } = useLeads();
   const { workspace } = useWorkspace();
+  const { user } = useAuth();
   const { toast } = useToast();
 
   // Debug logging
@@ -165,6 +171,111 @@ export default function Leads() {
     });
   };
 
+  // Toggle lead selection
+  const toggleLeadSelection = (id: string) => {
+    setSelectedLeads(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // Toggle all leads selection
+  const toggleAllLeads = () => {
+    if (selectedLeads.size === filteredLeads.length) {
+      setSelectedLeads(new Set());
+    } else {
+      setSelectedLeads(new Set(filteredLeads.map(l => l.id)));
+    }
+  };
+
+  // Generate outreach drafts for selected leads
+  const handleGenerateOutreach = async () => {
+    if (!user || !workspace) return;
+
+    const selectedList = leads.filter(l => selectedLeads.has(l.id));
+    if (selectedList.length === 0) return;
+
+    setIsGenerating(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const lead of selectedList) {
+      if (!lead.email) {
+        failCount++;
+        continue;
+      }
+
+      // Generate a simple outreach email template
+      // In production, this would use AI/LLM to generate personalized content
+      const subject = `Quick question for ${lead.name}`;
+      const body = `Hi ${lead.name},
+
+I noticed ${lead.company ? `${lead.company} and` : ''} wanted to reach out briefly.
+
+I'd love to learn more about your current priorities and see if there might be a fit for what we're building.
+
+Would you be open to a quick 15-minute call this week?
+
+Best regards`;
+
+      try {
+        const { error } = await supabase
+          .from('ai_drafts')
+          .insert({
+            lead_id: lead.id,
+            subject: subject,
+            body: body,
+            plain_text: body,
+            persona_used: 'Bishop Outreach',
+            is_ai_draft: true,
+            status: 'PENDING_APPROVAL',
+            user_id: user.id,
+            metadata: {
+              lead_name: lead.name,
+              company: lead.company,
+              target_email: lead.email,
+              confidence: 85,
+              context: `Initial outreach to ${lead.name}${lead.company ? ` at ${lead.company}` : ''}`,
+              source: lead.source || 'Pawn Scout',
+            },
+          });
+
+        if (error) {
+          console.error('Error creating draft:', error);
+          failCount++;
+        } else {
+          successCount++;
+        }
+      } catch (err) {
+        console.error('Error creating draft:', err);
+        failCount++;
+      }
+    }
+
+    setIsGenerating(false);
+    setSelectedLeads(new Set());
+
+    if (successCount > 0) {
+      toast({
+        title: 'Drafts Generated',
+        description: `${successCount} outreach draft${successCount === 1 ? '' : 's'} sent to Command Center for approval.`,
+      });
+    }
+
+    if (failCount > 0) {
+      toast({
+        title: 'Some drafts failed',
+        description: `${failCount} lead${failCount === 1 ? '' : 's'} could not be processed (missing email or error).`,
+        variant: 'destructive',
+      });
+    }
+  };
+
   return (
     <MainLayout>
       <Header
@@ -249,13 +360,30 @@ export default function Leads() {
             </Select>
           </div>
 
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="w-fit gap-2 h-11 px-6 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 hover:from-blue-600 hover:via-purple-600 hover:to-pink-600 text-white font-medium rounded-xl shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-all duration-300 hover:-translate-y-0.5">
-                <Plus className="h-4 w-4" />
-                Add Lead
+          <div className="flex gap-2 flex-wrap">
+            {/* Generate Outreach Button - Shows when leads are selected */}
+            {selectedLeads.size > 0 && (
+              <Button
+                onClick={handleGenerateOutreach}
+                disabled={isGenerating}
+                className="gap-2 h-11 px-6 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-medium rounded-xl shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 transition-all duration-300 hover:-translate-y-0.5"
+              >
+                {isGenerating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Swords className="h-4 w-4" />
+                )}
+                {isGenerating ? 'Generating...' : `Generate Outreach (${selectedLeads.size})`}
               </Button>
-            </DialogTrigger>
+            )}
+
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="w-fit gap-2 h-11 px-6 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 hover:from-blue-600 hover:via-purple-600 hover:to-pink-600 text-white font-medium rounded-xl shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-all duration-300 hover:-translate-y-0.5">
+                  <Plus className="h-4 w-4" />
+                  Add Lead
+                </Button>
+              </DialogTrigger>
             <DialogContent className="bg-card/95 backdrop-blur-2xl border-white/10 shadow-2xl">
               <DialogHeader>
                 <DialogTitle className="text-xl font-semibold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Add New Lead</DialogTitle>
@@ -348,7 +476,8 @@ export default function Leads() {
                 </Button>
               </div>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+          </div>
         </div>
 
         {/* Loading State */}
@@ -367,6 +496,13 @@ export default function Leads() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5 border-b border-white/10">
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={filteredLeads.length > 0 && selectedLeads.size === filteredLeads.length}
+                        onCheckedChange={toggleAllLeads}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </TableHead>
                     <TableHead className="min-w-[120px] text-foreground/80 font-semibold">Name</TableHead>
                     <TableHead className="hidden md:table-cell text-foreground/80 font-semibold">Company</TableHead>
                     <TableHead className="hidden lg:table-cell text-foreground/80 font-semibold">Email</TableHead>
@@ -385,6 +521,12 @@ export default function Leads() {
                       onClick={() => navigate(`/leads/${lead.id}`)}
                       style={{ animationDelay: `${index * 50}ms` }}
                     >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedLeads.has(lead.id)}
+                          onCheckedChange={() => toggleLeadSelection(lead.id)}
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">
                         <span className="group-hover:text-blue-400 transition-colors">{lead.name}</span>
                       </TableCell>
@@ -435,7 +577,7 @@ export default function Leads() {
                   ))}
                   {filteredLeads.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-16">
+                      <TableCell colSpan={9} className="text-center py-16">
                         <div className="flex flex-col items-center gap-4">
                           <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-blue-500/20 via-purple-500/20 to-pink-500/20 flex items-center justify-center">
                             <Users className="h-8 w-8 text-muted-foreground" />

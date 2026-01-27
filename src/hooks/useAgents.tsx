@@ -14,7 +14,10 @@ export function useAgents() {
 
   // Fetch all agents for the current workspace
   const fetchAgents = useCallback(async () => {
-    if (!user || !workspace) return;
+    if (!user || !workspace) {
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     const { data, error } = await supabase
@@ -214,7 +217,7 @@ export function useAgents() {
   };
 
   // Get execution logs for an agent
-  const getExecutionLogs = async (agentId: string): Promise<AgentExecution[]> => {
+  const getExecutionLogs = useCallback(async (agentId: string): Promise<AgentExecution[]> => {
     const { data, error } = await supabase
       .from('agent_executions')
       .select('*')
@@ -232,7 +235,7 @@ export function useAgents() {
     }
 
     return (data as AgentExecution[]) || [];
-  };
+  }, [toast]);
 
   // Fetch template agents
   const fetchTemplates = async (): Promise<Agent[]> => {

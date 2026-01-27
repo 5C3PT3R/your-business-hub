@@ -42,14 +42,8 @@ export function useContacts() {
   const { toast } = useToast();
 
   const fetchContacts = async (page: number = 1) => {
-    if (!user) {
+    if (!user || !workspace) {
       setLoading(false);
-      return;
-    }
-
-    if (!workspace) {
-      // Wait for workspace to load
-      setLoading(true);
       return;
     }
 
@@ -81,10 +75,9 @@ export function useContacts() {
   };
 
   useEffect(() => {
-    console.log('[useContacts] Effect triggered - user:', !!user, 'workspace:', workspace?.id);
     if (user && workspace?.id) {
       fetchContacts();
-    } else if (!user) {
+    } else {
       setContacts([]);
       setLoading(false);
     }

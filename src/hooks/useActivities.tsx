@@ -62,8 +62,11 @@ export function useActivities(dealId?: string) {
   const { toast } = useToast();
 
   const fetchActivities = useCallback(async () => {
-    if (!user || !workspace) return;
-    
+    if (!user || !workspace) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     let query = supabase
       .from('activities')
