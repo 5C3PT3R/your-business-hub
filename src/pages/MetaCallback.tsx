@@ -71,13 +71,14 @@ export default function MetaCallback() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user?.id) {
         userId = session.user.id;
-        // Try to get workspace from database
-        const { data: workspaceData } = await supabase
-          .from('workspaces')
-          .select('id')
-          .eq('owner_id', session.user.id)
-          .single();
-        workspaceId = workspaceData?.id;
+      }
+
+      // Get workspace ID from localStorage (avoids 406 error on workspaces table)
+      if (!workspaceId) {
+        const cachedWorkspaceId = localStorage.getItem('workspace_id');
+        if (cachedWorkspaceId) {
+          workspaceId = cachedWorkspaceId;
+        }
       }
     }
 
