@@ -5,12 +5,13 @@
  * It exchanges the authorization code for an access token and saves the integration.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import {
   exchangeCodeForToken,
   getLongLivedToken,
@@ -23,16 +24,23 @@ import {
 export default function MetaCallback() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user } = useAuth();
-  const { workspace } = useWorkspace();
+  const { user, loading: authLoading } = useAuth();
+  const { workspace, loading: workspaceLoading } = useWorkspace();
   const { toast } = useToast();
+  const hasRun = useRef(false);
 
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [message, setMessage] = useState('Processing Meta authorization...');
 
+  // Wait for auth to load before processing callback
   useEffect(() => {
+    // Don't run if already ran or still loading
+    if (hasRun.current || authLoading || workspaceLoading) return;
+
+    // Mark as run to prevent double execution
+    hasRun.current = true;
     handleCallback();
-  }, []);
+  }, [authLoading, workspaceLoading, user, workspace]);
 
   const handleCallback = async () => {
     const code = searchParams.get('code');
@@ -54,7 +62,26 @@ export default function MetaCallback() {
       return;
     }
 
-    if (!user?.id || !workspace?.id) {
+    // Try to get session directly if hooks haven't loaded
+    let userId = user?.id;
+    let workspaceId = workspace?.id;
+
+    if (!userId || !workspaceId) {
+      // Fallback: get session directly from Supabase
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        userId = session.user.id;
+        // Try to get workspace from database
+        const { data: workspaceData } = await supabase
+          .from('workspaces')
+          .select('id')
+          .eq('owner_id', session.user.id)
+          .single();
+        workspaceId = workspaceData?.id;
+      }
+    }
+
+    if (!userId || !workspaceId) {
       setStatus('error');
       setMessage('User session not found. Please try again.');
       setTimeout(() => navigate('/integrations/meta'), 3000);
@@ -110,7 +137,7 @@ export default function MetaCallback() {
       setMessage('Saving integration...');
 
       // Save integration
-      const integration = await saveMetaIntegration(user.id, workspace.id, {
+      const integration = await saveMetaIntegration(userId, workspaceId, {
         app_id: appId,
         access_token: accessToken,
         token_expires_at: expiresAt,
@@ -128,7 +155,7 @@ export default function MetaCallback() {
       const pages = await getUserPages(accessToken);
 
       if (pages.length > 0) {
-        await saveMetaPages(integration.id, user.id, pages);
+        await saveMetaPages(integration.id, userId, pages);
       }
 
       // Clean up session storage
