@@ -43,12 +43,17 @@ export default function MetaCallback() {
   }, [authLoading, workspaceLoading, user, workspace]);
 
   const handleCallback = async () => {
+    console.log('[MetaCallback] Starting callback handler...');
+
     const code = searchParams.get('code');
     const error = searchParams.get('error');
     const errorDescription = searchParams.get('error_description');
 
+    console.log('[MetaCallback] URL params:', { code: code ? 'present' : 'missing', error, errorDescription });
+
     // Check for errors
     if (error) {
+      console.log('[MetaCallback] OAuth error from Facebook:', error, errorDescription);
       setStatus('error');
       setMessage(errorDescription || 'Authorization was denied.');
       setTimeout(() => navigate('/integrations/meta'), 3000);
@@ -56,6 +61,7 @@ export default function MetaCallback() {
     }
 
     if (!code) {
+      console.log('[MetaCallback] No authorization code in URL');
       setStatus('error');
       setMessage('No authorization code received.');
       setTimeout(() => navigate('/integrations/meta'), 3000);
@@ -66,9 +72,14 @@ export default function MetaCallback() {
     let userId = user?.id;
     let workspaceId = workspace?.id;
 
+    console.log('[MetaCallback] Initial IDs from hooks:', { userId, workspaceId });
+
     if (!userId || !workspaceId) {
+      console.log('[MetaCallback] Falling back to direct session/localStorage...');
       // Fallback: get session directly from Supabase
       const { data: { session } } = await supabase.auth.getSession();
+      console.log('[MetaCallback] Session from Supabase:', session ? 'found' : 'not found');
+
       if (session?.user?.id) {
         userId = session.user.id;
       }
@@ -76,13 +87,17 @@ export default function MetaCallback() {
       // Get workspace ID from localStorage (avoids 406 error on workspaces table)
       if (!workspaceId) {
         const cachedWorkspaceId = localStorage.getItem('workspace_id');
+        console.log('[MetaCallback] Workspace from localStorage:', cachedWorkspaceId);
         if (cachedWorkspaceId) {
           workspaceId = cachedWorkspaceId;
         }
       }
     }
 
+    console.log('[MetaCallback] Final IDs:', { userId, workspaceId });
+
     if (!userId || !workspaceId) {
+      console.log('[MetaCallback] Missing user or workspace ID');
       setStatus('error');
       setMessage('User session not found. Please try again.');
       setTimeout(() => navigate('/integrations/meta'), 3000);
@@ -93,7 +108,10 @@ export default function MetaCallback() {
     const appId = sessionStorage.getItem('meta_app_id');
     const appSecret = sessionStorage.getItem('meta_app_secret');
 
+    console.log('[MetaCallback] Credentials from sessionStorage:', { appId: appId ? 'present' : 'missing', appSecret: appSecret ? 'present' : 'missing' });
+
     if (!appId) {
+      console.log('[MetaCallback] App ID not found in sessionStorage');
       setStatus('error');
       setMessage('App credentials not found. Please try again.');
       setTimeout(() => navigate('/integrations/meta'), 3000);
@@ -101,11 +119,15 @@ export default function MetaCallback() {
     }
 
     try {
+      console.log('[MetaCallback] Step 1: Exchanging authorization code...');
       setMessage('Exchanging authorization code...');
 
       // Exchange code for token
       const redirectUri = `${window.location.origin}/meta/callback`;
+      console.log('[MetaCallback] Redirect URI:', redirectUri);
+
       const tokenData = await exchangeCodeForToken(code, appId, appSecret || '', redirectUri);
+      console.log('[MetaCallback] Token exchange result:', tokenData ? 'success' : 'failed');
 
       if (!tokenData?.access_token) {
         throw new Error('Failed to get access token');
@@ -116,8 +138,10 @@ export default function MetaCallback() {
 
       // Try to get long-lived token if we have the app secret
       if (appSecret) {
+        console.log('[MetaCallback] Step 2: Getting long-lived token...');
         setMessage('Getting long-lived token...');
         const longLivedData = await getLongLivedToken(accessToken, appId, appSecret);
+        console.log('[MetaCallback] Long-lived token result:', longLivedData ? 'success' : 'failed');
 
         if (longLivedData?.access_token) {
           accessToken = longLivedData.access_token;
@@ -126,15 +150,18 @@ export default function MetaCallback() {
         }
       }
 
+      console.log('[MetaCallback] Step 3: Fetching user info...');
       setMessage('Fetching user info...');
 
       // Get user info
       const metaUser = await getMetaUser(accessToken);
+      console.log('[MetaCallback] User info result:', metaUser ? metaUser.name : 'failed');
 
       if (!metaUser) {
         throw new Error('Failed to get user info');
       }
 
+      console.log('[MetaCallback] Step 4: Saving integration...');
       setMessage('Saving integration...');
 
       // Save integration
@@ -145,17 +172,21 @@ export default function MetaCallback() {
         facebook_user_id: metaUser.id,
         facebook_user_name: metaUser.name,
       });
+      console.log('[MetaCallback] Save integration result:', integration ? 'success' : 'failed');
 
       if (!integration) {
         throw new Error('Failed to save integration');
       }
 
+      console.log('[MetaCallback] Step 5: Fetching connected pages...');
       setMessage('Fetching connected pages...');
 
       // Get and save pages
       const pages = await getUserPages(accessToken);
+      console.log('[MetaCallback] Pages found:', pages.length);
 
       if (pages.length > 0) {
+        console.log('[MetaCallback] Saving pages...');
         await saveMetaPages(integration.id, userId, pages);
       }
 
@@ -163,6 +194,7 @@ export default function MetaCallback() {
       sessionStorage.removeItem('meta_app_id');
       sessionStorage.removeItem('meta_app_secret');
 
+      console.log('[MetaCallback] SUCCESS! Connected as:', metaUser.name);
       setStatus('success');
       setMessage(`Connected as ${metaUser.name}! Found ${pages.length} page(s).`);
 
@@ -173,7 +205,7 @@ export default function MetaCallback() {
 
       setTimeout(() => navigate('/integrations/meta'), 2000);
     } catch (error) {
-      console.error('Meta callback error:', error);
+      console.error('[MetaCallback] ERROR:', error);
       setStatus('error');
       setMessage(error instanceof Error ? error.message : 'An error occurred');
 
