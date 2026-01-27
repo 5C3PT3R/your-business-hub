@@ -728,6 +728,7 @@ export async function getAdInsights(
 
 /**
  * Save or update Meta integration
+ * Uses RPC function to bypass PostgREST schema cache issues
  */
 export async function saveMetaIntegration(
   userId: string,
@@ -740,69 +741,61 @@ export async function saveMetaIntegration(
     facebook_user_name: string;
   }
 ): Promise<MetaIntegration | null> {
-  const { data: integration, error } = await supabase
-    .from('meta_integrations')
-    .upsert({
-      user_id: userId,
-      workspace_id: workspaceId,
-      app_id: data.app_id,
-      access_token: data.access_token,
-      token_expires_at: data.token_expires_at?.toISOString(),
-      facebook_user_id: data.facebook_user_id,
-      facebook_user_name: data.facebook_user_name,
-      is_connected: true,
-      last_synced_at: new Date().toISOString(),
-      connection_error: null,
-    }, {
-      onConflict: 'workspace_id',
-    })
-    .select()
-    .single();
+  const { data: integration, error } = await supabase.rpc('save_meta_integration', {
+    p_user_id: userId,
+    p_workspace_id: workspaceId,
+    p_app_id: data.app_id,
+    p_access_token: data.access_token,
+    p_token_expires_at: data.token_expires_at?.toISOString() || null,
+    p_facebook_user_id: data.facebook_user_id,
+    p_facebook_user_name: data.facebook_user_name,
+  });
 
   if (error) {
     console.error('Error saving Meta integration:', error);
     return null;
   }
 
-  return integration as MetaIntegration;
+  // RPC returns array, get first item
+  const result = Array.isArray(integration) ? integration[0] : integration;
+  return result as MetaIntegration;
 }
 
 /**
  * Get Meta integration for workspace
+ * Uses RPC function to bypass PostgREST schema cache issues
  */
 export async function getMetaIntegration(
   workspaceId: string
 ): Promise<MetaIntegration | null> {
-  const { data, error } = await supabase
-    .from('meta_integrations')
-    .select('*')
-    .eq('workspace_id', workspaceId)
-    .single();
+  const { data, error } = await supabase.rpc('get_meta_integration', {
+    p_workspace_id: workspaceId,
+  });
 
   if (error) {
-    if (error.code !== 'PGRST116') { // Not found is ok
-      console.error('Error fetching Meta integration:', error);
-    }
+    console.error('Error fetching Meta integration:', error);
     return null;
   }
 
-  return data as MetaIntegration;
+  // RPC returns array, get first item or null if empty
+  if (!data || (Array.isArray(data) && data.length === 0)) {
+    return null;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  return result as MetaIntegration;
 }
 
 /**
  * Disconnect Meta integration
+ * Uses RPC function to bypass PostgREST schema cache issues
  */
 export async function disconnectMetaIntegration(
   workspaceId: string
 ): Promise<boolean> {
-  const { error } = await supabase
-    .from('meta_integrations')
-    .update({
-      access_token: null,
-      is_connected: false,
-      connection_error: 'Disconnected by user',
-    })
-    .eq('workspace_id', workspaceId);
+  const { error } = await supabase.rpc('disconnect_meta_integration', {
+    p_workspace_id: workspaceId,
+  });
 
   if (error) {
     console.error('Error disconnecting Meta:', error);
@@ -814,6 +807,7 @@ export async function disconnectMetaIntegration(
 
 /**
  * Save connected pages
+ * Uses RPC function to bypass PostgREST schema cache issues
  */
 export async function saveMetaPages(
   integrationId: string,
@@ -827,29 +821,24 @@ export async function saveMetaPages(
     instagram_business_account?: { id: string; username: string };
   }>
 ): Promise<boolean> {
-  const pageRecords = pages.map(page => ({
-    integration_id: integrationId,
-    user_id: userId,
-    page_id: page.id,
-    page_name: page.name,
-    page_access_token: page.access_token,
-    page_category: page.category,
-    page_picture_url: page.picture?.data?.url,
-    instagram_account_id: page.instagram_business_account?.id || null,
-    instagram_username: page.instagram_business_account?.username || null,
-    has_posting_access: true,
-    is_active: true,
-  }));
-
-  const { error } = await supabase
-    .from('meta_pages')
-    .upsert(pageRecords, {
-      onConflict: 'integration_id,page_id',
+  // Save each page using RPC
+  for (const page of pages) {
+    const { error } = await supabase.rpc('save_meta_page', {
+      p_integration_id: integrationId,
+      p_user_id: userId,
+      p_page_id: page.id,
+      p_page_name: page.name,
+      p_page_access_token: page.access_token,
+      p_page_category: page.category || null,
+      p_page_picture_url: page.picture?.data?.url || null,
+      p_instagram_account_id: page.instagram_business_account?.id || null,
+      p_instagram_username: page.instagram_business_account?.username || null,
     });
 
-  if (error) {
-    console.error('Error saving Meta pages:', error);
-    return false;
+    if (error) {
+      console.error('Error saving Meta page:', error);
+      return false;
+    }
   }
 
   return true;
@@ -857,15 +846,14 @@ export async function saveMetaPages(
 
 /**
  * Get connected pages for integration
+ * Uses RPC function to bypass PostgREST schema cache issues
  */
 export async function getMetaPages(
   integrationId: string
 ): Promise<MetaPage[]> {
-  const { data, error } = await supabase
-    .from('meta_pages')
-    .select('*')
-    .eq('integration_id', integrationId)
-    .eq('is_active', true);
+  const { data, error } = await supabase.rpc('get_meta_pages', {
+    p_integration_id: integrationId,
+  });
 
   if (error) {
     console.error('Error fetching Meta pages:', error);
