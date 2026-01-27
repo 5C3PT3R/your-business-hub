@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -173,6 +173,7 @@ function IntegrationCard({
 
 export function SocialIntegrations() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { workspace } = useWorkspace();
   const [connections, setConnections] = useState<SocialConnection[]>([]);
@@ -281,64 +282,9 @@ export function SocialIntegrations() {
       return;
     }
 
-    try {
-      setConnecting(true);
-      setSelectedPlatform(platform);
-
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast({
-          title: 'Authentication required',
-          description: 'Please log in to connect accounts',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-oauth?platform=${platform}`,
-        {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to start OAuth flow');
-      }
-
-      const { authUrl } = await response.json();
-
-      // Open OAuth popup
-      const popup = window.open(
-        authUrl,
-        'Meta OAuth',
-        'width=600,height=700,left=200,top=100'
-      );
-
-      if (!popup) {
-        throw new Error('Failed to open popup. Please allow popups for this site.');
-      }
-
-      // Poll for popup closure
-      const pollTimer = setInterval(() => {
-        if (popup?.closed) {
-          clearInterval(pollTimer);
-          setConnecting(false);
-        }
-      }, 500);
-
-    } catch (error) {
-      console.error('Connection error:', error);
-      toast({
-        title: 'Connection failed',
-        description: error instanceof Error ? error.message : 'Failed to connect. Please try again.',
-        variant: 'destructive',
-      });
-      setConnecting(false);
-    }
+    // Redirect to Meta Integration page for all Meta platforms
+    // (WhatsApp, Messenger, Instagram all use Meta OAuth)
+    navigate('/integrations/meta');
   }
 
   async function handleSelectAccount(account: MetaAccount) {
