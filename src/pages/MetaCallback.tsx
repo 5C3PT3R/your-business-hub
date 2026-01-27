@@ -89,7 +89,8 @@ export default function MetaCallback() {
 
       // Get workspace ID from localStorage (avoids 406 error on workspaces table)
       if (!workspaceId) {
-        const cachedWorkspaceId = localStorage.getItem('workspace_id');
+        // Try the key used by useWorkspace hook
+        const cachedWorkspaceId = localStorage.getItem('current_workspace_id');
         console.log('[MetaCallback] Workspace from localStorage:', cachedWorkspaceId);
         if (cachedWorkspaceId) {
           workspaceId = cachedWorkspaceId;
