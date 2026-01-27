@@ -29,8 +29,11 @@ export function useTasks() {
   const { toast } = useToast();
 
   const fetchTasks = async () => {
-    if (!user || !workspace) return;
-    
+    if (!user || !workspace) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     const { data, error } = await supabase
       .from('tasks')
@@ -51,7 +54,12 @@ export function useTasks() {
   };
 
   useEffect(() => {
-    fetchTasks();
+    if (user && workspace?.id) {
+      fetchTasks();
+    } else {
+      setTasks([]);
+      setLoading(false);
+    }
   }, [user, workspace?.id]);
 
   const addTask = async (task: Omit<Task, 'id' | 'created_at' | 'workspace_id' | 'related_lead_id'> & { related_lead_id?: string | null }) => {

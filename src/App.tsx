@@ -1,20 +1,29 @@
 /**
- * V1 MODE: Single Sales CRM, conversation-first.
- * Other CRM types intentionally disabled until V2.
- * User flow: Landing → Auth → Pipeline → Deal → Conversation
+ * Breeze CRM - Main App Component
+ *
+ * Routing Structure:
+ * - Public routes: Landing, Auth, Demo
+ * - Protected routes: All others (require auth + profile + workspace)
+ * - Onboarding: Special route for new users
  */
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/hooks/useAuth";
-import { WorkspaceProvider, useWorkspace } from "@/hooks/useWorkspace";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthGuard, PublicRoute } from "@/components/AuthGuard";
 import { ThemeProvider } from "@/hooks/useTheme";
+import { AuthProvider } from "@/hooks/useAuth";
+import { WorkspaceProvider } from "@/hooks/useWorkspace";
+import { startKeepAlive } from "@/lib/supabaseKeepAlive";
+
+// Pages
 import Landing from "./pages/Landing";
+import Auth from "./pages/Auth";
 import Demo from "./pages/Demo";
+import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import NextActions from "./pages/NextActions";
 import Inbox from "./pages/Inbox";
@@ -37,274 +46,92 @@ import Companies from "./pages/Companies";
 import CompanyDetail from "./pages/CompanyDetail";
 import Import from "./pages/Import";
 import CommandCenter from "./pages/CommandCenter";
-import Onboarding from "./pages/Onboarding";
 import Subscribe from "./pages/Subscribe";
 import BishopSettings from "./pages/BishopSettings";
+import Pawn from "./pages/Pawn";
+import Rook from "./pages/Rook";
+import MetaIntegration from "./pages/MetaIntegration";
+import MetaCallback from "./pages/MetaCallback";
 import NotFound from "./pages/NotFound";
-import { FeedbackWidget } from "./components/feedback/FeedbackWidget";
-import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
-
-// Protected route that requires authentication and subscription
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading: authLoading, isSubscribed, profile } = useAuth();
-  const { loading: workspaceLoading } = useWorkspace();
-
-  if (authLoading || workspaceLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  // Not logged in -> redirect to auth
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
-
-  // Logged in but not subscribed -> redirect to subscribe page
-  // (Skip this check if profile hasn't loaded yet to avoid flash)
-  if (profile && !isSubscribed) {
-    return <Navigate to="/subscribe" replace />;
-  }
-
-  return <>{children}</>;
-}
 
 function AppRoutes() {
   return (
     <Routes>
       {/* PUBLIC ROUTES - No auth required */}
-      <Route path="/" element={<Landing />} />
-      <Route path="/auth" element={<AuthPage />} />
-      <Route path="/demo" element={<Demo />} />
-      <Route path="/subscribe" element={<SubscribePage />} />
-      <Route
-        path="/onboarding"
-        element={
-          <ProtectedRoute>
-            <Onboarding />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
+      <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
+      <Route path="/demo" element={<PublicRoute><Demo /></PublicRoute>} />
+      <Route path="/subscribe" element={<PublicRoute><Subscribe /></PublicRoute>} />
 
-      {/* PROTECTED ROUTES - Auth required */}
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/next-actions"
-        element={
-          <ProtectedRoute>
-            <NextActions />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/inbox"
-        element={
-          <ProtectedRoute>
-            <Inbox />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/leads"
-        element={
-          <ProtectedRoute>
-            <Leads />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/leads/:id"
-        element={
-          <ProtectedRoute>
-            <LeadProfile />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/contacts"
-        element={
-          <ProtectedRoute>
-            <Contacts />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/contacts/:id"
-        element={
-          <ProtectedRoute>
-            <ContactDetail />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/deals"
-        element={
-          <ProtectedRoute>
-            <Deals />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/deal/:id"
-        element={
-          <ProtectedRoute>
-            <DealDetail />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/forecast"
-        element={
-          <ProtectedRoute>
-            <Forecast />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/agents"
-        element={
-          <ProtectedRoute>
-            <Agents />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/agents/:id"
-        element={
-          <ProtectedRoute>
-            <AgentDetail />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/bishop"
-        element={
-          <ProtectedRoute>
-            <BishopSettings />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/workflows"
-        element={
-          <ProtectedRoute>
-            <Workflows />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/workflows/:id"
-        element={
-          <ProtectedRoute>
-            <WorkflowEditor />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/tasks"
-        element={
-          <ProtectedRoute>
-            <Tasks />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/reports"
-        element={
-          <ProtectedRoute>
-            <Reports />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/analytics"
-        element={
-          <ProtectedRoute>
-            <Analytics />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/companies"
-        element={
-          <ProtectedRoute>
-            <Companies />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/companies/:id"
-        element={
-          <ProtectedRoute>
-            <CompanyDetail />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/settings"
-        element={
-          <ProtectedRoute>
-            <Settings />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/settings/import"
-        element={
-          <ProtectedRoute>
-            <Import />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/command-center"
-        element={
-          <ProtectedRoute>
-            <CommandCenter />
-          </ProtectedRoute>
-        }
-      />
-      {/* Redirect old /approvals route to new /command-center */}
-      <Route path="/approvals" element={<Navigate to="/command-center" replace />} />
-      {/* V1: SelectCRM route disabled - redirect to deals */}
-      <Route path="/select-crm" element={<Navigate to="/deals" replace />} />
+      {/* ONBOARDING - Requires auth but not profile/workspace */}
+      <Route path="/onboarding" element={<AuthGuard><Onboarding /></AuthGuard>} />
+
+      {/* PROTECTED ROUTES - Requires auth + profile + workspace */}
+      <Route path="/dashboard" element={<AuthGuard><Dashboard /></AuthGuard>} />
+      <Route path="/next-actions" element={<AuthGuard><NextActions /></AuthGuard>} />
+      <Route path="/inbox" element={<AuthGuard><Inbox /></AuthGuard>} />
+      <Route path="/leads" element={<AuthGuard><Leads /></AuthGuard>} />
+      <Route path="/leads/:id" element={<AuthGuard><LeadProfile /></AuthGuard>} />
+      <Route path="/contacts" element={<AuthGuard><Contacts /></AuthGuard>} />
+      <Route path="/contacts/:id" element={<AuthGuard><ContactDetail /></AuthGuard>} />
+      <Route path="/deals" element={<AuthGuard><Deals /></AuthGuard>} />
+      <Route path="/deal/:id" element={<AuthGuard><DealDetail /></AuthGuard>} />
+      <Route path="/forecast" element={<AuthGuard><Forecast /></AuthGuard>} />
+      <Route path="/agents" element={<AuthGuard><Agents /></AuthGuard>} />
+      <Route path="/agents/:id" element={<AuthGuard><AgentDetail /></AuthGuard>} />
+      <Route path="/bishop" element={<AuthGuard><BishopSettings /></AuthGuard>} />
+      <Route path="/pawn" element={<AuthGuard><Pawn /></AuthGuard>} />
+      <Route path="/rook" element={<AuthGuard><Rook /></AuthGuard>} />
+      <Route path="/workflows" element={<AuthGuard><Workflows /></AuthGuard>} />
+      <Route path="/workflows/:id" element={<AuthGuard><WorkflowEditor /></AuthGuard>} />
+      <Route path="/tasks" element={<AuthGuard><Tasks /></AuthGuard>} />
+      <Route path="/reports" element={<AuthGuard><Reports /></AuthGuard>} />
+      <Route path="/analytics" element={<AuthGuard><Analytics /></AuthGuard>} />
+      <Route path="/companies" element={<AuthGuard><Companies /></AuthGuard>} />
+      <Route path="/companies/:id" element={<AuthGuard><CompanyDetail /></AuthGuard>} />
+      <Route path="/settings" element={<AuthGuard><Settings /></AuthGuard>} />
+      <Route path="/settings/import" element={<AuthGuard><Import /></AuthGuard>} />
+      <Route path="/command-center" element={<AuthGuard><CommandCenter /></AuthGuard>} />
+
+      {/* INTEGRATIONS */}
+      <Route path="/integrations/meta" element={<AuthGuard><MetaIntegration /></AuthGuard>} />
+      <Route path="/meta/callback" element={<MetaCallback />} />
+
+      {/* REDIRECTS */}
+      <Route path="/approvals" element={<AuthGuard><CommandCenter /></AuthGuard>} />
+      <Route path="/select-crm" element={<AuthGuard><Deals /></AuthGuard>} />
+
+      {/* 404 */}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }
 
-// Lazy import to avoid circular deps
-import Auth from "./pages/Auth";
-const AuthPage = Auth;
-const SubscribePage = Subscribe;
+const App = () => {
+  // Start keep-alive to prevent Supabase cold starts
+  useEffect(() => {
+    startKeepAlive();
+  }, []);
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider>
-      <AuthProvider>
-        <WorkspaceProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <AppRoutes />
-            </BrowserRouter>
-          </TooltipProvider>
-        </WorkspaceProvider>
-      </AuthProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
-);
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <AuthProvider>
+          <WorkspaceProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <AppRoutes />
+              </BrowserRouter>
+            </TooltipProvider>
+          </WorkspaceProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

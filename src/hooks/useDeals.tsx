@@ -40,29 +40,60 @@ export function useDeals() {
   const { toast } = useToast();
 
   const fetchDeals = async () => {
-    if (!user || !workspace) return;
-    
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('deals')
-      .select('*')
-      .eq('workspace_id', workspace.id)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      toast({
-        title: "Error fetching deals",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      setDeals((data as Deal[]) || []);
+    if (!user || !workspace) {
+      setLoading(false);
+      return;
     }
+
+    const QUERY_TIMEOUT = 8000; // 8 seconds
+    setLoading(true);
+    console.log('[useDeals] Fetching deals for workspace:', workspace.id);
+
+    try {
+      // Race against timeout
+      const queryPromise = supabase
+        .from('deals')
+        .select('*')
+        .eq('workspace_id', workspace.id)
+        .order('created_at', { ascending: false });
+
+      const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) => {
+        setTimeout(() => resolve({ data: null, error: { message: 'Query timeout' } }), QUERY_TIMEOUT);
+      });
+
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+
+      if (error) {
+        console.warn('[useDeals] Query error/timeout:', error.message);
+        // Don't show toast for timeout - just log it and show empty state
+        if (error.message !== 'Query timeout') {
+          toast({
+            title: "Error fetching deals",
+            description: error.message,
+            variant: "destructive",
+          });
+        }
+        // Keep existing deals or show empty
+        setDeals(prev => prev.length > 0 ? prev : []);
+      } else {
+        console.log('[useDeals] Fetched', data?.length || 0, 'deals');
+        setDeals((data as Deal[]) || []);
+      }
+    } catch (err) {
+      console.error('[useDeals] Fetch error:', err);
+      setDeals([]);
+    }
+
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchDeals();
+    if (user && workspace?.id) {
+      fetchDeals();
+    } else {
+      setDeals([]);
+      setLoading(false);
+    }
   }, [user, workspace?.id]);
 
   const addDeal = async (deal: Omit<Deal, 'id' | 'created_at' | 'workspace_id'>) => {

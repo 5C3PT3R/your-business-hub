@@ -34,97 +34,158 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const fetchWorkspaces = async () => {
     if (!user) {
-      console.log('[useWorkspace] No user, clearing workspaces');
       setWorkspaces([]);
       setWorkspace(null);
       setLoading(false);
       return;
     }
 
+    setLoading(true);
     console.log('[useWorkspace] Fetching workspaces for user:', user.id);
 
+    const QUERY_TIMEOUT = 8000; // 8 seconds
+
     try {
-      // Fetch workspaces where user is owner or member
-      const { data: memberWorkspaces, error: memberError } = await supabase
-        .from('workspace_members')
-        .select('workspace_id')
-        .eq('user_id', user.id);
+      // Try to get from localStorage first for immediate display
+      const cachedWorkspaceData = localStorage.getItem('cached_workspace_data');
+      const savedWorkspaceId = localStorage.getItem('current_workspace_id');
+      let cachedWorkspace: Workspace | null = null;
 
-      if (memberError) {
-        console.error('[useWorkspace] Error fetching workspace members:', memberError);
-        throw memberError;
+      if (cachedWorkspaceData) {
+        try {
+          const parsed = JSON.parse(cachedWorkspaceData);
+          // Verify it belongs to current user
+          if (parsed.owner_id === user.id) {
+            cachedWorkspace = {
+              ...parsed,
+              industry_type: parsed.industry_type as IndustryType,
+              config: (parsed.config || {}) as Record<string, unknown>,
+            };
+            console.log('[useWorkspace] Found cached workspace:', cachedWorkspace.id);
+          }
+        } catch {
+          console.warn('[useWorkspace] Failed to parse cached workspace');
+        }
       }
 
-      console.log('[useWorkspace] Member workspaces:', memberWorkspaces);
+      // Race the DB query against a timeout
+      const queryPromise = supabase
+        .from('workspaces')
+        .select('*')
+        .eq('owner_id', user.id);
 
-      const memberWorkspaceIds = memberWorkspaces?.map(m => m.workspace_id) || [];
+      const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) => {
+        setTimeout(() => resolve({ data: null, error: { message: 'Query timeout' } }), QUERY_TIMEOUT);
+      });
 
-      let allWorkspaces = [];
-      
-      if (memberWorkspaceIds.length > 0) {
-        const { data, error } = await supabase
-          .from('workspaces')
-          .select('*')
-          .or(`owner_id.eq.${user.id},id.in.(${memberWorkspaceIds.join(',')})`);
-        
-        if (error) throw error;
-        allWorkspaces = data || [];
-      } else {
-        const { data, error } = await supabase
-          .from('workspaces')
-          .select('*')
-          .eq('owner_id', user.id);
-        
-        if (error) throw error;
-        allWorkspaces = data || [];
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+
+      if (error) {
+        console.warn('[useWorkspace] Query error/timeout:', error.message);
+
+        // Fallback to cached workspace if DB failed
+        if (cachedWorkspace) {
+          console.log('[useWorkspace] Using cached workspace due to DB error');
+          setWorkspaces([cachedWorkspace]);
+          setWorkspace(cachedWorkspace);
+          setLoading(false);
+          return;
+        }
+
+        // No cache available - check if we have a workspace ID at least
+        if (savedWorkspaceId) {
+          console.log('[useWorkspace] Creating minimal workspace from localStorage ID');
+          const minimalWorkspace: Workspace = {
+            id: savedWorkspaceId,
+            name: 'Your Workspace',
+            industry_type: 'sales' as IndustryType,
+            owner_id: user.id,
+            config: {},
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          setWorkspaces([minimalWorkspace]);
+          setWorkspace(minimalWorkspace);
+          setLoading(false);
+          return;
+        }
+
+        // No fallback available
+        setWorkspaces([]);
+        setWorkspace(null);
+        setLoading(false);
+        return;
       }
 
-      const typedWorkspaces = (allWorkspaces || []).map(w => ({
+      console.log('[useWorkspace] Query returned:', data?.length || 0, 'workspaces');
+
+      const typedWorkspaces = (data || []).map(w => ({
         ...w,
         industry_type: w.industry_type as IndustryType,
         config: (w.config || {}) as Record<string, unknown>,
       }));
 
       setWorkspaces(typedWorkspaces);
-      console.log('[useWorkspace] Found workspaces:', typedWorkspaces.length);
 
-      // Auto-select first workspace or from localStorage
-      const savedWorkspaceId = localStorage.getItem('current_workspace_id');
+      // Auto-select workspace from localStorage or first available
       const savedWorkspace = typedWorkspaces.find(w => w.id === savedWorkspaceId);
 
       if (savedWorkspace) {
-        console.log('[useWorkspace] Setting saved workspace:', savedWorkspaceId);
         setWorkspace(savedWorkspace);
+        // Update cache with fresh data
+        localStorage.setItem('cached_workspace_data', JSON.stringify(savedWorkspace));
       } else if (typedWorkspaces.length > 0) {
-        console.log('[useWorkspace] Setting first workspace:', typedWorkspaces[0].id);
         setWorkspace(typedWorkspaces[0]);
         localStorage.setItem('current_workspace_id', typedWorkspaces[0].id);
+        localStorage.setItem('cached_workspace_data', JSON.stringify(typedWorkspaces[0]));
       } else {
-        console.log('[useWorkspace] No workspaces found');
+        setWorkspace(null);
       }
-    } catch (error) {
-      console.error('[useWorkspace] Error fetching workspaces:', error);
-    } finally {
-      console.log('[useWorkspace] Fetch complete, setting loading to false');
+
+      setLoading(false);
+    } catch (err) {
+      console.error('[useWorkspace] Fetch error:', err);
+
+      // Try localStorage fallback on any error
+      const cachedWorkspaceData = localStorage.getItem('cached_workspace_data');
+      if (cachedWorkspaceData) {
+        try {
+          const parsed = JSON.parse(cachedWorkspaceData);
+          if (parsed.owner_id === user.id) {
+            const cachedWorkspace = {
+              ...parsed,
+              industry_type: parsed.industry_type as IndustryType,
+              config: (parsed.config || {}) as Record<string, unknown>,
+            };
+            console.log('[useWorkspace] Using cached workspace after error');
+            setWorkspaces([cachedWorkspace]);
+            setWorkspace(cachedWorkspace);
+            setLoading(false);
+            return;
+          }
+        } catch {
+          // Ignore parse errors
+        }
+      }
+
+      setWorkspaces([]);
+      setWorkspace(null);
       setLoading(false);
     }
   };
 
+  // Fetch when user changes
   useEffect(() => {
     fetchWorkspaces();
-  }, [user]);
+  }, [user?.id]);
 
   const createWorkspace = async (name: string, industryType: IndustryType) => {
     if (!user) {
-      console.error('[useWorkspace] Cannot create workspace: No user');
       return { error: new Error('User not authenticated') };
     }
 
-    console.log('[useWorkspace] Creating workspace:', { name, industryType, userId: user.id });
-
     try {
       const template = getIndustryTemplate(industryType);
-      console.log('[useWorkspace] Using template:', template);
 
       const { data: newWorkspace, error: workspaceError } = await supabase
         .from('workspaces')
@@ -143,28 +204,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (workspaceError) {
-        console.error('[useWorkspace] Workspace creation error:', workspaceError);
         throw workspaceError;
       }
 
-      console.log('[useWorkspace] Workspace created:', newWorkspace.id);
-
       // Add owner as a member
-      console.log('[useWorkspace] Adding owner as member');
-      const { error: memberError } = await supabase
+      await supabase
         .from('workspace_members')
         .insert({
           workspace_id: newWorkspace.id,
           user_id: user.id,
           role: 'owner',
         });
-
-      if (memberError) {
-        console.error('[useWorkspace] Member creation error:', memberError);
-        throw memberError;
-      }
-
-      console.log('[useWorkspace] Member added successfully');
 
       const typedWorkspace = {
         ...newWorkspace,

@@ -47,6 +47,11 @@ import {
   LogOut,
   UserPlus,
   Crown,
+  Sparkles,
+  Swords,
+  ScanSearch,
+  Castle,
+  LayoutDashboard,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useActionStats } from '@/hooks/useNextActions';
@@ -333,6 +338,62 @@ export function BreezeSidebar() {
       ],
     },
     {
+      id: 'bishop',
+      label: 'Bishop (Sales)',
+      icon: Swords,
+      path: '/bishop',
+      badge: { count: 0, variant: 'success', label: '●' }, // Green dot = Live
+      subItems: [
+        {
+          id: 'bishop-settings',
+          label: 'Control Panel',
+          icon: Settings,
+          path: '/bishop',
+        },
+        {
+          id: 'bishop-leads',
+          label: 'Leads Queue',
+          icon: Users,
+          path: '/leads',
+        },
+      ],
+    },
+    {
+      id: 'pawn',
+      label: 'Pawn (Data)',
+      icon: ScanSearch,
+      path: '/pawn',
+      badge: { count: 0, variant: 'info', label: 'Offline' },
+      subItems: [],
+    },
+    {
+      id: 'rook',
+      label: 'Rook (Hiring)',
+      icon: Castle,
+      path: '/rook',
+      badge: { count: 0, variant: 'success', label: '●' }, // Green dot = Live
+      subItems: [
+        {
+          id: 'rook-dashboard',
+          label: 'Screening Hub',
+          icon: LayoutDashboard,
+          path: '/rook',
+        },
+        {
+          id: 'rook-jobs',
+          label: 'Open Positions',
+          icon: Briefcase,
+          path: '/rook?tab=jobs',
+        },
+        {
+          id: 'rook-shortlist',
+          label: 'Shortlist',
+          icon: Star,
+          path: '/rook?tab=shortlist',
+        },
+      ],
+    },
+    {
       id: 'workflows',
       label: 'Workflows',
       icon: Workflow,
@@ -421,25 +482,25 @@ export function BreezeSidebar() {
       badge: undefined, // TODO: Add integrations needing attention count when available
       subItems: [
         {
+          id: 'meta-integration',
+          label: 'Meta (FB/IG/WA)',
+          icon: Users2, // Using Users2 as placeholder, will look like social
+          path: '/integrations/meta',
+          badge: undefined,
+        },
+        {
           id: 'connected',
           label: 'Connected',
           icon: CheckCircle2,
           path: '/integrations?filter=connected',
-          badge: undefined, // TODO: Add connected integrations count when available
+          badge: undefined,
         },
         {
           id: 'available',
           label: 'Available',
           icon: Plus,
           path: '/integrations?filter=available',
-          badge: undefined, // Shows all available integrations
-        },
-        {
-          id: 'needs-attention',
-          label: 'Needs Attention',
-          icon: AlertTriangle,
-          path: '/integrations?filter=attention',
-          badge: undefined, // TODO: Add integrations needing attention count when available
+          badge: undefined,
         },
         {
           id: 'api-access',
@@ -542,26 +603,26 @@ export function BreezeSidebar() {
       {/* Noise texture for premium feel (dark mode only) */}
       <div className="absolute inset-0 opacity-0 dark:opacity-[0.015] pointer-events-none" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.8\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E")' }} />
 
-      {/* Logo */}
-      <div className="relative z-10 h-16 flex items-center justify-between px-4 border-b border-gray-100 dark:border-white/[0.05]">
+      {/* Logo - Royal Industrial Theme */}
+      <div className="relative z-10 h-16 flex items-center justify-between px-4 border-b border-gray-100 dark:border-amber-500/10">
         {!isCollapsed && (
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
-                <span className="text-xl">🌬️</span>
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 flex items-center justify-center shadow-lg shadow-amber-500/30">
+                <Crown className="h-5 w-5 text-white" />
               </div>
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 blur-lg opacity-40 dark:opacity-40 hidden dark:block" />
+              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 blur-lg opacity-30 hidden dark:block" />
             </div>
             <div>
-              <span className="font-bold text-gray-900 dark:text-white tracking-tight text-lg">Breeze</span>
-              <p className="text-[10px] text-gray-500 dark:text-white/40 font-medium tracking-wide">SALES CRM</p>
+              <span className="font-bold text-gray-900 dark:text-white tracking-tight text-lg font-serif">REGENT</span>
+              <p className="text-[10px] text-amber-600 dark:text-amber-500/70 font-medium tracking-widest">SALES ENGINE</p>
             </div>
           </div>
         )}
         {isCollapsed && (
           <div className="relative mx-auto">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
-              <span className="text-xl">🌬️</span>
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 flex items-center justify-center shadow-lg shadow-amber-500/30">
+              <Crown className="h-5 w-5 text-white" />
             </div>
           </div>
         )}
@@ -595,10 +656,10 @@ export function BreezeSidebar() {
           {/* Divider */}
           <div className="my-3 border-t border-border" />
 
-          {/* Automation & Intelligence */}
+          {/* Active Units - Royal Industrial */}
           {!isCollapsed && (
-            <div className="px-2 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Automation
+            <div className="px-2 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">
+              Active Units
             </div>
           )}
 

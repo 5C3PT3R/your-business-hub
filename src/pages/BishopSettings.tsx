@@ -18,6 +18,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Slider } from '@/components/ui/slider';
 import {
   Select,
   SelectContent,
@@ -39,6 +40,9 @@ import {
   Ban,
   Plus,
   X,
+  Swords,
+  Zap,
+  Brain,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -48,6 +52,8 @@ interface BishopSettings {
   user_id: string;
   linkedin_profile_url: string;
   voice_tone: string;
+  tone_aggression: number; // 0-100: Diplomatic to Hostile
+  brevity: number; // 0-100: Verbose to Brief
   signature_html: string;
   golden_samples: string[];
   blacklisted_domains: string[];
@@ -64,6 +70,8 @@ const DEFAULT_SETTINGS: BishopSettings = {
   user_id: '',
   linkedin_profile_url: '',
   voice_tone: 'Professional',
+  tone_aggression: 30, // Slightly diplomatic by default
+  brevity: 50, // Balanced by default
   signature_html: '',
   golden_samples: [],
   blacklisted_domains: [],
@@ -210,9 +218,9 @@ export default function BishopSettings() {
   return (
     <MainLayout>
       <Header
-        title="Bishop Settings"
-        subtitle="Configure your AI outbound agent"
-        icon={<Sparkles className="h-6 w-6" />}
+        title="The Bishop"
+        subtitle="Deal Continuity & Revenue Recovery Engine"
+        icon={<Swords className="h-6 w-6 text-amber-500" />}
       />
 
       <div className="p-4 md:p-6 max-w-4xl">
@@ -409,105 +417,177 @@ export default function BishopSettings() {
             </Card>
           </TabsContent>
 
-          {/* IDENTITY TAB */}
+          {/* IDENTITY TAB - Two Column Layout */}
           <TabsContent value="identity">
-            <Card>
-              <CardHeader>
-                <CardTitle>Identity Calibration</CardTitle>
-                <CardDescription>
-                  Configure Bishop's voice to match your personal style
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* LinkedIn URL */}
-                <div className="space-y-2">
-                  <Label htmlFor="linkedin">LinkedIn Profile URL</Label>
-                  <Input
-                    id="linkedin"
-                    placeholder="https://linkedin.com/in/yourprofile"
-                    value={settings.linkedin_profile_url}
-                    onChange={(e) =>
-                      setSettings({ ...settings, linkedin_profile_url: e.target.value })
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Bishop will analyze your profile to match your communication style
-                  </p>
-                </div>
-
-                {/* Voice Tone */}
-                <div className="space-y-2">
-                  <Label>Voice Tone</Label>
-                  <Select
-                    value={settings.voice_tone}
-                    onValueChange={(value) => setSettings({ ...settings, voice_tone: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select tone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {VOICE_TONES.map((tone) => (
-                        <SelectItem key={tone.value} value={tone.value}>
-                          <div>
-                            <span className="font-medium">{tone.label}</span>
-                            <span className="text-muted-foreground ml-2">- {tone.description}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Golden Samples */}
-                <div className="space-y-2">
-                  <Label>Golden Samples ({settings.golden_samples.length}/5)</Label>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Paste your best emails for Bishop to learn your style
-                  </p>
-
-                  {settings.golden_samples.map((sample, index) => (
-                    <div key={index} className="relative p-3 rounded-lg border bg-muted/50">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="absolute top-2 right-2 h-6 w-6 p-0"
-                        onClick={() => removeSample(index)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                      <p className="text-sm pr-8 line-clamp-3">{sample}</p>
-                    </div>
-                  ))}
-
-                  {settings.golden_samples.length < 5 && (
-                    <div className="space-y-2">
-                      <Textarea
-                        placeholder="Paste a successful email you've written..."
-                        value={newSample}
-                        onChange={(e) => setNewSample(e.target.value)}
-                        rows={4}
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Left Panel: Neural Calibration */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="h-5 w-5 text-amber-500" />
+                    Neural Calibration
+                  </CardTitle>
+                  <CardDescription>
+                    Configure Bishop's communication style
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* LinkedIn URL with Analyze Button */}
+                  <div className="space-y-2">
+                    <Label htmlFor="linkedin">LinkedIn Source</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="linkedin"
+                        placeholder="https://linkedin.com/in/yourprofile"
+                        value={settings.linkedin_profile_url}
+                        onChange={(e) =>
+                          setSettings({ ...settings, linkedin_profile_url: e.target.value })
+                        }
+                        className="flex-1"
                       />
-                      <Button variant="outline" size="sm" onClick={addSample} disabled={!newSample}>
-                        <Plus className="h-4 w-4 mr-1" />
-                        Add Sample
+                      <Button variant="outline" size="sm" disabled={!settings.linkedin_profile_url}>
+                        <Zap className="h-4 w-4 mr-1" />
+                        Analyze
                       </Button>
                     </div>
-                  )}
-                </div>
+                    <p className="text-xs text-muted-foreground">
+                      Extracts your communication style from your profile
+                    </p>
+                  </div>
 
-                {/* Signature */}
-                <div className="space-y-2">
-                  <Label htmlFor="signature">Email Signature (HTML)</Label>
-                  <Textarea
-                    id="signature"
-                    placeholder="<p>Best,<br>Your Name</p>"
-                    value={settings.signature_html}
-                    onChange={(e) => setSettings({ ...settings, signature_html: e.target.value })}
-                    rows={4}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+                  {/* Tone Aggression Slider */}
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <Label>Tone Aggression</Label>
+                      <span className="text-sm text-muted-foreground font-mono">
+                        {settings.tone_aggression}%
+                      </span>
+                    </div>
+                    <Slider
+                      value={[settings.tone_aggression]}
+                      onValueChange={(value) =>
+                        setSettings({ ...settings, tone_aggression: value[0] })
+                      }
+                      max={100}
+                      step={5}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Diplomatic</span>
+                      <span>Hostile</span>
+                    </div>
+                  </div>
+
+                  {/* Brevity Slider */}
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <Label>Brevity</Label>
+                      <span className="text-sm text-muted-foreground font-mono">
+                        {settings.brevity}%
+                      </span>
+                    </div>
+                    <Slider
+                      value={[settings.brevity]}
+                      onValueChange={(value) =>
+                        setSettings({ ...settings, brevity: value[0] })
+                      }
+                      max={100}
+                      step={5}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Verbose</span>
+                      <span>Brief</span>
+                    </div>
+                  </div>
+
+                  {/* Signature */}
+                  <div className="space-y-2">
+                    <Label htmlFor="signature">Email Signature</Label>
+                    <Textarea
+                      id="signature"
+                      placeholder="<p>Best,<br>Your Name</p>"
+                      value={settings.signature_html}
+                      onChange={(e) => setSettings({ ...settings, signature_html: e.target.value })}
+                      rows={3}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Right Panel: Golden Samples */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-amber-500" />
+                    Golden Samples
+                  </CardTitle>
+                  <CardDescription>
+                    Paste 3 emails you sent that got a reply
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Show existing samples or empty slots */}
+                  {[0, 1, 2].map((index) => {
+                    const sample = settings.golden_samples[index];
+                    return (
+                      <div key={index} className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">
+                          Sample {index + 1} {sample ? '(saved)' : '(empty)'}
+                        </Label>
+                        {sample ? (
+                          <div className="relative p-3 rounded-lg border bg-muted/50">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="absolute top-2 right-2 h-6 w-6 p-0"
+                              onClick={() => removeSample(index)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                            <p className="text-sm pr-8 line-clamp-4 font-mono">{sample}</p>
+                          </div>
+                        ) : (
+                          <Textarea
+                            placeholder={`Paste successful email #${index + 1}...`}
+                            value={index === settings.golden_samples.length ? newSample : ''}
+                            onChange={(e) => {
+                              if (index === settings.golden_samples.length) {
+                                setNewSample(e.target.value);
+                              }
+                            }}
+                            rows={4}
+                            className="font-mono text-sm"
+                            disabled={index !== settings.golden_samples.length}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Add Sample Button */}
+                  {settings.golden_samples.length < 3 && newSample && (
+                    <Button variant="outline" onClick={addSample} className="w-full">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Sample {settings.golden_samples.length + 1}
+                    </Button>
+                  )}
+
+                  {/* Train Model Button */}
+                  <Button
+                    variant="default"
+                    className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700"
+                    disabled={settings.golden_samples.length < 2}
+                  >
+                    <Brain className="h-4 w-4 mr-2" />
+                    {settings.golden_samples.length < 2
+                      ? `Need ${2 - settings.golden_samples.length} more sample(s)`
+                      : 'Train Model'}
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           {/* BLACKLIST TAB */}

@@ -47,55 +47,17 @@ import {
 } from '@/components/ui/table';
 import { useAgents } from '@/hooks/useAgents';
 import { AgentConfigSheet } from '@/components/agents/AgentConfigSheet';
-import { Agent, AgentConfig, getAgentTypeLabel, getAgentTypeDescription } from '@/types/agents';
+import { Agent, AgentExecution, AgentConfig, getAgentTypeLabel, getAgentTypeDescription } from '@/types/agents';
 import { cn } from '@/lib/utils';
-
-// Mock execution history
-const mockExecutions = [
-  {
-    id: '1',
-    started_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-    completed_at: new Date(Date.now() - 1000 * 60 * 28).toISOString(),
-    status: 'completed',
-    actions_taken: 3,
-    trigger: 'new_lead',
-    summary: 'Qualified lead and sent welcome email',
-  },
-  {
-    id: '2',
-    started_at: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
-    completed_at: new Date(Date.now() - 1000 * 60 * 118).toISOString(),
-    status: 'completed',
-    actions_taken: 2,
-    trigger: 'email_received',
-    summary: 'Analyzed email sentiment, created follow-up task',
-  },
-  {
-    id: '3',
-    started_at: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
-    completed_at: new Date(Date.now() - 1000 * 60 * 179).toISOString(),
-    status: 'failed',
-    actions_taken: 0,
-    trigger: 'deal_stage_changed',
-    summary: 'Failed: Missing contact email',
-  },
-  {
-    id: '4',
-    started_at: new Date(Date.now() - 1000 * 60 * 300).toISOString(),
-    completed_at: new Date(Date.now() - 1000 * 60 * 298).toISOString(),
-    status: 'completed',
-    actions_taken: 5,
-    trigger: 'new_lead',
-    summary: 'Qualified lead, enriched data, assigned owner',
-  },
-];
 
 export default function AgentDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { agents, loading, toggleAgentStatus, updateAgent, deleteAgent } = useAgents();
+  const { agents, loading, toggleAgentStatus, updateAgent, deleteAgent, executeAgent, getExecutionLogs, fetchAgents } = useAgents();
 
   const [agent, setAgent] = useState<Agent | null>(null);
+  const [executions, setExecutions] = useState<AgentExecution[]>([]);
+  const [loadingExecutions, setLoadingExecutions] = useState(false);
   const [showConfigSheet, setShowConfigSheet] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
@@ -108,12 +70,33 @@ export default function AgentDetail() {
     }
   }, [agents, loading, id]);
 
+  // Fetch execution logs when agent is loaded
+  useEffect(() => {
+    const fetchExecutions = async () => {
+      if (!agent?.id) return;
+      setLoadingExecutions(true);
+      const logs = await getExecutionLogs(agent.id);
+      setExecutions(logs);
+      setLoadingExecutions(false);
+    };
+    fetchExecutions();
+  }, [agent?.id, getExecutionLogs]);
+
   // Handle run agent manually
   const handleRunAgent = async () => {
     if (!agent) return;
     setIsRunning(true);
-    // Simulate running
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Execute the agent
+    const execution = await executeAgent(agent.id);
+
+    if (execution) {
+      // Add the new execution to the top of the list
+      setExecutions(prev => [execution, ...prev]);
+      // Refresh agents list to get updated stats
+      await fetchAgents();
+    }
+
     setIsRunning(false);
   };
 
@@ -192,9 +175,10 @@ export default function AgentDetail() {
   }
 
   const config = agent.config as AgentConfig;
-  const successRate = 75; // Mock
-  const totalRuns = mockExecutions.length;
-  const successfulRuns = mockExecutions.filter((e) => e.status === 'completed').length;
+  const totalRuns = agent.total_executions || 0;
+  const successfulRuns = agent.successful_executions || 0;
+  const successRate = totalRuns > 0 ? Math.round((successfulRuns / totalRuns) * 100) : 0;
+  const totalActions = executions.reduce((sum, e) => sum + (e.actions_executed || 0), 0);
 
   return (
     <MainLayout>
@@ -292,9 +276,7 @@ export default function AgentDetail() {
                 <Zap className="h-4 w-4" />
                 <span className="text-sm">Actions Taken</span>
               </div>
-              <p className="text-2xl font-bold mt-1">
-                {mockExecutions.reduce((sum, e) => sum + e.actions_taken, 0)}
-              </p>
+              <p className="text-2xl font-bold mt-1">{totalActions}</p>
             </CardContent>
           </Card>
           <Card>
@@ -358,48 +340,78 @@ export default function AgentDetail() {
             <CardDescription>Recent agent runs and their outcomes</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Trigger</TableHead>
-                  <TableHead>Summary</TableHead>
-                  <TableHead>Actions</TableHead>
-                  <TableHead>Time</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {mockExecutions.map((execution) => (
-                  <TableRow key={execution.id}>
-                    <TableCell>
-                      {execution.status === 'completed' ? (
-                        <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Completed
-                        </Badge>
-                      ) : (
-                        <Badge variant="destructive">
-                          <XCircle className="h-3 w-3 mr-1" />
-                          Failed
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm capitalize">
-                        {execution.trigger.replace(/_/g, ' ')}
-                      </span>
-                    </TableCell>
-                    <TableCell className="max-w-[300px]">
-                      <p className="text-sm truncate">{execution.summary}</p>
-                    </TableCell>
-                    <TableCell>{execution.actions_taken}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatRelativeTime(execution.started_at)}
-                    </TableCell>
+            {loadingExecutions ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : executions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                <Activity className="h-8 w-8 mb-2" />
+                <p className="text-sm">No executions yet</p>
+                <p className="text-xs">Run the agent to see execution history</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Trigger</TableHead>
+                    <TableHead>Summary</TableHead>
+                    <TableHead>Actions</TableHead>
+                    <TableHead>Time</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {executions.map((execution) => (
+                    <TableRow key={execution.id}>
+                      <TableCell>
+                        {execution.status === 'completed' ? (
+                          <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Completed
+                          </Badge>
+                        ) : execution.status === 'running' ? (
+                          <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            Running
+                          </Badge>
+                        ) : execution.status === 'cancelled' ? (
+                          <Badge variant="secondary">
+                            <XCircle className="h-3 w-3 mr-1" />
+                            Cancelled
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive">
+                            <XCircle className="h-3 w-3 mr-1" />
+                            Failed
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm capitalize">
+                          {execution.trigger_type.replace(/_/g, ' ')}
+                        </span>
+                      </TableCell>
+                      <TableCell className="max-w-[300px]">
+                        <p className="text-sm truncate">
+                          {execution.error_message
+                            ? `Error: ${execution.error_message}`
+                            : execution.actions_executed > 0
+                            ? `Executed ${execution.actions_executed} action${execution.actions_executed === 1 ? '' : 's'}`
+                            : execution.status === 'running'
+                            ? 'Processing...'
+                            : 'No actions taken'}
+                        </p>
+                      </TableCell>
+                      <TableCell>{execution.actions_executed || 0}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatRelativeTime(execution.started_at)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
 
