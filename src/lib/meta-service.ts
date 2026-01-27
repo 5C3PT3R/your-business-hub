@@ -21,37 +21,31 @@ const META_API_VERSION = 'v18.0';
 const META_GRAPH_URL = `https://graph.facebook.com/${META_API_VERSION}`;
 
 // OAuth Scopes for different features
+// NOTE: Most scopes require App Review for production
+// In development mode, only basic scopes work without review
 export const META_SCOPES = {
-  // Core
-  basic: ['public_profile', 'email'],
+  // Core - always available
+  basic: ['public_profile'],
 
-  // Pages & Instagram
+  // Pages - minimal scopes for development
   pages: [
     'pages_show_list',
     'pages_read_engagement',
-    'pages_manage_posts',
-    'pages_manage_metadata',
-    'instagram_basic',
-    'instagram_content_publish',
-    'instagram_manage_comments',
   ],
 
-  // Lead Ads
+  // Lead Ads - requires App Review
   leads: [
     'leads_retrieval',
-    'pages_manage_ads',
-    'pages_read_user_content',
   ],
 
-  // WhatsApp
+  // WhatsApp - requires App Review
   whatsapp: [
     'whatsapp_business_management',
     'whatsapp_business_messaging',
   ],
 
-  // Ads Manager
+  // Ads Manager - requires App Review
   ads: [
-    'ads_management',
     'ads_read',
     'business_management',
   ],
