@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/card';
@@ -64,11 +64,29 @@ import { getChannelInfo } from '@/lib/knight-channel-service';
 
 export default function Knight() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const { workspace } = useWorkspace();
   const isMobile = useIsMobile();
 
-  const [activeTab, setActiveTab] = useState<string>('tickets');
+  // Read tab from URL params
+  const tabParam = searchParams.get('tab') || 'tickets';
+  const [activeTab, setActiveTab] = useState<string>(tabParam);
+
+  // Sync tab state with URL
+  useEffect(() => {
+    const tab = searchParams.get('tab') || 'tickets';
+    setActiveTab(tab);
+  }, [searchParams]);
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    if (tab === 'tickets') {
+      setSearchParams({});
+    } else {
+      setSearchParams({ tab });
+    }
+  };
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<TicketDetail | null>(null);
   const [stats, setStats] = useState<KnightStats | null>(null);
@@ -313,7 +331,7 @@ export default function Knight() {
 
       {/* Main Content */}
       <div className="p-4 md:p-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList className="mb-4">
             <TabsTrigger value="tickets">
               <MessageSquare className="h-4 w-4 mr-2" />
