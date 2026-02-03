@@ -52,6 +52,7 @@ import {
   ScanSearch,
   Castle,
   LayoutDashboard,
+  Shield,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useActionStats } from '@/hooks/useNextActions';
@@ -390,6 +391,33 @@ export function BreezeSidebar() {
           label: 'Shortlist',
           icon: Star,
           path: '/rook?tab=shortlist',
+        },
+      ],
+    },
+    {
+      id: 'knight',
+      label: 'Knight (Support)',
+      icon: Shield,
+      path: '/knight',
+      badge: { count: 0, variant: 'success', label: '●' }, // Green dot = Live
+      subItems: [
+        {
+          id: 'knight-tickets',
+          label: 'Tickets',
+          icon: MessageSquare,
+          path: '/knight',
+        },
+        {
+          id: 'knight-activity',
+          label: 'Activity',
+          icon: Zap,
+          path: '/knight?tab=activity',
+        },
+        {
+          id: 'knight-settings',
+          label: 'Settings',
+          icon: Settings,
+          path: '/knight?tab=settings',
         },
       ],
     },

@@ -50,6 +50,7 @@ import Subscribe from "./pages/Subscribe";
 import BishopSettings from "./pages/BishopSettings";
 import Pawn from "./pages/Pawn";
 import Rook from "./pages/Rook";
+import Knight from "./pages/Knight";
 import MetaIntegration from "./pages/MetaIntegration";
 import MetaCallback from "./pages/MetaCallback";
 import NotFound from "./pages/NotFound";
@@ -84,6 +85,7 @@ function AppRoutes() {
       <Route path="/bishop" element={<AuthGuard><BishopSettings /></AuthGuard>} />
       <Route path="/pawn" element={<AuthGuard><Pawn /></AuthGuard>} />
       <Route path="/rook" element={<AuthGuard><Rook /></AuthGuard>} />
+      <Route path="/knight" element={<AuthGuard><Knight /></AuthGuard>} />
       <Route path="/workflows" element={<AuthGuard><Workflows /></AuthGuard>} />
       <Route path="/workflows/:id" element={<AuthGuard><WorkflowEditor /></AuthGuard>} />
       <Route path="/tasks" element={<AuthGuard><Tasks /></AuthGuard>} />
