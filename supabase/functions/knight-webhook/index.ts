@@ -42,16 +42,35 @@ interface WhatsAppPayload {
   workspace_id?: string;
 }
 
+const VERIFY_TOKEN = 'knight_whatsapp_verify_2024';
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  try {
-    const url = new URL(req.url);
-    const pathParts = url.pathname.split('/').filter(Boolean);
-    const channel = pathParts[pathParts.length - 1]; // social, outlook, whatsapp
+  const url = new URL(req.url);
+  const pathParts = url.pathname.split('/').filter(Boolean);
+  const channel = pathParts[pathParts.length - 1]; // social, outlook, whatsapp, whatsapp-meta
 
+  // Handle Meta WhatsApp webhook verification (GET request)
+  if (req.method === 'GET' && (channel === 'whatsapp-meta' || channel === 'whatsapp')) {
+    const mode = url.searchParams.get('hub.mode');
+    const token = url.searchParams.get('hub.verify_token');
+    const challenge = url.searchParams.get('hub.challenge');
+
+    console.log('[Knight] Meta webhook verification:', { mode, token, challenge });
+
+    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+      console.log('[Knight] Webhook verified successfully');
+      return new Response(challenge, { status: 200, headers: corsHeaders });
+    } else {
+      console.log('[Knight] Webhook verification failed');
+      return new Response('Forbidden', { status: 403, headers: corsHeaders });
+    }
+  }
+
+  try {
     // Get workspace ID from header or body
     let workspaceId = req.headers.get('x-workspace-id');
 
@@ -68,6 +87,9 @@ serve(async (req) => {
         break;
       case 'whatsapp':
         result = await handleWhatsAppWebhook(req, supabase, workspaceId);
+        break;
+      case 'whatsapp-meta':
+        result = await handleMetaWhatsAppWebhook(req, supabase, workspaceId);
         break;
       default:
         // Try to parse as generic webhook
@@ -392,6 +414,208 @@ async function handleWhatsAppWebhook(req: Request, supabase: any, workspaceId: s
     escalated,
     twiml,
   };
+}
+
+// ============================================
+// MODULE B: Meta WhatsApp Business API
+// ============================================
+async function handleMetaWhatsAppWebhook(req: Request, supabase: any, workspaceId: string | null) {
+  const payload = await req.json();
+
+  console.log('[Knight] Meta WhatsApp webhook:', JSON.stringify(payload, null, 2));
+
+  // Meta sends webhooks in this structure
+  const entry = payload.entry?.[0];
+  const changes = entry?.changes?.[0];
+  const value = changes?.value;
+
+  if (!value) {
+    return { success: true, message: 'No message data' };
+  }
+
+  // Handle incoming messages
+  const messages = value.messages;
+  if (!messages || messages.length === 0) {
+    // Could be a status update, not a message
+    const statuses = value.statuses;
+    if (statuses) {
+      console.log('[Knight] Message status update:', statuses);
+      return { success: true, message: 'Status update received' };
+    }
+    return { success: true, message: 'No messages' };
+  }
+
+  const contacts = value.contacts || [];
+  const metadata = value.metadata;
+
+  // Get workspace from meta integration
+  if (!workspaceId && metadata?.phone_number_id) {
+    const { data: integration } = await supabase
+      .from('meta_integrations')
+      .select('workspace_id')
+      .eq('facebook_user_id', metadata.phone_number_id)
+      .single();
+
+    if (integration) {
+      workspaceId = integration.workspace_id;
+    }
+  }
+
+  // Fallback: get first workspace (for testing)
+  if (!workspaceId) {
+    const { data: workspace } = await supabase
+      .from('workspaces')
+      .select('id')
+      .limit(1)
+      .single();
+    workspaceId = workspace?.id;
+  }
+
+  if (!workspaceId) {
+    console.error('[Knight] No workspace found for Meta WhatsApp webhook');
+    return { success: false, error: 'No workspace configured' };
+  }
+
+  const results = [];
+
+  for (const message of messages) {
+    const phoneNumber = message.from;
+    const messageText = message.text?.body || message.caption || '[Media message]';
+    const messageType = message.type; // text, image, audio, video, document, etc.
+    const contact = contacts.find((c: any) => c.wa_id === phoneNumber);
+    const customerName = contact?.profile?.name || 'WhatsApp User';
+
+    console.log('[Knight] Processing message from:', phoneNumber, messageText);
+
+    // Check for existing ticket
+    const { data: existingTicket } = await supabase
+      .from('tickets')
+      .select('id')
+      .eq('workspace_id', workspaceId)
+      .eq('source_handle', phoneNumber)
+      .eq('source_channel', 'whatsapp')
+      .in('status', ['open', 'pending_user'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    // Analyze sentiment
+    const sentiment = await analyzeSentiment(messageText);
+    const priority = sentiment.score <= 3 ? 'critical' : sentiment.score <= 5 ? 'medium' : 'low';
+
+    let ticketId: string;
+    let conversationHistory: any[] = [];
+
+    if (existingTicket) {
+      ticketId = existingTicket.id;
+
+      // Get history
+      const { data: msgs } = await supabase
+        .from('ticket_messages')
+        .select('sender_type, content')
+        .eq('ticket_id', ticketId)
+        .order('created_at', { ascending: true });
+
+      conversationHistory = (msgs || []).map((m: any) => ({
+        role: m.sender_type === 'user' ? 'user' : 'knight',
+        content: m.content,
+      }));
+
+      // Add new message
+      await supabase.rpc('add_knight_message', {
+        p_ticket_id: ticketId,
+        p_sender_type: 'user',
+        p_content: messageText,
+        p_metadata: { customer_name: customerName, message_type: messageType, wa_message_id: message.id },
+      });
+
+      // Update sentiment
+      await supabase
+        .from('tickets')
+        .update({ sentiment_score: sentiment.score, priority, updated_at: new Date().toISOString() })
+        .eq('id', ticketId);
+    } else {
+      // Create new ticket
+      const { data: ticket, error } = await supabase.rpc('create_knight_ticket', {
+        p_workspace_id: workspaceId,
+        p_source_channel: 'whatsapp',
+        p_source_handle: phoneNumber,
+        p_content: messageText,
+        p_sentiment_score: sentiment.score,
+        p_priority: priority,
+        p_metadata: { customer_name: customerName, message_type: messageType, wa_message_id: message.id },
+      });
+
+      if (error) {
+        console.error('[Knight] Create ticket error:', error);
+        continue;
+      }
+      ticketId = ticket.id;
+    }
+
+    // Search knowledge base
+    const knowledge = await searchKnowledgeBase(supabase, workspaceId, messageText);
+
+    // Generate response
+    const response = await generateResponse(messageText, knowledge, sentiment, 'whatsapp', conversationHistory);
+
+    // Save Knight's response
+    await supabase.rpc('add_knight_message', {
+      p_ticket_id: ticketId,
+      p_sender_type: 'knight',
+      p_content: response.message,
+      p_metadata: { tone: response.tone, confidence: response.confidence },
+    });
+
+    // Send reply via Meta WhatsApp API
+    if (metadata?.phone_number_id) {
+      await sendMetaWhatsAppReply(metadata.phone_number_id, phoneNumber, response.message);
+    }
+
+    results.push({
+      ticket_id: ticketId,
+      from: phoneNumber,
+      sentiment,
+      response: response.message,
+    });
+  }
+
+  return { success: true, processed: results.length, results };
+}
+
+// Send reply via Meta WhatsApp Cloud API
+async function sendMetaWhatsAppReply(phoneNumberId: string, to: string, message: string) {
+  const META_ACCESS_TOKEN = Deno.env.get('META_ACCESS_TOKEN');
+
+  if (!META_ACCESS_TOKEN) {
+    console.error('[Knight] META_ACCESS_TOKEN not set');
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${META_ACCESS_TOKEN}`,
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: to,
+          type: 'text',
+          text: { body: message },
+        }),
+      }
+    );
+
+    const data = await response.json();
+    console.log('[Knight] WhatsApp reply sent:', data);
+  } catch (error) {
+    console.error('[Knight] Failed to send WhatsApp reply:', error);
+  }
 }
 
 // ============================================
