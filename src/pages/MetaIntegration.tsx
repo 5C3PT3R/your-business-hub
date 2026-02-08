@@ -70,8 +70,11 @@ import {
   saveMetaIntegration,
   disconnectMetaIntegration,
   getMetaPages,
+  getMetaWhatsAppAccounts,
+  syncWhatsAppAccounts,
   MetaIntegration,
   MetaPage,
+  MetaWhatsAppAccount,
 } from '@/lib/meta-service';
 
 // Environment variables (should be in .env)
@@ -85,6 +88,7 @@ export default function MetaIntegrationPage() {
   // State
   const [integration, setIntegration] = useState<MetaIntegration | null>(null);
   const [pages, setPages] = useState<MetaPage[]>([]);
+  const [whatsappAccounts, setWhatsappAccounts] = useState<MetaWhatsAppAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -113,8 +117,13 @@ export default function MetaIntegrationPage() {
       setIntegration(data);
 
       if (data?.id) {
-        const pagesData = await getMetaPages(data.id);
+        // Load pages and WhatsApp accounts in parallel
+        const [pagesData, whatsappData] = await Promise.all([
+          getMetaPages(data.id),
+          getMetaWhatsAppAccounts(data.id),
+        ]);
         setPages(pagesData);
+        setWhatsappAccounts(whatsappData);
       }
     } catch (error) {
       console.error('Error loading integration:', error);
@@ -153,6 +162,7 @@ export default function MetaIntegrationPage() {
     if (success) {
       setIntegration(null);
       setPages([]);
+      setWhatsappAccounts([]);
       toast({
         title: 'Disconnected',
         description: 'Meta integration has been disconnected.',
@@ -168,15 +178,45 @@ export default function MetaIntegrationPage() {
 
   // Handle sync
   const handleSync = async () => {
+    if (!integration?.id || !user?.id || !integration.access_token) {
+      toast({
+        title: 'Sync Failed',
+        description: 'Missing integration data. Please reconnect.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSyncing(true);
-    // TODO: Implement full sync of pages, forms, etc.
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    await loadIntegration();
-    setIsSyncing(false);
-    toast({
-      title: 'Sync Complete',
-      description: 'All Meta data has been refreshed.',
-    });
+    try {
+      // Sync WhatsApp accounts from Meta API
+      const syncedWhatsApp = await syncWhatsAppAccounts(
+        integration.id,
+        user.id,
+        integration.access_token
+      );
+
+      if (syncedWhatsApp.length > 0) {
+        setWhatsappAccounts(syncedWhatsApp);
+      }
+
+      // Reload all data
+      await loadIntegration();
+
+      toast({
+        title: 'Sync Complete',
+        description: `Synced ${pages.length} pages and ${syncedWhatsApp.length} WhatsApp accounts.`,
+      });
+    } catch (error) {
+      console.error('Sync error:', error);
+      toast({
+        title: 'Sync Failed',
+        description: 'Failed to sync Meta data. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   // Toggle feature selection
@@ -479,17 +519,89 @@ export default function MetaIntegrationPage() {
             <TabsContent value="whatsapp">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">WhatsApp Business</CardTitle>
-                  <CardDescription>
-                    Send messages to leads via WhatsApp Business API
-                  </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base">WhatsApp Business</CardTitle>
+                      <CardDescription>
+                        Send messages to leads via WhatsApp Business API
+                      </CardDescription>
+                    </div>
+                    {whatsappAccounts.length > 0 && (
+                      <Badge className="bg-emerald-500">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Connected
+                      </Badge>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-8 text-muted-foreground">
-                    <MessageCircle className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                    <p>WhatsApp not configured</p>
-                    <p className="text-sm">Connect a WhatsApp Business account to enable messaging</p>
-                  </div>
+                  {whatsappAccounts.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <MessageCircle className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                      <p>WhatsApp not configured</p>
+                      <p className="text-sm mb-4">Click Sync to fetch your WhatsApp Business accounts</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSync}
+                        disabled={isSyncing}
+                      >
+                        {isSyncing ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                        )}
+                        Sync WhatsApp Accounts
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {whatsappAccounts.map(account => (
+                        <div
+                          key={account.id}
+                          className="flex items-center justify-between p-4 border rounded-lg"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                              <Phone className="h-5 w-5 text-green-500" />
+                            </div>
+                            <div>
+                              <p className="font-medium">{account.verified_name || account.waba_name || 'WhatsApp Account'}</p>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <span>{account.display_phone_number}</span>
+                                {account.quality_rating && (
+                                  <>
+                                    <span>•</span>
+                                    <Badge
+                                      variant="secondary"
+                                      className={cn(
+                                        'text-xs',
+                                        account.quality_rating === 'GREEN' && 'bg-green-500/10 text-green-600',
+                                        account.quality_rating === 'YELLOW' && 'bg-yellow-500/10 text-yellow-600',
+                                        account.quality_rating === 'RED' && 'bg-red-500/10 text-red-600'
+                                      )}
+                                    >
+                                      {account.quality_rating}
+                                    </Badge>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {account.messaging_limit && (
+                              <Badge variant="secondary" className="text-xs">
+                                {account.messaging_limit.replace('TIER_', '')} msgs/day
+                              </Badge>
+                            )}
+                            <Badge variant="secondary" className="text-xs bg-green-500/10 text-green-600">
+                              Active
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

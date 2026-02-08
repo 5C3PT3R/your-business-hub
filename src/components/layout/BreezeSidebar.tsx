@@ -408,6 +408,12 @@ export function BreezeSidebar() {
           path: '/knight',
         },
         {
+          id: 'knight-dashboard',
+          label: 'Dashboard',
+          icon: Sparkles,
+          path: '/knight/dashboard',
+        },
+        {
           id: 'knight-activity',
           label: 'Activity',
           icon: Zap,

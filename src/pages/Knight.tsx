@@ -41,6 +41,8 @@ import {
   Filter,
   MoreVertical,
   ExternalLink,
+  Sparkles,
+  User,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
@@ -55,12 +57,17 @@ import {
   getKnightConfig,
   updateKnightConfig,
   subscribeToTickets,
+  subscribeToMessages,
+  BUSINESS_TYPES,
   type Ticket,
   type TicketDetail,
+  type TicketMessage,
   type KnightStats,
   type KnightConfig,
 } from '@/lib/knight-ticket-service';
 import { getChannelInfo } from '@/lib/knight-channel-service';
+import { getMetaIntegration, getMetaWhatsAppAccounts, sendWhatsAppText } from '@/lib/meta-service';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Knight() {
   const navigate = useNavigate();
@@ -94,6 +101,8 @@ export default function Knight() {
   const [loading, setLoading] = useState(true);
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
+  const [guideMode, setGuideMode] = useState(false);
+  const [guiding, setGuiding] = useState(false);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -123,6 +132,27 @@ export default function Knight() {
       };
     }
   }, [workspace?.id]);
+
+  // Subscribe to real-time messages for the selected ticket
+  useEffect(() => {
+    if (!selectedTicket?.ticket.id) return;
+
+    const channel = subscribeToMessages(selectedTicket.ticket.id, (newMessage: TicketMessage) => {
+      setSelectedTicket((prev) => {
+        if (!prev || prev.ticket.id !== newMessage.ticket_id) return prev;
+        // Avoid duplicates
+        if (prev.messages.some((m) => m.id === newMessage.id)) return prev;
+        return {
+          ...prev,
+          messages: [...prev.messages, newMessage],
+        };
+      });
+    });
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [selectedTicket?.ticket.id]);
 
   const loadData = async () => {
     if (!workspace?.id) return;
@@ -161,18 +191,86 @@ export default function Knight() {
   };
 
   const handleSendReply = async () => {
-    if (!selectedTicket || !replyText.trim()) return;
+    if (!selectedTicket || !replyText.trim() || !workspace?.id) return;
     setSending(true);
     try {
-      await addMessage(selectedTicket.ticket.id, 'human_agent', replyText.trim());
+      const messageText = replyText.trim();
+      await addMessage(selectedTicket.ticket.id, 'human_agent', messageText);
       setReplyText('');
+
+      // Send via WhatsApp if the ticket is from WhatsApp
+      if (selectedTicket.ticket.source_channel === 'whatsapp') {
+        try {
+          const integration = await getMetaIntegration(workspace.id);
+          if (integration?.id && integration?.access_token) {
+            const whatsappAccounts = await getMetaWhatsAppAccounts(integration.id);
+            const activeAccount = whatsappAccounts.find((a) => a.is_active && a.phone_number_id);
+            if (activeAccount?.phone_number_id) {
+              await sendWhatsAppText(
+                activeAccount.phone_number_id,
+                integration.access_token,
+                selectedTicket.ticket.source_handle,
+                messageText
+              );
+            } else {
+              console.warn('[Knight] No active WhatsApp account with phone_number_id found');
+            }
+          }
+        } catch (waError) {
+          console.error('[Knight] Failed to send WhatsApp message:', waError);
+          toast({ title: 'Saved reply but failed to deliver via WhatsApp', variant: 'destructive' });
+        }
+      }
+
       toast({ title: 'Reply sent' });
+      // Re-fetch detail only if real-time subscription didn't already add it
       const detail = await getTicketDetail(selectedTicket.ticket.id);
       setSelectedTicket(detail);
     } catch (error) {
       toast({ title: 'Failed to send reply', variant: 'destructive' });
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleGuideKnight = async () => {
+    if (!selectedTicket || !replyText.trim() || !workspace?.id) return;
+    setGuiding(true);
+    try {
+      const instruction = replyText.trim();
+      const { data, error } = await supabase.functions.invoke('knight-webhook', {
+        body: {
+          action: 'guide',
+          ticket_id: selectedTicket.ticket.id,
+          instruction,
+          workspace_id: workspace.id,
+        },
+      });
+
+      if (error) {
+        console.error('[Knight] Guide error:', error);
+        toast({ title: 'Failed to guide Knight', description: error.message, variant: 'destructive' });
+        return;
+      }
+
+      setReplyText('');
+
+      if (data?.whatsapp_sent) {
+        toast({ title: 'Knight sent guided response', description: 'Delivered via WhatsApp' });
+      } else if (data?.whatsapp_error) {
+        toast({ title: 'Response saved but WhatsApp failed', description: data.whatsapp_error, variant: 'destructive' });
+      } else {
+        toast({ title: 'Knight sent guided response' });
+      }
+
+      // Refresh ticket detail
+      const detail = await getTicketDetail(selectedTicket.ticket.id);
+      setSelectedTicket(detail);
+    } catch (error: any) {
+      console.error('[Knight] Guide error:', error);
+      toast({ title: 'Failed to guide Knight', variant: 'destructive' });
+    } finally {
+      setGuiding(false);
     }
   };
 
@@ -550,13 +648,15 @@ export default function Knight() {
                         >
                           <div className="flex items-center gap-2 mb-1">
                             {msg.sender_type === 'knight' && (
-                              <Bot className="h-3 w-3 text-primary" />
+                              msg.metadata?.guided
+                                ? <Sparkles className="h-3 w-3 text-primary" />
+                                : <Bot className="h-3 w-3 text-primary" />
                             )}
                             <span className="text-xs font-medium capitalize">
                               {msg.sender_type === 'knight'
-                                ? 'The Knight'
+                                ? (msg.metadata?.guided ? `${config?.agent_name || 'Knight'} (guided)` : config?.agent_name || 'Knight')
                                 : msg.sender_type === 'human_agent'
-                                ? 'Agent'
+                                ? 'You'
                                 : 'Customer'}
                             </span>
                             <span className="text-xs text-muted-foreground">
@@ -570,20 +670,74 @@ export default function Knight() {
                   </div>
 
                   {/* Reply Input */}
-                  <div className="p-4 border-t">
-                    <div className="flex gap-2">
-                      <Textarea
-                        placeholder="Type your reply..."
-                        value={replyText}
-                        onChange={(e) => setReplyText(e.target.value)}
-                        className="min-h-[80px]"
-                      />
+                  <div className="p-4 border-t space-y-3">
+                    {/* Mode Toggle */}
+                    <div className="flex items-center gap-1 p-1 rounded-lg bg-muted/50 w-fit">
+                      <button
+                        onClick={() => setGuideMode(false)}
+                        className={cn(
+                          'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                          !guideMode
+                            ? 'bg-background shadow-sm text-foreground'
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        <User className="h-3 w-3" />
+                        Reply Directly
+                      </button>
+                      <button
+                        onClick={() => setGuideMode(true)}
+                        className={cn(
+                          'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                          guideMode
+                            ? 'bg-primary/10 shadow-sm text-primary border border-primary/20'
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        Guide Knight
+                      </button>
                     </div>
-                    <div className="flex justify-end mt-2">
-                      <Button onClick={handleSendReply} disabled={!replyText.trim() || sending}>
-                        <Send className="h-4 w-4 mr-2" />
-                        {sending ? 'Sending...' : 'Send Reply'}
-                      </Button>
+
+                    {guideMode && (
+                      <div className="flex items-start gap-2 p-2 rounded-md bg-primary/5 border border-primary/10">
+                        <Sparkles className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                        <p className="text-xs text-muted-foreground">
+                          Tell Knight what to do. It will craft a natural response and send it to the customer.
+                          <br />
+                          <span className="text-muted-foreground/70">
+                            e.g. "Give them a full refund and apologize for the delay" or "Offer 10% discount on next order"
+                          </span>
+                        </p>
+                      </div>
+                    )}
+
+                    <Textarea
+                      placeholder={
+                        guideMode
+                          ? 'Tell Knight what to say... e.g. "Offer a refund and apologize"'
+                          : 'Type your reply...'
+                      }
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      className="min-h-[80px]"
+                    />
+                    <div className="flex justify-end">
+                      {guideMode ? (
+                        <Button
+                          onClick={handleGuideKnight}
+                          disabled={!replyText.trim() || guiding}
+                          className="bg-primary/90 hover:bg-primary"
+                        >
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          {guiding ? 'Knight is typing...' : 'Send via Knight'}
+                        </Button>
+                      ) : (
+                        <Button onClick={handleSendReply} disabled={!replyText.trim() || sending}>
+                          <Send className="h-4 w-4 mr-2" />
+                          {sending ? 'Sending...' : 'Send Reply'}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </Card>
@@ -648,8 +802,75 @@ export default function Knight() {
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-4">
+            {/* Business Identity */}
             <Card variant="glass" className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Knight Configuration</h3>
+              <h3 className="text-lg font-semibold mb-1">Business Identity</h3>
+              <p className="text-sm text-muted-foreground mb-5">
+                Tell Knight what your business does so it can have real, relevant conversations
+              </p>
+
+              <div className="space-y-5">
+                {/* Agent Name */}
+                <div className="p-4 rounded-lg bg-muted/30">
+                  <Label className="text-base font-medium">Agent Name</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    What should the AI introduce itself as? Customers will see this name.
+                  </p>
+                  <Input
+                    placeholder="e.g. Sarah, Alex, Support"
+                    value={config?.agent_name || ''}
+                    onChange={(e) => handleConfigUpdate({ agent_name: e.target.value })}
+                    className="max-w-xs"
+                  />
+                </div>
+
+                {/* Business Type */}
+                <div className="p-4 rounded-lg bg-muted/30">
+                  <Label className="text-base font-medium">Business Type</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    This shapes how Knight talks — a food delivery agent sounds different from a SaaS agent
+                  </p>
+                  <Select
+                    value={config?.business_type || 'general'}
+                    onValueChange={(value) => handleConfigUpdate({ business_type: value })}
+                  >
+                    <SelectTrigger className="max-w-xs">
+                      <SelectValue placeholder="Select business type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BUSINESS_TYPES.map((bt) => (
+                        <SelectItem key={bt.value} value={bt.value}>
+                          <div className="flex flex-col">
+                            <span>{bt.label}</span>
+                            <span className="text-xs text-muted-foreground">{bt.example}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Business Description */}
+                <div className="p-4 rounded-lg bg-muted/30">
+                  <Label className="text-base font-medium">Business Description</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Describe what you do, your products/services, and anything Knight should know
+                  </p>
+                  <Textarea
+                    placeholder="e.g. We're a cloud kitchen delivering North Indian and Chinese food in Bangalore. Our top items are butter chicken biryani and hakka noodles. Delivery takes 30-45 mins. We accept UPI, cards, and COD."
+                    value={config?.business_description || ''}
+                    onChange={(e) =>
+                      handleConfigUpdate({ business_description: e.target.value })
+                    }
+                    className="min-h-[100px]"
+                  />
+                </div>
+              </div>
+            </Card>
+
+            {/* General Settings */}
+            <Card variant="glass" className="p-6">
+              <h3 className="text-lg font-semibold mb-4">General Settings</h3>
 
               <div className="space-y-6">
                 {/* Master Toggle */}

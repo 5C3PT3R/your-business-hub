@@ -862,3 +862,111 @@ export async function getMetaPages(
 
   return (data || []) as MetaPage[];
 }
+
+/**
+ * Save WhatsApp Business Account
+ * Uses RPC function to bypass PostgREST schema cache issues
+ */
+export async function saveMetaWhatsAppAccount(
+  integrationId: string,
+  userId: string,
+  data: {
+    waba_id: string;
+    waba_name?: string;
+    phone_number_id?: string;
+    display_phone_number?: string;
+    verified_name?: string;
+    quality_rating?: string;
+    messaging_limit?: string;
+  }
+): Promise<MetaWhatsAppAccount | null> {
+  const { data: account, error } = await supabase.rpc('save_meta_whatsapp_account', {
+    p_integration_id: integrationId,
+    p_user_id: userId,
+    p_waba_id: data.waba_id,
+    p_waba_name: data.waba_name || null,
+    p_phone_number_id: data.phone_number_id || null,
+    p_display_phone_number: data.display_phone_number || null,
+    p_verified_name: data.verified_name || null,
+    p_quality_rating: data.quality_rating || null,
+    p_messaging_limit: data.messaging_limit || null,
+  });
+
+  if (error) {
+    console.error('Error saving WhatsApp account:', error);
+    return null;
+  }
+
+  const result = Array.isArray(account) ? account[0] : account;
+  return result as MetaWhatsAppAccount;
+}
+
+/**
+ * Get WhatsApp Business Accounts for integration
+ * Uses RPC function to bypass PostgREST schema cache issues
+ */
+export async function getMetaWhatsAppAccounts(
+  integrationId: string
+): Promise<MetaWhatsAppAccount[]> {
+  const { data, error } = await supabase.rpc('get_meta_whatsapp_accounts', {
+    p_integration_id: integrationId,
+  });
+
+  if (error) {
+    console.error('Error fetching WhatsApp accounts:', error);
+    return [];
+  }
+
+  return (data || []) as MetaWhatsAppAccount[];
+}
+
+/**
+ * Sync WhatsApp Business Accounts from Meta API
+ */
+export async function syncWhatsAppAccounts(
+  integrationId: string,
+  userId: string,
+  accessToken: string
+): Promise<MetaWhatsAppAccount[]> {
+  try {
+    // Get user's businesses
+    const businessesResponse = await fetch(
+      `${META_GRAPH_URL}/me/businesses?fields=id,name,owned_whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number,verified_name,quality_rating}}&access_token=${accessToken}`
+    );
+
+    if (!businessesResponse.ok) {
+      const error = await businessesResponse.json();
+      console.error('Error fetching businesses:', error);
+      return [];
+    }
+
+    const businessesData = await businessesResponse.json();
+    const savedAccounts: MetaWhatsAppAccount[] = [];
+
+    // Loop through businesses and their WhatsApp accounts
+    for (const business of businessesData.data || []) {
+      for (const waba of business.owned_whatsapp_business_accounts?.data || []) {
+        // Get the first phone number
+        const phone = waba.phone_numbers?.data?.[0];
+
+        const saved = await saveMetaWhatsAppAccount(integrationId, userId, {
+          waba_id: waba.id,
+          waba_name: waba.name,
+          phone_number_id: phone?.id,
+          display_phone_number: phone?.display_phone_number,
+          verified_name: phone?.verified_name,
+          quality_rating: phone?.quality_rating,
+        });
+
+        if (saved) {
+          savedAccounts.push(saved);
+        }
+      }
+    }
+
+    return savedAccounts;
+  } catch (error) {
+    console.error('Error syncing WhatsApp accounts:', error);
+    return [];
+  }
+}

@@ -7,7 +7,15 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || Deno.env.get('SBASE_URL');
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SBASE_SERVICE_ROLE_KEY');
-const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+
+// Knight config cache (per-request)
+interface KnightBizConfig {
+  business_type: string;
+  business_description: string;
+  agent_name: string;
+  persona_prompt: string;
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -78,22 +86,32 @@ serve(async (req) => {
 
     let result;
 
-    switch (channel) {
-      case 'social':
-        result = await handleSocialWebhook(req, supabase, workspaceId);
-        break;
-      case 'outlook':
-        result = await handleOutlookWebhook(req, supabase, workspaceId);
-        break;
-      case 'whatsapp':
-        result = await handleWhatsAppWebhook(req, supabase, workspaceId);
-        break;
-      case 'whatsapp-meta':
-        result = await handleMetaWhatsAppWebhook(req, supabase, workspaceId);
-        break;
-      default:
-        // Try to parse as generic webhook
-        result = await handleGenericWebhook(req, supabase, workspaceId);
+    // Check for direct action calls (e.g. from the dashboard)
+    let actionBody: any = null;
+    try {
+      actionBody = await req.clone().json();
+    } catch { /* not JSON */ }
+
+    if (actionBody?.action === 'guide') {
+      result = await handleGuideRequest(actionBody, supabase);
+    } else {
+      switch (channel) {
+        case 'social':
+          result = await handleSocialWebhook(req, supabase, workspaceId);
+          break;
+        case 'outlook':
+          result = await handleOutlookWebhook(req, supabase, workspaceId);
+          break;
+        case 'whatsapp':
+          result = await handleWhatsAppWebhook(req, supabase, workspaceId);
+          break;
+        case 'whatsapp-meta':
+          result = await handleMetaWhatsAppWebhook(req, supabase, workspaceId);
+          break;
+        default:
+          // Try to parse as generic webhook
+          result = await handleGenericWebhook(req, supabase, workspaceId);
+      }
     }
 
     return new Response(JSON.stringify(result), {
@@ -154,7 +172,7 @@ async function handleSocialWebhook(req: Request, supabase: any, workspaceId: str
   // 4. Generate response if critical
   let response = null;
   if (priority === 'critical' || priority === 'medium') {
-    response = await generateResponse(payload.content, [], sentiment, payload.platform);
+    response = await generateResponse(payload.content, [], sentiment, payload.platform, [], supabase, workspaceId);
 
     // Add Knight's response to ticket
     await supabase.rpc('add_knight_message', {
@@ -241,7 +259,7 @@ async function handleOutlookWebhook(req: Request, supabase: any, workspaceId: st
 
   // 3. Search knowledge base and generate response
   const knowledge = await searchKnowledgeBase(supabase, workspaceId, fullContent);
-  const response = await generateResponse(fullContent, knowledge, sentiment, 'outlook');
+  const response = await generateResponse(fullContent, knowledge, sentiment, 'outlook', [], supabase, workspaceId);
 
   // 4. Add response to ticket
   await supabase.rpc('add_knight_message', {
@@ -376,7 +394,7 @@ async function handleWhatsAppWebhook(req: Request, supabase: any, workspaceId: s
   const knowledge = await searchKnowledgeBase(supabase, workspaceId, payload.Body);
 
   // 4. Generate response with conversation context
-  const response = await generateResponse(payload.Body, knowledge, sentiment, 'whatsapp', conversationHistory);
+  const response = await generateResponse(payload.Body, knowledge, sentiment, 'whatsapp', conversationHistory, supabase, workspaceId);
 
   // 5. Add response to ticket
   await supabase.rpc('add_knight_message', {
@@ -448,20 +466,51 @@ async function handleMetaWhatsAppWebhook(req: Request, supabase: any, workspaceI
   const contacts = value.contacts || [];
   const metadata = value.metadata;
 
-  // Get workspace from meta integration
-  if (!workspaceId && metadata?.phone_number_id) {
+  // Get workspace and access token from meta_whatsapp_accounts via phone_number_id
+  let accessToken: string | null = null;
+
+  if (metadata?.phone_number_id) {
+    // Look up the WhatsApp account by phone_number_id to find the workspace
+    const { data: waAccount } = await supabase
+      .from('meta_whatsapp_accounts')
+      .select('integration_id')
+      .eq('phone_number_id', metadata.phone_number_id)
+      .eq('is_active', true)
+      .limit(1)
+      .single();
+
+    if (waAccount?.integration_id) {
+      const { data: integration } = await supabase
+        .from('meta_integrations')
+        .select('workspace_id, access_token')
+        .eq('id', waAccount.integration_id)
+        .single();
+
+      if (integration) {
+        workspaceId = workspaceId || integration.workspace_id;
+        accessToken = integration.access_token;
+        console.log('[Knight] Found workspace via WhatsApp account:', workspaceId);
+      }
+    }
+  }
+
+  // Fallback: try meta_integrations directly
+  if (!workspaceId) {
     const { data: integration } = await supabase
       .from('meta_integrations')
-      .select('workspace_id')
-      .eq('facebook_user_id', metadata.phone_number_id)
+      .select('workspace_id, access_token')
+      .eq('is_connected', true)
+      .limit(1)
       .single();
 
     if (integration) {
       workspaceId = integration.workspace_id;
+      accessToken = accessToken || integration.access_token;
+      console.log('[Knight] Found workspace via meta_integrations fallback:', workspaceId);
     }
   }
 
-  // Fallback: get first workspace (for testing)
+  // Last fallback: get first workspace (for testing)
   if (!workspaceId) {
     const { data: workspace } = await supabase
       .from('workspaces')
@@ -469,6 +518,7 @@ async function handleMetaWhatsAppWebhook(req: Request, supabase: any, workspaceI
       .limit(1)
       .single();
     workspaceId = workspace?.id;
+    console.log('[Knight] Using first workspace fallback:', workspaceId);
   }
 
   if (!workspaceId) {
@@ -557,7 +607,7 @@ async function handleMetaWhatsAppWebhook(req: Request, supabase: any, workspaceI
     const knowledge = await searchKnowledgeBase(supabase, workspaceId, messageText);
 
     // Generate response
-    const response = await generateResponse(messageText, knowledge, sentiment, 'whatsapp', conversationHistory);
+    const response = await generateResponse(messageText, knowledge, sentiment, 'whatsapp', conversationHistory, supabase, workspaceId);
 
     // Save Knight's response
     await supabase.rpc('add_knight_message', {
@@ -569,7 +619,7 @@ async function handleMetaWhatsAppWebhook(req: Request, supabase: any, workspaceI
 
     // Send reply via Meta WhatsApp API
     if (metadata?.phone_number_id) {
-      await sendMetaWhatsAppReply(metadata.phone_number_id, phoneNumber, response.message);
+      await sendMetaWhatsAppReply(supabase, metadata.phone_number_id, phoneNumber, response.message, accessToken);
     }
 
     results.push({
@@ -583,23 +633,212 @@ async function handleMetaWhatsAppWebhook(req: Request, supabase: any, workspaceI
   return { success: true, processed: results.length, results };
 }
 
-// Send reply via Meta WhatsApp Cloud API
-async function sendMetaWhatsAppReply(phoneNumberId: string, to: string, message: string) {
-  const META_ACCESS_TOKEN = Deno.env.get('META_ACCESS_TOKEN');
+// ============================================
+// Human Takeover: Guide Knight
+// Human gives an instruction, Knight crafts a response
+// ============================================
+async function handleGuideRequest(body: any, supabase: any) {
+  const { ticket_id, instruction, workspace_id } = body;
 
-  if (!META_ACCESS_TOKEN) {
-    console.error('[Knight] META_ACCESS_TOKEN not set');
+  if (!ticket_id || !instruction || !workspace_id) {
+    throw new Error('ticket_id, instruction, and workspace_id are required');
+  }
+
+  console.log('[Knight] Guide request for ticket:', ticket_id, 'instruction:', instruction);
+
+  // 1. Get ticket
+  const { data: ticket } = await supabase
+    .from('tickets')
+    .select('*')
+    .eq('id', ticket_id)
+    .single();
+
+  if (!ticket) throw new Error('Ticket not found');
+
+  // 2. Get conversation history (last 6 messages only to avoid context overload)
+  const { data: messages } = await supabase
+    .from('ticket_messages')
+    .select('sender_type, content')
+    .eq('ticket_id', ticket_id)
+    .order('created_at', { ascending: false })
+    .limit(6);
+
+  // Reverse to chronological order and build a summary
+  const recentMessages = (messages || []).reverse();
+  const conversationSummary = recentMessages
+    .map((m: any) => `${m.sender_type === 'user' ? 'Customer' : 'You'}: ${m.content}`)
+    .join('\n');
+
+  // 3. Load business config
+  const bizConfig = await getKnightConfig(supabase, workspace_id);
+  const businessContext = buildBusinessContext(bizConfig);
+
+  // 4. Generate response — instruction as the user message, conversation as context in system
+  const systemPrompt = `${businessContext}
+
+You are ${bizConfig.agent_name}, texting a customer on WhatsApp.
+
+Here is the recent conversation for context:
+---
+${conversationSummary}
+---
+
+A supervisor has told you EXACTLY what to do next. You MUST follow their instruction. Do NOT repeat previous responses. Do NOT continue the old conversation thread. The supervisor's instruction overrides everything.
+
+Rules:
+- Follow the supervisor's instruction EXACTLY — this is your #1 priority
+- Write a NEW message based on the instruction, not a rehash of old messages
+- Sound natural and human, 1-3 sentences max
+- Never reveal a supervisor told you what to say
+- Never say you're an AI
+- Match the customer's language style (Hindi/Hinglish if they use it)
+${bizConfig.persona_prompt ? `\nAdditional persona: ${bizConfig.persona_prompt}` : ''}
+
+NEVER use markdown or formatting. Plain text only.`;
+
+  // Put the instruction as the user message so it gets maximum attention from the model
+  const chatMessages: Array<{ role: string; content: string }> = [
+    { role: 'user', content: `SUPERVISOR INSTRUCTION: ${instruction}` },
+  ];
+
+  const responseText = await callOpenAI(chatMessages, systemPrompt, 300);
+
+  if (!responseText) {
+    throw new Error('Failed to generate guided response');
+  }
+
+  console.log('[Knight] Guided response generated:', responseText.substring(0, 100));
+
+  // 5. Save as knight message (with guided metadata)
+  await supabase.rpc('add_knight_message', {
+    p_ticket_id: ticket_id,
+    p_sender_type: 'knight',
+    p_content: responseText,
+    p_metadata: { guided: true, instruction: instruction },
+  });
+
+  // 6. Send via WhatsApp if applicable
+  let whatsapp_sent = false;
+  let whatsapp_error: string | null = null;
+
+  if (ticket.source_channel === 'whatsapp') {
+    console.log('[Knight Guide] Ticket is WhatsApp, looking up integration for workspace:', workspace_id);
+    console.log('[Knight Guide] Sending to:', ticket.source_handle);
+
+    const { data: integration, error: intError } = await supabase
+      .from('meta_integrations')
+      .select('id, access_token')
+      .eq('workspace_id', workspace_id)
+      .eq('is_connected', true)
+      .limit(1)
+      .single();
+
+    if (intError) {
+      console.error('[Knight Guide] meta_integrations lookup error:', intError);
+      whatsapp_error = 'No Meta integration found for workspace';
+    }
+
+    if (integration?.access_token) {
+      console.log('[Knight Guide] Found integration:', integration.id, 'token length:', integration.access_token?.length);
+
+      const { data: waAccount, error: waError } = await supabase
+        .from('meta_whatsapp_accounts')
+        .select('phone_number_id')
+        .eq('integration_id', integration.id)
+        .eq('is_active', true)
+        .limit(1)
+        .single();
+
+      if (waError) {
+        console.error('[Knight Guide] meta_whatsapp_accounts lookup error:', waError);
+        whatsapp_error = 'No WhatsApp account found for integration';
+      }
+
+      if (waAccount?.phone_number_id) {
+        console.log('[Knight Guide] Found WhatsApp account, phone_number_id:', waAccount.phone_number_id);
+        await sendMetaWhatsAppReply(
+          supabase,
+          waAccount.phone_number_id,
+          ticket.source_handle,
+          responseText,
+          integration.access_token
+        );
+        whatsapp_sent = true;
+      } else {
+        console.error('[Knight Guide] No phone_number_id found in WhatsApp account');
+        whatsapp_error = whatsapp_error || 'WhatsApp account has no phone_number_id';
+      }
+    } else if (!intError) {
+      console.error('[Knight Guide] Integration found but no access_token');
+      whatsapp_error = 'Integration has no access token';
+    }
+  } else {
+    console.log('[Knight Guide] Ticket channel is', ticket.source_channel, '— not WhatsApp, skipping');
+  }
+
+  // 7. If ticket was escalated, move it back to open
+  if (ticket.status === 'escalated') {
+    await supabase
+      .from('tickets')
+      .update({ status: 'open', updated_at: new Date().toISOString() })
+      .eq('id', ticket_id);
+  }
+
+  return {
+    success: true,
+    ticket_id,
+    response: responseText,
+    guided: true,
+    whatsapp_sent,
+    whatsapp_error,
+  };
+}
+
+// Send reply via Meta WhatsApp Cloud API
+async function sendMetaWhatsAppReply(
+  supabase: any,
+  phoneNumberId: string,
+  to: string,
+  message: string,
+  passedToken: string | null = null
+) {
+  // Use passed token first, then env var as fallback
+  let token = passedToken || Deno.env.get('META_ACCESS_TOKEN');
+
+  // If still no token, try to look it up from the DB
+  if (!token) {
+    const { data: waAccount } = await supabase
+      .from('meta_whatsapp_accounts')
+      .select('integration_id')
+      .eq('phone_number_id', phoneNumberId)
+      .eq('is_active', true)
+      .limit(1)
+      .single();
+
+    if (waAccount?.integration_id) {
+      const { data: integration } = await supabase
+        .from('meta_integrations')
+        .select('access_token')
+        .eq('id', waAccount.integration_id)
+        .single();
+      token = integration?.access_token;
+    }
+  }
+
+  if (!token) {
+    console.error('[Knight] No access token available for WhatsApp reply - not in DB or env');
     return;
   }
 
   try {
+    console.log('[Knight] Sending WhatsApp reply to:', to, 'via phone_number_id:', phoneNumberId);
     const response = await fetch(
       `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${META_ACCESS_TOKEN}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           messaging_product: 'whatsapp',
@@ -612,7 +851,11 @@ async function sendMetaWhatsAppReply(phoneNumberId: string, to: string, message:
     );
 
     const data = await response.json();
-    console.log('[Knight] WhatsApp reply sent:', data);
+    if (!response.ok) {
+      console.error('[Knight] WhatsApp API error:', response.status, JSON.stringify(data));
+    } else {
+      console.log('[Knight] WhatsApp reply sent successfully:', data);
+    }
   } catch (error) {
     console.error('[Knight] Failed to send WhatsApp reply:', error);
   }
@@ -657,39 +900,105 @@ async function handleGenericWebhook(req: Request, supabase: any, workspaceId: st
 }
 
 // ============================================
-// AI Functions
+// AI Functions (OpenAI)
 // ============================================
-async function analyzeSentiment(message: string) {
-  if (!ANTHROPIC_API_KEY) {
-    return { score: 5, intent: 'general', keywords: [], requiresEscalation: false };
+
+async function getKnightConfig(supabase: any, workspaceId: string): Promise<KnightBizConfig> {
+  try {
+    const { data } = await supabase
+      .from('knight_config')
+      .select('business_type, business_description, agent_name, persona_prompt')
+      .eq('workspace_id', workspaceId)
+      .single();
+    return {
+      business_type: data?.business_type || 'general',
+      business_description: data?.business_description || '',
+      agent_name: data?.agent_name || 'Knight',
+      persona_prompt: data?.persona_prompt || '',
+    };
+  } catch {
+    return { business_type: 'general', business_description: '', agent_name: 'Knight', persona_prompt: '' };
+  }
+}
+
+function buildBusinessContext(bizConfig: KnightBizConfig): string {
+  const typeLabels: Record<string, string> = {
+    food_delivery: 'a food delivery service',
+    restaurant: 'a restaurant / cafe',
+    ecommerce: 'an e-commerce store',
+    automotive: 'an automotive business',
+    healthcare: 'a healthcare provider',
+    saas: 'a software / SaaS company',
+    real_estate: 'a real estate business',
+    education: 'an education provider',
+    travel: 'a travel & hospitality business',
+    finance: 'a financial services company',
+    fitness: 'a fitness & wellness business',
+    retail: 'a retail store',
+    logistics: 'a logistics & delivery service',
+    general: 'a business',
+  };
+
+  let ctx = `You are ${bizConfig.agent_name}, a customer support agent at ${typeLabels[bizConfig.business_type] || 'a business'}.`;
+  if (bizConfig.business_description) {
+    ctx += `\n\nAbout the business: ${bizConfig.business_description}`;
+  }
+  return ctx;
+}
+
+async function callOpenAI(
+  messages: Array<{ role: string; content: string }>,
+  systemPrompt: string,
+  maxTokens: number = 300
+): Promise<string | null> {
+  if (!OPENAI_API_KEY) {
+    console.error('[Knight] OPENAI_API_KEY is not set!');
+    return null;
   }
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 300,
-        messages: [{
-          role: 'user',
-          content: `Analyze sentiment. Return JSON only:
-{"score":<1-10>,"intent":"<complaint|question|urgent|feedback|general>","keywords":[<words>],"requiresEscalation":<bool>}
-
-Message: "${message}"`,
-        }],
+        model: 'gpt-4o',
+        max_tokens: maxTokens,
+        temperature: 0.7,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...messages,
+        ],
       }),
     });
 
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Knight] OpenAI API error:', response.status, errorText);
+      return null;
+    }
+
     const data = await response.json();
-    return JSON.parse(data.content?.[0]?.text || '{"score":5,"intent":"general","keywords":[],"requiresEscalation":false}');
-  } catch {
-    return { score: 5, intent: 'general', keywords: [], requiresEscalation: false };
+    return data.choices?.[0]?.message?.content?.trim() || null;
+  } catch (error) {
+    console.error('[Knight] OpenAI call error:', error);
+    return null;
   }
+}
+
+async function analyzeSentiment(message: string) {
+  const result = await callOpenAI(
+    [{ role: 'user', content: `Analyze this customer message. Return JSON only, no other text:\n{"score":<1-10 where 1=very angry, 10=very happy>,"intent":"<complaint|question|urgent|feedback|general>","keywords":[<key words>],"requiresEscalation":<true if customer is very upset or threatening>}\n\nMessage: "${message}"` }],
+    'You are a sentiment analysis tool. Return valid JSON only, nothing else.',
+    200
+  );
+
+  try {
+    if (result) return JSON.parse(result);
+  } catch { /* parse failed */ }
+  return { score: 5, intent: 'general', keywords: [], requiresEscalation: false };
 }
 
 async function generateResponse(
@@ -697,61 +1006,102 @@ async function generateResponse(
   knowledge: any[],
   sentiment: any,
   channel: string,
-  history: any[] = []
+  history: any[] = [],
+  supabase?: any,
+  workspaceId?: string
 ) {
-  if (!ANTHROPIC_API_KEY) {
+  console.log('[Knight] generateResponse called, OPENAI_API_KEY exists:', !!OPENAI_API_KEY);
+
+  if (!OPENAI_API_KEY) {
+    console.error('[Knight] OPENAI_API_KEY is not set!');
     return {
-      message: "Thank you for reaching out. A team member will assist you shortly.",
+      message: "Hey! Got your message. Let me get someone from the team to help you out.",
       tone: 'professional',
       confidence: 0.5,
     };
+  }
+
+  // Load business config from DB
+  let bizConfig: KnightBizConfig = { business_type: 'general', business_description: '', agent_name: 'Knight', persona_prompt: '' };
+  if (supabase && workspaceId) {
+    bizConfig = await getKnightConfig(supabase, workspaceId);
   }
 
   const knowledgeContext = knowledge.length
     ? knowledge.map(k => `[${k.category}] ${k.content}`).join('\n')
-    : 'No specific knowledge base context.';
-
-  const historyText = history.length
-    ? history.map(h => `${h.role === 'user' ? 'Customer' : 'Knight'}: ${h.content}`).join('\n')
     : '';
+
+  const businessContext = buildBusinessContext(bizConfig);
 
   let toneGuidance = '';
   if (sentiment.score <= 3) {
-    toneGuidance = 'Customer is upset. Lead with empathy, apologize sincerely.';
+    toneGuidance = 'The customer seems frustrated or upset. Acknowledge their frustration first, then help.';
   } else if (sentiment.score <= 5) {
-    toneGuidance = 'Customer has concerns. Be professional and solution-focused.';
+    toneGuidance = 'Be straightforward and solution-focused.';
+  } else {
+    toneGuidance = 'Be warm and friendly.';
   }
 
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 500,
-        system: `You are The Knight, a Customer Success Agent. Be concise, empathetic, solution-focused.
-${toneGuidance}
-Knowledge: ${knowledgeContext}
-${historyText ? `History:\n${historyText}` : ''}
-Channel: ${channel} (keep response appropriate)
-Return JSON: {"message":"<reply>","tone":"<empathetic|professional|apologetic>","suggestedAction":"<reply|escalate|voice_call>","confidence":<0-1>}`,
-        messages: [{ role: 'user', content: message }],
-      }),
-    });
+  // Build multi-turn messages
+  const chatMessages: Array<{ role: string; content: string }> = [];
 
-    const data = await response.json();
-    return JSON.parse(data.content?.[0]?.text || '{"message":"A team member will assist you shortly.","tone":"professional","confidence":0.5}');
-  } catch {
+  if (history.length > 0) {
+    for (const h of history) {
+      const role = h.role === 'user' ? 'user' : 'assistant';
+      if (chatMessages.length > 0 && chatMessages[chatMessages.length - 1].role === role) {
+        chatMessages[chatMessages.length - 1].content += '\n' + h.content;
+      } else {
+        chatMessages.push({ role, content: h.content });
+      }
+    }
+  }
+
+  // Add new message
+  if (chatMessages.length > 0 && chatMessages[chatMessages.length - 1].role === 'user') {
+    chatMessages[chatMessages.length - 1].content += '\n' + message;
+  } else {
+    chatMessages.push({ role: 'user', content: message });
+  }
+
+  const systemPrompt = `${businessContext}
+
+You are texting a customer on WhatsApp. They should feel like they're talking to a real person, not a bot.
+
+How you talk:
+- Sound human. Use natural language, contractions, and casual tone when appropriate
+- Keep it short — 1-3 sentences. This is WhatsApp, not email
+- Answer their actual question directly. Don't dodge or give generic responses
+- If they're upset, acknowledge it genuinely ("ugh, that's frustrating" not "I apologize for the inconvenience")
+- Use the customer's name if you know it
+- If they use Hindi/Hinglish, reply in the same style
+- Never say "I'm an AI" or "as an AI assistant" — you are ${bizConfig.agent_name}
+- If you genuinely don't know something, say "let me check with the team" — don't make stuff up
+${toneGuidance ? `\nTone: ${toneGuidance}` : ''}
+${knowledgeContext ? `\nThings you know:\n${knowledgeContext}` : ''}
+${bizConfig.persona_prompt ? `\nAdditional instructions: ${bizConfig.persona_prompt}` : ''}
+
+NEVER use markdown, bullet points, or formatting. Just plain text like a real person texting.`;
+
+  console.log('[Knight] Calling OpenAI with', chatMessages.length, 'messages...');
+
+  const responseText = await callOpenAI(chatMessages, systemPrompt, 300);
+
+  if (responseText) {
+    console.log('[Knight] OpenAI response received, length:', responseText.length);
     return {
-      message: "Thank you for reaching out. A team member will assist you shortly.",
-      tone: 'professional',
-      confidence: 0.5,
+      message: responseText,
+      tone: sentiment.score <= 3 ? 'empathetic' : 'helpful',
+      suggestedAction: sentiment.requiresEscalation ? 'escalate' : 'reply',
+      confidence: 0.85,
     };
   }
+
+  // Fallback
+  return {
+    message: `Hey! Got your message. Let me look into this and get back to you shortly.`,
+    tone: 'helpful',
+    confidence: 0.5,
+  };
 }
 
 async function searchKnowledgeBase(supabase: any, workspaceId: string, query: string) {
@@ -805,7 +1155,7 @@ async function triggerVoiceEscalation(
           phoneNumberId: VAPI_PHONE_ID,
           customer: { number: phoneNumber, name: customerName },
           assistant: {
-            model: { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022', systemPrompt: `You are calling ${customerName} about: ${issueSummary}. Be apologetic and helpful.` },
+            model: { provider: 'openai', model: 'gpt-4o', systemPrompt: `You are calling ${customerName} about: ${issueSummary}. Be apologetic and helpful.` },
             voice: { provider: 'openai', voiceId: 'nova' },
             firstMessage: `Hi ${customerName}, this is support from Regent. I saw your message and wanted to reach out personally.`,
           },

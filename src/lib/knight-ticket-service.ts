@@ -50,7 +50,27 @@ export interface KnightConfig {
   persona_prompt?: string;
   vapi_assistant_id?: string;
   channels_enabled: Record<string, boolean>;
+  business_type?: string;
+  business_description?: string;
+  agent_name?: string;
 }
+
+export const BUSINESS_TYPES = [
+  { value: 'food_delivery', label: 'Food Delivery', example: 'Like Swiggy, Zomato, DoorDash' },
+  { value: 'restaurant', label: 'Restaurant / Cafe', example: 'Dine-in, takeaway, catering' },
+  { value: 'ecommerce', label: 'E-Commerce', example: 'Online store, marketplace' },
+  { value: 'automotive', label: 'Automotive', example: 'Car dealership, repair, parts' },
+  { value: 'healthcare', label: 'Healthcare', example: 'Clinic, pharmacy, telemedicine' },
+  { value: 'saas', label: 'SaaS / Software', example: 'Tech product, app support' },
+  { value: 'real_estate', label: 'Real Estate', example: 'Properties, rentals, agents' },
+  { value: 'education', label: 'Education', example: 'Courses, tutoring, school' },
+  { value: 'travel', label: 'Travel & Hospitality', example: 'Hotels, tours, bookings' },
+  { value: 'finance', label: 'Finance / Banking', example: 'Loans, insurance, investments' },
+  { value: 'fitness', label: 'Fitness & Wellness', example: 'Gym, yoga, spa' },
+  { value: 'retail', label: 'Retail Store', example: 'Physical store, chain' },
+  { value: 'logistics', label: 'Logistics & Delivery', example: 'Courier, shipping, warehouse' },
+  { value: 'general', label: 'General / Other', example: 'Custom business type' },
+] as const;
 
 export interface KnightStats {
   total_tickets: number;
