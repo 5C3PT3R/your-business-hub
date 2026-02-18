@@ -1,0 +1,106 @@
+{
+  "_comment": "Use this in the n8n Slack node > Send Message > Block Kit. The expressions ({{ }}) are n8n template syntax — they reference data from the AI Agent node's parsed JSON output and the Router node's lead data.",
+  "channel": "#bishop-approvals",
+  "text": "Bishop drafted an email for review",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "📧 Bishop — Email Draft for Review",
+        "emoji": true
+      }
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Lead:*\n{{ $('Router').first().json.first_name }} {{ $('Router').first().json.last_name }}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Company:*\n{{ $('Router').first().json.company }}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Title:*\n{{ $('Router').first().json.title }}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Campaign:*\n{{ $('Router').first().json.campaign_name }}"
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Subject Line:*\n{{ $json.subject }}"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Email Body:*\n>>> {{ $json.body }}"
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "💡 *Bishop's reasoning:* {{ $json.reasoning }}"
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "✅ Approve & Send",
+            "emoji": true
+          },
+          "style": "primary",
+          "value": "approved",
+          "action_id": "bishop_approve",
+          "url": "{{ $execution.resumeUrl }}?action=approved"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "❌ Reject",
+            "emoji": true
+          },
+          "style": "danger",
+          "value": "rejected",
+          "action_id": "bishop_reject",
+          "url": "{{ $execution.resumeUrl }}?action=rejected"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "⏳ Workflow is paused — waiting for your decision."
+        }
+      ]
+    }
+  ]
+}

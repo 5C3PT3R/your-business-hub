@@ -54,6 +54,7 @@ import Knight from "./pages/Knight";
 import KnightDashboard from "./pages/KnightDashboard";
 import MetaIntegration from "./pages/MetaIntegration";
 import MetaCallback from "./pages/MetaCallback";
+import Waitlist from "./pages/Waitlist";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -66,6 +67,7 @@ function AppRoutes() {
       <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
       <Route path="/demo" element={<PublicRoute><Demo /></PublicRoute>} />
       <Route path="/subscribe" element={<PublicRoute><Subscribe /></PublicRoute>} />
+      <Route path="/waitlist" element={<PublicRoute><Waitlist /></PublicRoute>} />
 
       {/* ONBOARDING - Requires auth but not profile/workspace */}
       <Route path="/onboarding" element={<AuthGuard><Onboarding /></AuthGuard>} />
@@ -86,8 +88,8 @@ function AppRoutes() {
       <Route path="/bishop" element={<AuthGuard><BishopSettings /></AuthGuard>} />
       <Route path="/pawn" element={<AuthGuard><Pawn /></AuthGuard>} />
       <Route path="/rook" element={<AuthGuard><Rook /></AuthGuard>} />
-      <Route path="/knight" element={<AuthGuard><Knight /></AuthGuard>} />
-      <Route path="/knight/dashboard" element={<AuthGuard><KnightDashboard /></AuthGuard>} />
+      <Route path="/knight" element={<AuthGuard><KnightDashboard /></AuthGuard>} />
+      <Route path="/knight/settings" element={<AuthGuard><Knight /></AuthGuard>} />
       <Route path="/workflows" element={<AuthGuard><Workflows /></AuthGuard>} />
       <Route path="/workflows/:id" element={<AuthGuard><WorkflowEditor /></AuthGuard>} />
       <Route path="/tasks" element={<AuthGuard><Tasks /></AuthGuard>} />

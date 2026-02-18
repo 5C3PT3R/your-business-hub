@@ -5,20 +5,19 @@ import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Shield,
   MessageSquare,
   AlertTriangle,
-  ArrowLeft,
   Bot,
   RefreshCw,
   Sparkles,
-  Phone,
   CheckCircle2,
-  Clock,
   ChevronRight,
-  Send,
+  Trash2,
+  FileText,
+  Copy,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '@/hooks/useWorkspace';
@@ -27,6 +26,7 @@ import {
   getTickets,
   getTicketDetail,
   updateTicketStatus,
+  deleteTicket,
   getKnightConfig,
   subscribeToTickets,
   subscribeToMessages,
@@ -35,7 +35,6 @@ import {
   type TicketMessage,
   type KnightConfig,
 } from '@/lib/knight-ticket-service';
-import { supabase } from '@/integrations/supabase/client';
 
 export default function KnightDashboard() {
   const navigate = useNavigate();
@@ -47,8 +46,8 @@ export default function KnightDashboard() {
   const [selectedTicket, setSelectedTicket] = useState<TicketDetail | null>(null);
   const [config, setConfig] = useState<KnightConfig | null>(null);
   const [loading, setLoading] = useState(true);
-  const [instruction, setInstruction] = useState('');
-  const [guiding, setGuiding] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const [generatingTranscript, setGeneratingTranscript] = useState(false);
 
   // Load escalated/halted tickets
   useEffect(() => {
@@ -129,48 +128,57 @@ export default function KnightDashboard() {
   const handleSelectTicket = async (ticket: Ticket) => {
     const detail = await getTicketDetail(ticket.id);
     setSelectedTicket(detail);
-    setInstruction('');
+    setTranscript('');
   };
 
-  const handleGuideKnight = async () => {
-    if (!selectedTicket || !instruction.trim() || !workspace?.id) return;
-    setGuiding(true);
+  const generateTranscript = async () => {
+    if (!selectedTicket || selectedTicket.messages.length === 0) return;
+    setGeneratingTranscript(true);
     try {
-      const { data, error } = await supabase.functions.invoke('knight-webhook', {
-        body: {
-          action: 'guide',
-          ticket_id: selectedTicket.ticket.id,
-          instruction: instruction.trim(),
-          workspace_id: workspace.id,
-        },
+      // Build conversation text for AI
+      const convoLines = selectedTicket.messages.map((msg) => {
+        const sender =
+          msg.sender_type === 'knight' ? agentName
+          : msg.sender_type === 'human_agent' ? 'Agent'
+          : 'Customer';
+        return `${sender}: ${msg.content}`;
       });
 
-      // Debug: log full response
-      console.log('[KnightDashboard] Guide response:', { data, error });
+      const res = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer sk-6b26c326653f4a5c877f2db1d3d03aa4',
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a support conversation analyst. Read the following customer support conversation and provide a concise summary. Include: 1) What the customer wanted, 2) How it was handled, 3) Current status/outcome. Keep it brief and clear — 3-5 sentences max.',
+            },
+            {
+              role: 'user',
+              content: `Channel: ${selectedTicket.ticket.source_channel}\nCustomer: ${selectedTicket.ticket.source_handle}\n\nConversation:\n${convoLines.join('\n')}`,
+            },
+          ],
+          max_tokens: 300,
+        }),
+      });
 
-      if (error) {
-        console.error('[KnightDashboard] Guide error details:', error);
-        toast({ title: 'Failed to guide Knight', description: String(error.message || error), variant: 'destructive' });
-        return;
-      }
+      const data = await res.json();
+      const summary = data.choices?.[0]?.message?.content;
 
-      setInstruction('');
-
-      if (data?.whatsapp_sent) {
-        toast({ title: 'Knight sent guided response', description: 'Delivered via WhatsApp' });
-      } else if (data?.whatsapp_error) {
-        toast({ title: 'Response saved but WhatsApp failed', description: data.whatsapp_error, variant: 'destructive' });
+      if (summary) {
+        setTranscript(summary);
       } else {
-        toast({ title: 'Knight sent guided response', description: `Response: "${data?.response?.substring(0, 60)}..." | WA sent: ${data?.whatsapp_sent}` });
+        toast({ title: 'AI returned empty response', variant: 'destructive' });
       }
-
-      // Refresh
-      const detail = await getTicketDetail(selectedTicket.ticket.id);
-      setSelectedTicket(detail);
-    } catch (error: any) {
-      toast({ title: 'Failed to guide Knight', variant: 'destructive' });
+    } catch (err) {
+      console.error('[KnightDashboard] Transcript error:', err);
+      toast({ title: 'Failed to generate summary', variant: 'destructive' });
     } finally {
-      setGuiding(false);
+      setGeneratingTranscript(false);
     }
   };
 
@@ -183,10 +191,14 @@ export default function KnightDashboard() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleGuideKnight();
+  const handleDelete = async (ticketId: string) => {
+    const success = await deleteTicket(ticketId);
+    if (success) {
+      toast({ title: 'Conversation deleted' });
+      setSelectedTicket(null);
+      loadData();
+    } else {
+      toast({ title: 'Failed to delete', variant: 'destructive' });
     }
   };
 
@@ -215,12 +227,11 @@ export default function KnightDashboard() {
     <MainLayout>
       <Header
         title="Knight Dashboard"
-        subtitle="Guide Knight through conversations that need your help"
+        subtitle="Monitor and manage customer conversations"
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate('/knight')}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              All Tickets
+            <Button variant="outline" size="sm" onClick={() => navigate('/knight/settings')}>
+              Settings
             </Button>
             <Button variant="outline" size="sm" onClick={loadData}>
               <RefreshCw className="h-4 w-4 mr-2" />
@@ -353,15 +364,26 @@ export default function KnightDashboard() {
                     Sentiment: {selectedTicket.ticket.sentiment_score}/10 · {selectedTicket.messages.length} messages
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleResolve(selectedTicket.ticket.id)}
-                  className="text-green-600 border-green-500/30 hover:bg-green-500/10"
-                >
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Mark Resolved
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleResolve(selectedTicket.ticket.id)}
+                    className="text-green-600 border-green-500/30 hover:bg-green-500/10"
+                  >
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Mark Resolved
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDelete(selectedTicket.ticket.id)}
+                    className="text-red-500 border-red-500/30 hover:bg-red-500/10"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </Button>
+                </div>
               </div>
             </Card>
 
@@ -418,62 +440,62 @@ export default function KnightDashboard() {
               </div>
             </Card>
 
-            {/* Guide Input */}
-            <Card variant="glass" className="p-4">
-              <div className="flex items-start gap-2 mb-3">
-                <Sparkles className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-medium">Guide {agentName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Tell {agentName} what to say. It will craft a natural message and send it to the customer.
-                  </p>
+            {/* AI Transcript */}
+            <Card variant="glass" className="p-4 max-h-[240px] flex flex-col">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-primary flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">AI Summary</p>
+                    <p className="text-xs text-muted-foreground">
+                      AI-generated gist of this conversation
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {transcript && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(transcript);
+                        toast({ title: 'Transcript copied to clipboard' });
+                      }}
+                    >
+                      <Copy className="h-3.5 w-3.5 mr-1.5" />
+                      Copy
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    onClick={generateTranscript}
+                    disabled={generatingTranscript}
+                  >
+                    {generatingTranscript ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                        {transcript ? 'Regenerate' : 'Generate Summary'}
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <Textarea
-                  placeholder={`e.g. "Give them a full refund and apologize" or "Offer 10% off next order"`}
-                  value={instruction}
-                  onChange={(e) => setInstruction(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className="min-h-[60px] flex-1"
-                />
-                <Button
-                  onClick={handleGuideKnight}
-                  disabled={!instruction.trim() || guiding}
-                  className="self-end"
-                  size="lg"
-                >
-                  {guiding ? (
-                    <>
-                      <Bot className="h-4 w-4 mr-2 animate-pulse" />
-                      Typing...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-4 w-4 mr-2" />
-                      Send via {agentName}
-                    </>
-                  )}
-                </Button>
-              </div>
-              {/* Quick Actions */}
-              <div className="flex flex-wrap gap-2 mt-3">
-                {[
-                  'Apologize and offer a refund',
-                  'Escalate to manager',
-                  'Offer 10% discount',
-                  'Ask for order ID',
-                  'Confirm issue is resolved',
-                ].map((quick) => (
-                  <button
-                    key={quick}
-                    onClick={() => setInstruction(quick)}
-                    className="px-2.5 py-1 rounded-full text-xs bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {quick}
-                  </button>
-                ))}
-              </div>
+              {transcript ? (
+                <div className="flex-1 overflow-y-auto text-sm text-foreground/80 bg-muted/30 rounded-md p-3 leading-relaxed">
+                  {transcript}
+                </div>
+              ) : (
+                <div className="flex-1 flex items-center justify-center text-center py-4">
+                  <p className="text-xs text-muted-foreground">
+                    Click "Generate Summary" to get an AI-powered gist of this conversation
+                  </p>
+                </div>
+              )}
             </Card>
           </div>
         ) : (
@@ -482,7 +504,7 @@ export default function KnightDashboard() {
               <Shield className="h-14 w-14 mx-auto mb-4 text-muted-foreground/30" />
               <p className="text-lg font-medium mb-2">Knight Dashboard</p>
               <p className="text-sm text-muted-foreground">
-                Select a conversation from the left to guide {agentName}. When a customer asks for something {agentName} can't handle, give it instructions and it'll respond naturally.
+                Select a conversation from the left to view messages and generate transcripts.
               </p>
             </div>
           </Card>

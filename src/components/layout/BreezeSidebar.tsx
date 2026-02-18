@@ -399,31 +399,19 @@ export function BreezeSidebar() {
       label: 'Knight (Support)',
       icon: Shield,
       path: '/knight',
-      badge: { count: 0, variant: 'success', label: '●' }, // Green dot = Live
+      badge: { count: 0, variant: 'success', label: '●' },
       subItems: [
-        {
-          id: 'knight-tickets',
-          label: 'Tickets',
-          icon: MessageSquare,
-          path: '/knight',
-        },
         {
           id: 'knight-dashboard',
           label: 'Dashboard',
           icon: Sparkles,
-          path: '/knight/dashboard',
-        },
-        {
-          id: 'knight-activity',
-          label: 'Activity',
-          icon: Zap,
-          path: '/knight?tab=activity',
+          path: '/knight',
         },
         {
           id: 'knight-settings',
           label: 'Settings',
           icon: Settings,
-          path: '/knight?tab=settings',
+          path: '/knight/settings',
         },
       ],
     },

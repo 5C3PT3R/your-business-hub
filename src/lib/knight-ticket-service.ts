@@ -356,6 +356,41 @@ export async function getMessageCount(ticketId: string): Promise<number> {
 }
 
 /**
+ * Delete a ticket and all its messages
+ */
+export async function deleteTicket(ticketId: string): Promise<boolean> {
+  try {
+    // Delete activity logs first
+    await (supabase as any)
+      .from('knight_activity_log')
+      .delete()
+      .eq('ticket_id', ticketId);
+
+    // Messages cascade on ticket delete, but delete explicitly for safety
+    await (supabase as any)
+      .from('ticket_messages')
+      .delete()
+      .eq('ticket_id', ticketId);
+
+    // Delete the ticket
+    const { error } = await (supabase as any)
+      .from('tickets')
+      .delete()
+      .eq('id', ticketId);
+
+    if (error) {
+      console.error('[Knight] Delete ticket error:', error);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.error('[Knight] Unexpected delete ticket error:', err);
+    return false;
+  }
+}
+
+/**
  * Subscribe to ticket updates (real-time)
  */
 export function subscribeToTickets(
