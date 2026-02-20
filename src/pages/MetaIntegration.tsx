@@ -95,7 +95,7 @@ export default function MetaIntegrationPage() {
   // Setup Dialog - auto-populate from env vars if available
   const [showSetupDialog, setShowSetupDialog] = useState(false);
   const [appId, setAppId] = useState(import.meta.env.VITE_META_APP_ID || '');
-  const [appSecret, setAppSecret] = useState(import.meta.env.VITE_META_APP_SECRET || '');
+  const [appSecret, setAppSecret] = useState('');
   const [showSecret, setShowSecret] = useState(false);
   const [selectedFeatures, setSelectedFeatures] = useState<Set<string>>(
     new Set(['pages', 'leads', 'ads'])

@@ -1,12 +1,27 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { z } from "zod";
+import { Turnstile } from "@marsidev/react-turnstile";
 import { supabase } from "@/integrations/supabase/client";
+
+const waitlistSchema = z.object({
+  name: z.string().min(1, "Name is required").max(200),
+  email: z.string().email("Please enter a valid email address").max(320),
+  company: z.string().min(1, "Company name is required").max(200),
+  industry: z.string().max(200).optional(),
+  companySize: z.string().max(100).optional(),
+  opsTeamSize: z.string().max(100).optional(),
+  selectedFunction: z.enum(["support", "leads", "revops"]),
+  bottleneck: z.string().max(2000).optional(),
+});
 
 export default function Waitlist() {
   const navigate = useNavigate();
   const [formLoading, setFormLoading] = useState(false);
   const [formSubmitted, setFormSubmitted] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileReady, setTurnstileReady] = useState(false);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   // Scroll to top on mount
@@ -47,34 +62,52 @@ export default function Waitlist() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !company) {
-      toast.error("Please fill in the required fields.");
+
+    const result = waitlistSchema.safeParse({
+      name, email, company, industry, companySize, opsTeamSize, selectedFunction, bottleneck,
+    });
+    if (!result.success) {
+      toast.error(result.error.issues[0].message);
       return;
     }
-    if (!email.includes("@")) {
-      toast.error("Please enter a valid email address.");
+
+    if (!turnstileToken) {
+      toast.error("Please wait for bot verification to complete.");
       return;
     }
 
     setFormLoading(true);
     try {
-      const { error } = await supabase.from("waitlist").insert({
-        email: email.toLowerCase().trim(),
-        name,
-        company,
-        industry,
-        company_size: companySize,
-        ops_team_size: opsTeamSize,
-        function_interest: selectedFunction,
-        bottleneck,
-      });
-
-      if (error) {
-        if (error.code === "23505") {
-          toast.info("You're already on the waitlist! We'll reach out soon.");
-        } else {
-          throw error;
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/submit-waitlist`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            ...(session?.access_token ? { "Authorization": `Bearer ${session.access_token}` } : {}),
+          },
+          body: JSON.stringify({
+            turnstileToken,
+            name: result.data.name,
+            email: result.data.email,
+            company: result.data.company,
+            industry: result.data.industry,
+            companySize: result.data.companySize,
+            opsTeamSize: result.data.opsTeamSize,
+            selectedFunction: result.data.selectedFunction,
+            bottleneck: result.data.bottleneck,
+          }),
         }
+      );
+
+      const json = await res.json();
+
+      if (json.duplicate) {
+        toast.info("You're already on the waitlist! We'll reach out soon.");
+      } else if (json.error) {
+        toast.error(json.error);
       } else {
         setFormSubmitted(true);
         toast.success("Application received! We'll review and get back to you.");
@@ -454,14 +487,21 @@ export default function Waitlist() {
                     </label>
                   </div>
 
-                  <div className="pt-4">
+                  <div className="pt-4 space-y-4">
+                    <Turnstile
+                      siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || "1x00000000000000000000AA"}
+                      onSuccess={(token) => { setTurnstileToken(token); setTurnstileReady(true); }}
+                      onExpire={() => setTurnstileToken(null)}
+                      onError={() => setTurnstileReady(true)}
+                      options={{ theme: "light", size: "invisible" }}
+                    />
                     <button
                       type="submit"
-                      disabled={formLoading}
+                      disabled={formLoading || !turnstileReady}
                       className="w-full py-4 bg-stone-900 text-white font-medium uppercase tracking-widest hover:bg-[#CC5500] transition-colors border border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                       style={{ fontFamily: "'Space Grotesk', monospace" }}
                     >
-                      {formLoading ? "Submitting..." : "Request Early Access"}
+                      {formLoading ? "Submitting..." : !turnstileReady ? "Verifying..." : "Request Early Access"}
                     </button>
                   </div>
                 </form>
