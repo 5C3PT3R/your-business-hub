@@ -55,6 +55,8 @@ import KnightDashboard from "./pages/KnightDashboard";
 import MetaIntegration from "./pages/MetaIntegration";
 import MetaCallback from "./pages/MetaCallback";
 import Waitlist from "./pages/Waitlist";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -68,6 +70,8 @@ function AppRoutes() {
       <Route path="/demo" element={<PublicRoute><Demo /></PublicRoute>} />
       <Route path="/subscribe" element={<PublicRoute><Subscribe /></PublicRoute>} />
       <Route path="/waitlist" element={<PublicRoute><Waitlist /></PublicRoute>} />
+      <Route path="/privacy" element={<PublicRoute><Privacy /></PublicRoute>} />
+      <Route path="/terms" element={<PublicRoute><Terms /></PublicRoute>} />
 
       {/* ONBOARDING - Requires auth but not profile/workspace */}
       <Route path="/onboarding" element={<AuthGuard><Onboarding /></AuthGuard>} />

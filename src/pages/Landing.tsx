@@ -538,25 +538,27 @@ const Landing = () => {
                 <li><a href="#" className="hover:text-[#CC5500]">About</a></li>
                 <li><a href="#" className="hover:text-[#CC5500]">Manifesto</a></li>
                 <li><a href="#" className="hover:text-[#CC5500]">Careers</a></li>
-                <li><a href="#" className="hover:text-[#CC5500]">Contact</a></li>
+                <li><a href="mailto:hello@hireregent.com" className="hover:text-[#CC5500]">Contact</a></li>
               </ul>
             </div>
             <div>
               <h4 className="text-xs uppercase tracking-widest text-stone-400 mb-6" style={{ fontFamily: "'Space Grotesk', monospace" }}>Legal</h4>
               <ul className="space-y-4 text-sm text-stone-600">
-                <li><a href="#" className="hover:text-[#CC5500]">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-[#CC5500]">Terms of Service</a></li>
-                <li><a href="#" className="hover:text-[#CC5500]">DPA</a></li>
+                <li><a href="/privacy" className="hover:text-[#CC5500]">Privacy Policy</a></li>
+                <li><a href="/terms" className="hover:text-[#CC5500]">Terms of Service</a></li>
               </ul>
             </div>
           </div>
 
           <div className="max-w-[1600px] mx-auto pt-8 border-t flex flex-col md:flex-row justify-between items-center text-sm text-stone-400" style={{ borderColor: "#E7E5E4" }}>
-            <div>&copy; {new Date().getFullYear()} Regent AI Inc.</div>
+            <div className="flex items-center gap-2">
+              <span>&copy; {new Date().getFullYear()} Regent AI Inc.</span>
+              <span className="mx-2">·</span>
+              <a href="mailto:hello@hireregent.com" className="hover:text-[#CC5500] transition-colors">hello@hireregent.com</a>
+            </div>
             <div className="flex gap-6 mt-4 md:mt-0">
               <a href="#" className="hover:text-stone-900">Twitter</a>
               <a href="#" className="hover:text-stone-900">LinkedIn</a>
-              <a href="#" className="hover:text-stone-900">GitHub</a>
             </div>
           </div>
         </footer>
