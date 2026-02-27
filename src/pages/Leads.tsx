@@ -109,9 +109,9 @@ export default function Leads() {
   const handleAddLead = async () => {
     if (!newLead.name) return;
     
-    const fullPhone = newLead.phone ? `${newLead.countryCode} ${newLead.phone}` : null;
+    const fullPhone = newLead.phone ? `${newLead.countryCode}${newLead.phone.replace(/\s/g, '')}` : null;
     const valueNum = newLead.value ? parseFloat(newLead.value) : 0;
-    
+
     await addLead({
       name: newLead.name,
       email: newLead.email || null,
@@ -120,6 +120,7 @@ export default function Leads() {
       source: newLead.source || null,
       status: 'new',
       value: valueNum,
+      bishop_status: 'INTRO_SENT',
     });
     
     setNewLead({ name: '', email: '', countryCode: '+1', phone: '', company: '', source: '', value: '' });

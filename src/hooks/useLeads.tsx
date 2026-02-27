@@ -17,6 +17,7 @@ export interface Lead {
   value: number;
   created_at: string;
   workspace_id: string | null;
+  bishop_status: string | null;
 }
 
 export function useLeads() {
