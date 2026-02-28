@@ -108,7 +108,7 @@ export default function KnightDashboard() {
         getTickets(workspace.id),
         getKnightConfig(workspace.id),
         supabase.from('contacts').select('id, name, phone').eq('workspace_id', workspace.id),
-        supabase.from('leads').select('id, name, phone').eq('user_id', workspace.id),
+        supabase.from('leads').select('id, name, phone').eq('user_id', workspace.owner_id),
       ]);
       // Show escalated first, then open tickets sorted by updated_at
       const relevant = allTickets
