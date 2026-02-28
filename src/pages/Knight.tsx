@@ -165,7 +165,7 @@ export default function Knight() {
         getKnightStats(workspace.id),
         getKnightConfig(workspace.id),
         supabase.from('contacts').select('id, name, phone').eq('workspace_id', workspace.id),
-        supabase.from('leads').select('id, name, phone').eq('workspace_id', workspace.id),
+        supabase.from('leads').select('id, name, phone'),
       ]);
       setTickets(ticketsData);
       setStats(statsData);
