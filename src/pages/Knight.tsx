@@ -174,12 +174,15 @@ export default function Knight() {
       // Build phone → contact/lead lookup map
       const normalize = (p: string) => p.replace(/\D/g, '').slice(-10);
       const map = new Map<string, { name: string; type: 'contact' | 'lead'; id: string }>();
+      console.log('[Knight] contacts raw:', contactsRes.data, 'error:', contactsRes.error);
+      console.log('[Knight] leads raw:', leadsRes.data, 'error:', leadsRes.error);
       (contactsRes.data || []).forEach((c: any) => {
         if (c.phone && c.name) map.set(normalize(c.phone), { name: c.name, type: 'contact', id: c.id });
       });
       (leadsRes.data || []).forEach((l: any) => {
         if (l.phone && l.name) map.set(normalize(l.phone), { name: l.name, type: 'lead', id: l.id });
       });
+      console.log('[Knight] contactMap entries:', [...map.entries()]);
       setContactMap(map);
       if (configData) {
         setDraftText({
