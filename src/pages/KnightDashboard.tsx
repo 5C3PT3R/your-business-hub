@@ -20,6 +20,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -46,6 +47,7 @@ export default function KnightDashboard() {
   const [selectedTicket, setSelectedTicket] = useState<TicketDetail | null>(null);
   const [config, setConfig] = useState<KnightConfig | null>(null);
   const [loading, setLoading] = useState(true);
+  const [contactMap, setContactMap] = useState<Map<string, { name: string; type: 'contact' | 'lead'; id: string }>>(new Map());
   const [transcript, setTranscript] = useState('');
   const [generatingTranscript, setGeneratingTranscript] = useState(false);
 
@@ -102,22 +104,32 @@ export default function KnightDashboard() {
     if (!workspace?.id) return;
     setLoading(true);
     try {
-      const [allTickets, configData] = await Promise.all([
+      const [allTickets, configData, contactsRes, leadsRes] = await Promise.all([
         getTickets(workspace.id),
         getKnightConfig(workspace.id),
+        supabase.from('contacts').select('id, name, phone').eq('workspace_id', workspace.id),
+        supabase.from('leads').select('id, name, phone').eq('user_id', workspace.id),
       ]);
       // Show escalated first, then open tickets sorted by updated_at
       const relevant = allTickets
         .filter((t) => t.status === 'escalated' || t.status === 'open' || t.status === 'pending_user')
         .sort((a, b) => {
-          // Escalated first
           if (a.status === 'escalated' && b.status !== 'escalated') return -1;
           if (b.status === 'escalated' && a.status !== 'escalated') return 1;
-          // Then by updated_at desc
           return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
         });
       setTickets(relevant);
       setConfig(configData);
+
+      const normalize = (p: string) => p.replace(/\D/g, '').slice(-10);
+      const map = new Map<string, { name: string; type: 'contact' | 'lead'; id: string }>();
+      (contactsRes.data || []).forEach((c: any) => {
+        if (c.phone && c.name) map.set(normalize(c.phone), { name: c.name, type: 'contact', id: c.id });
+      });
+      (leadsRes.data || []).forEach((l: any) => {
+        if (l.phone && l.name) map.set(normalize(l.phone), { name: l.name, type: 'lead', id: l.id });
+      });
+      setContactMap(map);
     } catch (error) {
       console.error('[KnightDashboard] Load error:', error);
     } finally {
@@ -204,6 +216,11 @@ export default function KnightDashboard() {
 
   const agentName = config?.agent_name || 'Knight';
 
+  const resolveContact = (handle: string) => {
+    const normalized = handle.replace(/\D/g, '').slice(-10);
+    return normalized.length >= 7 ? (contactMap.get(normalized) ?? null) : null;
+  };
+
   const escalatedCount = tickets.filter((t) => t.status === 'escalated').length;
   const needsAttentionCount = tickets.filter(
     (t) => t.status === 'escalated' || t.priority === 'critical'
@@ -284,60 +301,60 @@ export default function KnightDashboard() {
                 </p>
               </div>
             ) : (
-              tickets.map((ticket) => (
-                <button
-                  key={ticket.id}
-                  onClick={() => handleSelectTicket(ticket)}
-                  className={cn(
-                    'w-full p-3 text-left hover:bg-muted/50 transition-colors',
-                    selectedTicket?.ticket.id === ticket.id && 'bg-primary/5 border-l-2 border-l-primary'
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        {ticket.status === 'escalated' ? (
-                          <AlertTriangle className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
-                        ) : ticket.priority === 'critical' ? (
-                          <AlertTriangle className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" />
-                        ) : (
-                          <MessageSquare className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                        )}
-                        <span className="text-sm font-medium truncate">
-                          {ticket.source_handle}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2 ml-5">
-                        {ticket.summary}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1.5 ml-5">
-                        {ticket.status === 'escalated' && (
-                          <Badge variant="outline" className="text-[10px] bg-red-500/10 text-red-500 border-red-500/30">
-                            Escalated
-                          </Badge>
-                        )}
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            'text-[10px]',
-                            ticket.priority === 'critical'
-                              ? 'bg-red-500/10 text-red-500 border-red-500/30'
-                              : ticket.priority === 'medium'
-                              ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30'
-                              : 'bg-green-500/10 text-green-500 border-green-500/30'
+              tickets.map((ticket) => {
+                const contact = resolveContact(ticket.source_handle);
+                return (
+                  <button
+                    key={ticket.id}
+                    onClick={() => handleSelectTicket(ticket)}
+                    className={cn(
+                      'w-full p-3 text-left hover:bg-muted/50 transition-colors',
+                      selectedTicket?.ticket.id === ticket.id && 'bg-primary/5 border-l-2 border-l-primary'
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          {ticket.status === 'escalated' ? (
+                            <AlertTriangle className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
+                          ) : ticket.priority === 'critical' ? (
+                            <AlertTriangle className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" />
+                          ) : (
+                            <MessageSquare className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                           )}
-                        >
-                          {ticket.priority}
-                        </Badge>
-                        <span className="text-[10px] text-muted-foreground">
-                          {formatTime(new Date(ticket.updated_at))}
-                        </span>
+                          <span className="text-sm font-semibold truncate">
+                            {contact ? contact.name : ticket.source_handle}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 ml-5 mb-1">
+                          {contact && (
+                            <Badge variant="outline" className={cn('text-[10px] py-0', contact.type === 'lead' ? 'text-blue-500 border-blue-500/30' : 'text-purple-500 border-purple-500/30')}>
+                              {contact.type}
+                            </Badge>
+                          )}
+                          <span className="text-xs text-muted-foreground truncate">
+                            {contact ? ticket.source_handle : ticket.summary}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 ml-5">
+                          {ticket.status === 'escalated' && (
+                            <Badge variant="outline" className="text-[10px] bg-red-500/10 text-red-500 border-red-500/30">
+                              Escalated
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className={cn('text-[10px]', ticket.priority === 'critical' ? 'bg-red-500/10 text-red-500 border-red-500/30' : ticket.priority === 'medium' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30' : 'bg-green-500/10 text-green-500 border-green-500/30')}>
+                            {ticket.priority}
+                          </Badge>
+                          <span className="text-[10px] text-muted-foreground">
+                            {formatTime(new Date(ticket.updated_at))}
+                          </span>
+                        </div>
                       </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
                     </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
-                  </div>
-                </button>
-              ))
+                  </button>
+                );
+              })
             )}
           </div>
         </Card>
@@ -347,44 +364,57 @@ export default function KnightDashboard() {
           <div className="flex-1 flex flex-col gap-4 min-w-0">
             {/* Ticket Header */}
             <Card variant="glass" className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold">{selectedTicket.ticket.source_handle}</span>
-                    <Badge variant="outline" className="text-xs capitalize">
-                      {selectedTicket.ticket.source_channel}
-                    </Badge>
-                    {selectedTicket.ticket.status === 'escalated' && (
-                      <Badge variant="outline" className="text-xs bg-red-500/10 text-red-500 border-red-500/30">
-                        Escalated
-                      </Badge>
-                    )}
+              {(() => {
+                const contact = resolveContact(selectedTicket.ticket.source_handle);
+                const score = selectedTicket.ticket.sentiment_score;
+                const sentimentEmoji = score ? (score >= 7 ? '😊' : score >= 4 ? '😐' : '😠') : null;
+                const sentimentColor = score ? (score >= 7 ? 'text-green-500' : score >= 4 ? 'text-yellow-500' : 'text-red-500') : '';
+                return (
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-bold text-base">
+                          {contact ? contact.name : selectedTicket.ticket.source_handle}
+                        </span>
+                        {contact && (
+                          <Badge variant="outline" className={cn('text-xs', contact.type === 'lead' ? 'text-blue-500 border-blue-500/30' : 'text-purple-500 border-purple-500/30')}>
+                            {contact.type}
+                          </Badge>
+                        )}
+                        {contact && (
+                          <button
+                            onClick={() => navigate(`/${contact.type === 'lead' ? 'leads' : 'contacts'}?highlight=${contact.id}`)}
+                            className="text-xs text-primary hover:underline"
+                          >
+                            View {contact.type} ↗
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {contact && <span className="text-xs text-muted-foreground">{selectedTicket.ticket.source_handle}</span>}
+                        <Badge variant="outline" className="text-xs capitalize">{selectedTicket.ticket.source_channel}</Badge>
+                        {selectedTicket.ticket.status === 'escalated' && (
+                          <Badge variant="outline" className="text-xs bg-red-500/10 text-red-500 border-red-500/30">Escalated</Badge>
+                        )}
+                        {sentimentEmoji && score && (
+                          <span className={cn('text-xs font-medium', sentimentColor)}>{sentimentEmoji} {score}/10</span>
+                        )}
+                        <span className="text-xs text-muted-foreground">{selectedTicket.messages.length} messages</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button variant="outline" size="sm" onClick={() => handleResolve(selectedTicket.ticket.id)} className="text-green-600 border-green-500/30 hover:bg-green-500/10">
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                        Resolve
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleDelete(selectedTicket.ticket.id)} className="text-red-500 border-red-500/30 hover:bg-red-500/10">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </Button>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Sentiment: {selectedTicket.ticket.sentiment_score}/10 · {selectedTicket.messages.length} messages
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleResolve(selectedTicket.ticket.id)}
-                    className="text-green-600 border-green-500/30 hover:bg-green-500/10"
-                  >
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Mark Resolved
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDelete(selectedTicket.ticket.id)}
-                    className="text-red-500 border-red-500/30 hover:bg-red-500/10"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </Button>
-                </div>
-              </div>
+                );
+              })()}
             </Card>
 
             {/* Messages */}

@@ -98,6 +98,8 @@ export default function Knight() {
   const [selectedTicket, setSelectedTicket] = useState<TicketDetail | null>(null);
   const [stats, setStats] = useState<KnightStats | null>(null);
   const [config, setConfig] = useState<KnightConfig | null>(null);
+  const [draftText, setDraftText] = useState({ agent_name: '', business_description: '', persona_prompt: '' });
+  const [contactMap, setContactMap] = useState<Map<string, { name: string; type: 'contact' | 'lead'; id: string }>>(new Map());
   const [loading, setLoading] = useState(true);
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
@@ -158,14 +160,34 @@ export default function Knight() {
     if (!workspace?.id) return;
     setLoading(true);
     try {
-      const [ticketsData, statsData, configData] = await Promise.all([
+      const [ticketsData, statsData, configData, contactsRes, leadsRes] = await Promise.all([
         getTickets(workspace.id),
         getKnightStats(workspace.id),
         getKnightConfig(workspace.id),
+        supabase.from('contacts').select('id, name, phone').eq('workspace_id', workspace.id),
+        supabase.from('leads').select('id, name, phone').eq('user_id', workspace.id),
       ]);
       setTickets(ticketsData);
       setStats(statsData);
       setConfig(configData);
+
+      // Build phone → contact/lead lookup map
+      const normalize = (p: string) => p.replace(/\D/g, '').slice(-10);
+      const map = new Map<string, { name: string; type: 'contact' | 'lead'; id: string }>();
+      (contactsRes.data || []).forEach((c: any) => {
+        if (c.phone && c.name) map.set(normalize(c.phone), { name: c.name, type: 'contact', id: c.id });
+      });
+      (leadsRes.data || []).forEach((l: any) => {
+        if (l.phone && l.name) map.set(normalize(l.phone), { name: l.name, type: 'lead', id: l.id });
+      });
+      setContactMap(map);
+      if (configData) {
+        setDraftText({
+          agent_name: configData.agent_name || '',
+          business_description: configData.business_description || '',
+          persona_prompt: configData.persona_prompt || '',
+        });
+      }
     } catch (error) {
       console.error('[Knight] Load data error:', error);
     } finally {
@@ -274,13 +296,18 @@ export default function Knight() {
     }
   };
 
-  const handleConfigUpdate = async (updates: Partial<KnightConfig>) => {
+  const handleConfigUpdate = async (updates: Partial<KnightConfig>, showToast = false) => {
     if (!workspace?.id) return;
     const updated = await updateKnightConfig(workspace.id, updates);
     if (updated) {
       setConfig(updated);
-      toast({ title: 'Settings saved' });
+      if (showToast) toast({ title: 'Settings saved' });
     }
+  };
+
+  const resolveContact = (handle: string) => {
+    const normalized = handle.replace(/\D/g, '').slice(-10);
+    return normalized.length >= 7 ? (contactMap.get(normalized) ?? null) : null;
   };
 
   // Filter tickets
@@ -518,49 +545,61 @@ export default function Knight() {
                       </p>
                     </div>
                   ) : (
-                    filteredTickets.map((ticket) => (
-                      <button
-                        key={ticket.id}
-                        onClick={() => handleSelectTicket(ticket)}
-                        className={cn(
-                          'w-full p-4 text-left hover:bg-muted/50 transition-colors',
-                          selectedTicket?.ticket.id === ticket.id && 'bg-primary/10'
-                        )}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="flex-shrink-0 mt-1">
-                            {getChannelIcon(ticket.source_channel)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-medium text-sm truncate">
-                                {ticket.source_handle}
-                              </span>
-                              <Badge
-                                variant="outline"
-                                className={cn('text-xs', getPriorityColor(ticket.priority))}
-                              >
-                                {ticket.priority}
-                              </Badge>
+                    filteredTickets.map((ticket) => {
+                      const contact = resolveContact(ticket.source_handle);
+                      const sentimentColor = ticket.sentiment_score
+                        ? ticket.sentiment_score >= 7 ? 'text-green-500' : ticket.sentiment_score >= 4 ? 'text-yellow-500' : 'text-red-500'
+                        : 'text-muted-foreground';
+                      return (
+                        <button
+                          key={ticket.id}
+                          onClick={() => handleSelectTicket(ticket)}
+                          className={cn(
+                            'w-full px-4 py-3 text-left hover:bg-muted/50 transition-colors',
+                            selectedTicket?.ticket.id === ticket.id && 'bg-primary/10'
+                          )}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0 mt-0.5">
+                              {getChannelIcon(ticket.source_channel)}
                             </div>
-                            <p className="text-xs text-muted-foreground line-clamp-2">
-                              {ticket.summary}
-                            </p>
-                            <div className="flex items-center gap-2 mt-2">
-                              <Badge
-                                variant="outline"
-                                className={cn('text-xs', getStatusColor(ticket.status))}
-                              >
-                                {ticket.status.replace('_', ' ')}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                {formatTimestamp(new Date(ticket.created_at))}
-                              </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2 mb-0.5">
+                                <span className="font-semibold text-sm truncate">
+                                  {contact ? contact.name : ticket.source_handle}
+                                </span>
+                                <Badge variant="outline" className={cn('text-xs shrink-0', getStatusColor(ticket.status))}>
+                                  {ticket.status.replace('_', ' ')}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-1.5 mb-1">
+                                {contact && (
+                                  <Badge variant="outline" className={cn('text-xs py-0', contact.type === 'lead' ? 'text-blue-500 border-blue-500/30' : 'text-purple-500 border-purple-500/30')}>
+                                    {contact.type}
+                                  </Badge>
+                                )}
+                                <span className="text-xs text-muted-foreground truncate">
+                                  {contact ? ticket.source_handle : ticket.summary || '—'}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  {ticket.sentiment_score && (
+                                    <span className={cn('text-xs font-medium', sentimentColor)}>● {ticket.sentiment_score}/10</span>
+                                  )}
+                                  <Badge variant="outline" className={cn('text-xs', getPriorityColor(ticket.priority))}>
+                                    {ticket.priority}
+                                  </Badge>
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {formatTimestamp(new Date(ticket.updated_at))}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </button>
-                    ))
+                        </button>
+                      );
+                    })
                   )}
                 </div>
               </Card>
@@ -581,49 +620,72 @@ export default function Knight() {
                         Back to tickets
                       </Button>
                     )}
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          {getChannelIcon(selectedTicket.ticket.source_channel)}
-                          <span className="font-semibold">
-                            {selectedTicket.ticket.source_handle}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant="outline"
-                            className={getPriorityColor(selectedTicket.ticket.priority)}
+                    {(() => {
+                      const contact = resolveContact(selectedTicket.ticket.source_handle);
+                      const score = selectedTicket.ticket.sentiment_score;
+                      const sentimentEmoji = score ? (score >= 7 ? '😊' : score >= 4 ? '😐' : '😠') : null;
+                      const sentimentColor = score ? (score >= 7 ? 'text-green-500' : score >= 4 ? 'text-yellow-500' : 'text-red-500') : '';
+                      return (
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              {getChannelIcon(selectedTicket.ticket.source_channel)}
+                              <span className="text-xs text-muted-foreground capitalize">{selectedTicket.ticket.source_channel}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className="font-bold text-base">
+                                {contact ? contact.name : selectedTicket.ticket.source_handle}
+                              </span>
+                              {contact && (
+                                <Badge variant="outline" className={cn('text-xs', contact.type === 'lead' ? 'text-blue-500 border-blue-500/30' : 'text-purple-500 border-purple-500/30')}>
+                                  {contact.type}
+                                </Badge>
+                              )}
+                              {contact && (
+                                <button
+                                  onClick={() => navigate(`/${contact.type === 'lead' ? 'leads' : 'contacts'}?highlight=${contact.id}`)}
+                                  className="text-xs text-primary hover:underline"
+                                >
+                                  View {contact.type} ↗
+                                </button>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {contact && (
+                                <span className="text-xs text-muted-foreground">{selectedTicket.ticket.source_handle}</span>
+                              )}
+                              <Badge variant="outline" className={getPriorityColor(selectedTicket.ticket.priority)}>
+                                {selectedTicket.ticket.priority}
+                              </Badge>
+                              <Badge variant="outline" className={getStatusColor(selectedTicket.ticket.status)}>
+                                {selectedTicket.ticket.status.replace('_', ' ')}
+                              </Badge>
+                              {sentimentEmoji && score && (
+                                <span className={cn('text-xs font-medium', sentimentColor)}>
+                                  {sentimentEmoji} {score}/10
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <Select
+                            value={selectedTicket.ticket.status}
+                            onValueChange={(value) =>
+                              handleStatusChange(selectedTicket.ticket.id, value as Ticket['status'])
+                            }
                           >
-                            {selectedTicket.ticket.priority}
-                          </Badge>
-                          <Badge
-                            variant="outline"
-                            className={getStatusColor(selectedTicket.ticket.status)}
-                          >
-                            {selectedTicket.ticket.status.replace('_', ' ')}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            Sentiment: {selectedTicket.ticket.sentiment_score}/10
-                          </span>
+                            <SelectTrigger className="w-[130px] shrink-0">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="open">Open</SelectItem>
+                              <SelectItem value="pending_user">Pending User</SelectItem>
+                              <SelectItem value="escalated">Escalate</SelectItem>
+                              <SelectItem value="resolved">Resolve</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
-                      </div>
-                      <Select
-                        value={selectedTicket.ticket.status}
-                        onValueChange={(value) =>
-                          handleStatusChange(selectedTicket.ticket.id, value as Ticket['status'])
-                        }
-                      >
-                        <SelectTrigger className="w-[130px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="open">Open</SelectItem>
-                          <SelectItem value="pending_user">Pending User</SelectItem>
-                          <SelectItem value="escalated">Escalate</SelectItem>
-                          <SelectItem value="resolved">Resolve</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Messages */}
@@ -818,8 +880,9 @@ export default function Knight() {
                   </p>
                   <Input
                     placeholder="e.g. Sarah, Alex, Support"
-                    value={config?.agent_name || ''}
-                    onChange={(e) => handleConfigUpdate({ agent_name: e.target.value })}
+                    value={draftText.agent_name}
+                    onChange={(e) => setDraftText(prev => ({ ...prev, agent_name: e.target.value }))}
+                    onBlur={() => handleConfigUpdate({ agent_name: draftText.agent_name }, true)}
                     className="max-w-xs"
                   />
                 </div>
@@ -858,10 +921,9 @@ export default function Knight() {
                   </p>
                   <Textarea
                     placeholder="e.g. We're a cloud kitchen delivering North Indian and Chinese food in Bangalore. Our top items are butter chicken biryani and hakka noodles. Delivery takes 30-45 mins. We accept UPI, cards, and COD."
-                    value={config?.business_description || ''}
-                    onChange={(e) =>
-                      handleConfigUpdate({ business_description: e.target.value })
-                    }
+                    value={draftText.business_description}
+                    onChange={(e) => setDraftText(prev => ({ ...prev, business_description: e.target.value }))}
+                    onBlur={() => handleConfigUpdate({ business_description: draftText.business_description }, true)}
                     className="min-h-[100px]"
                   />
                 </div>
@@ -983,8 +1045,9 @@ export default function Knight() {
                   </p>
                   <Textarea
                     placeholder="Enter custom persona instructions..."
-                    value={config?.persona_prompt || ''}
-                    onChange={(e) => handleConfigUpdate({ persona_prompt: e.target.value })}
+                    value={draftText.persona_prompt}
+                    onChange={(e) => setDraftText(prev => ({ ...prev, persona_prompt: e.target.value }))}
+                    onBlur={() => handleConfigUpdate({ persona_prompt: draftText.persona_prompt }, true)}
                     className="min-h-[120px]"
                   />
                 </div>
