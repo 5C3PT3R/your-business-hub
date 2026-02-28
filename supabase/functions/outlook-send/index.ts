@@ -35,7 +35,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': 'https://hireregent.com',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
       },
@@ -177,7 +177,7 @@ serve(async (req) => {
 
       return new Response(
         JSON.stringify({ success: true, message: 'Reply sent successfully' }),
-        { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+        { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'https://hireregent.com' } }
       );
     }
 
@@ -213,13 +213,13 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ success: true, message: 'Email sent successfully' }),
-      { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+      { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'https://hireregent.com' } }
     );
   } catch (error) {
     console.error('Outlook send error:', error);
     return new Response(
       JSON.stringify({ error: (error as Error).message }),
-      { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+      { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'https://hireregent.com' } }
     );
   }
 });

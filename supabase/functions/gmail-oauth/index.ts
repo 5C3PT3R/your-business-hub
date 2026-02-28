@@ -36,26 +36,13 @@ const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/gmail-oauth/callback`;
 // Note: State is now stored in database instead of memory to survive edge function restarts
 
 serve(async (req) => {
-  // CRITICAL: Log IMMEDIATELY before anything else
-  console.log('🔥🔥🔥 REQUEST RECEIVED 🔥🔥🔥');
-
   const url = new URL(req.url);
-
-  console.log('=== INCOMING REQUEST ===');
-  console.log('Method:', req.method);
-  console.log('Full URL:', req.url);
-  console.log('Pathname:', url.pathname);
-  console.log('Headers:', Object.fromEntries(req.headers.entries()));
-  console.log('SUPABASE_URL:', SUPABASE_URL);
-  console.log('SUPABASE_ANON_KEY exists:', !!SUPABASE_ANON_KEY);
-  console.log('SUPABASE_SERVICE_ROLE_KEY exists:', !!SUPABASE_SERVICE_ROLE_KEY);
 
   // CORS headers - Handle OPTIONS first before ANY other logic
   if (req.method === 'OPTIONS') {
-    console.log('Handling OPTIONS request');
     return new Response(null, {
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': 'https://hireregent.com',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
       },
@@ -73,7 +60,7 @@ serve(async (req) => {
         status: 503,
         headers: {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Origin': 'https://hireregent.com',
         }
       }
     );
@@ -115,7 +102,7 @@ serve(async (req) => {
       status: 404,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': 'https://hireregent.com',
       }
     });
   } catch (error) {
@@ -147,7 +134,7 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
         status: 503,
         headers: {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Origin': 'https://hireregent.com',
         }
       }
     );
@@ -164,7 +151,7 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
         status: 401,
         headers: {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Origin': 'https://hireregent.com',
         }
       }
     );
@@ -193,7 +180,7 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
         status: 401,
         headers: {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Origin': 'https://hireregent.com',
         }
       }
     );
@@ -234,7 +221,7 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
     {
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': 'https://hireregent.com',
       }
     }
   );
@@ -447,7 +434,7 @@ async function handleDisconnect(req: Request, supabaseAdmin: any): Promise<Respo
     {
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': 'https://hireregent.com',
       }
     }
   );
@@ -492,7 +479,7 @@ async function handleStatus(req: Request, supabaseAdmin: any): Promise<Response>
     {
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': 'https://hireregent.com',
       }
     }
   );

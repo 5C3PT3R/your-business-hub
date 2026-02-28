@@ -45,7 +45,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': 'https://hireregent.com',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
       },
@@ -200,7 +200,7 @@ async function handleSync(req: Request, supabase: any): Promise<Response> {
       syncedCount: syncedMessages.length,
       messages: syncedMessages,
     }),
-    { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+    { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'https://hireregent.com' } }
   );
 }
 

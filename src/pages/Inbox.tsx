@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
@@ -873,19 +874,10 @@ export default function Inbox() {
 }
 
 function sanitizeHtml(html: string): string {
-  // Remove <style> tags and their contents
-  let cleaned = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-
-  // Remove inline style attributes
-  cleaned = cleaned.replace(/\sstyle="[^"]*"/gi, '');
-
-  // Remove script tags
-  cleaned = cleaned.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
-
-  // Remove dangerous attributes
-  cleaned = cleaned.replace(/\son\w+="[^"]*"/gi, '');
-
-  return cleaned;
+  return DOMPurify.sanitize(html, {
+    FORBID_TAGS: ['style', 'script', 'iframe', 'object', 'embed'],
+    FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover'],
+  });
 }
 
 function formatTimestamp(date: Date, detailed: boolean = false): string {

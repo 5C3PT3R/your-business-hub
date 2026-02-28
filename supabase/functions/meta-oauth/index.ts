@@ -42,7 +42,7 @@ const PLATFORM_SCOPES: Record<string, string[]> = {
 const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/meta-oauth/callback`;
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://hireregent.com',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };

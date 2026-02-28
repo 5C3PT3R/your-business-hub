@@ -45,7 +45,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': 'https://hireregent.com',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
       },
@@ -55,7 +55,7 @@ serve(async (req) => {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
     return new Response(
       JSON.stringify({ error: 'Configuration error', message: 'Missing Supabase credentials' }),
-      { status: 503, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+      { status: 503, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'https://hireregent.com' } }
     );
   }
 
@@ -89,13 +89,13 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ error: 'Not found' }), {
       status: 404,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'https://hireregent.com' },
     });
   } catch (error) {
     console.error('Outlook OAuth error:', error);
     return new Response(
       JSON.stringify({ error: 'Internal server error', message: (error as Error).message }),
-      { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+      { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'https://hireregent.com' } }
     );
   }
 });
@@ -110,7 +110,7 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
         error: 'Outlook OAuth not configured',
         message: 'OUTLOOK_CLIENT_ID and OUTLOOK_CLIENT_SECRET must be set',
       }),
-      { status: 503, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+      { status: 503, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'https://hireregent.com' } }
     );
   }
 
@@ -118,7 +118,7 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
   if (!authHeader) {
     return new Response(
       JSON.stringify({ error: 'Unauthorized', message: 'Authorization header missing' }),
-      { status: 401, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+      { status: 401, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'https://hireregent.com' } }
     );
   }
 
@@ -128,7 +128,7 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
   if (authError || !user) {
     return new Response(
       JSON.stringify({ error: 'Invalid JWT', message: authError?.message }),
-      { status: 401, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+      { status: 401, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'https://hireregent.com' } }
     );
   }
 
@@ -165,7 +165,7 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
   const authUrl = `${MICROSOFT_AUTH_URL}/authorize?${params.toString()}`;
 
   return new Response(JSON.stringify({ authUrl }), {
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'https://hireregent.com' },
   });
 }
 
@@ -342,7 +342,7 @@ async function handleRefreshToken(req: Request, supabaseAdmin: any): Promise<Res
   // For now, return placeholder
   return new Response(
     JSON.stringify({ success: true, message: 'Token refresh not yet implemented' }),
-    { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+    { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'https://hireregent.com' } }
   );
 }
 
@@ -381,7 +381,7 @@ async function handleDisconnect(req: Request, supabaseAdmin: any): Promise<Respo
 
   return new Response(
     JSON.stringify({ success: true, message: 'Outlook disconnected' }),
-    { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+    { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'https://hireregent.com' } }
   );
 }
 
@@ -418,6 +418,6 @@ async function handleStatus(req: Request, supabaseAdmin: any): Promise<Response>
       connectedAt: tokenData?.created_at,
       lastSyncedAt: tokenData?.last_synced_at,
     }),
-    { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+    { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'https://hireregent.com' } }
   );
 }
