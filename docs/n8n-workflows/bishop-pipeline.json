@@ -1,0 +1,261 @@
+{
+  "name": "Bishop — Full Pipeline (Scrape → Verify → Outreach)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "hours", "hoursInterval": 24 }]
+        }
+      },
+      "id": "trigger-schedule",
+      "name": "Daily Trigger (9am)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bishop-manual",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "trigger-webhook",
+      "name": "Manual Trigger (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 460],
+      "notes": "POST { client_id, target_urls: [...], user_id } to trigger manually"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge trigger sources — schedule uses defaults, webhook uses body\nconst item = $input.first();\nconst body = item.json.body || item.json;\n\nreturn [{\n  json: {\n    client_id:   body.client_id   || null,\n    workspace_id: body.workspace_id || null,\n    user_id:     body.user_id     || process.env.DEFAULT_USER_ID || '',\n    target_urls: body.target_urls || [\n      // Default prospect list URLs — edit in Supabase or pass via webhook\n      // e.g. LinkedIn Sales Nav exports, Apollo.io CSV exports, etc.\n    ],\n    max_leads:   body.max_leads  || 50,\n    run_id:      crypto.randomUUID(),\n    triggered_at: new Date().toISOString(),\n  }\n}];"
+      },
+      "id": "init",
+      "name": "Init Run Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 380]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─────────────────────────────────────────────────────────\n// BISHOP SCRAPER — extracts lead data from target URLs\n// ─────────────────────────────────────────────────────────\n// In production, replace this with:\n//   - Clay.ai API call\n//   - Apollo.io API call  \n//   - Hunter.io API call\n//   - Custom Puppeteer/Playwright scraper\n//\n// This node returns a MOCK list so you can test the full pipeline.\n// Replace $scraped with your actual scraped data.\n\nconst config = $input.first().json;\nconst targetUrls = config.target_urls || [];\n\n// MOCK DATA — replace with real scraper calls\nconst mockLeads = [\n  {\n    name: 'Sarah Chen',\n    email: 'sarah.chen@acmecorp.io',\n    company: 'Acme Corp',\n    title: 'Head of Operations',\n    phone: null,\n    linkedin_url: 'https://linkedin.com/in/sarah-chen-ops',\n    source_url: targetUrls[0] || 'scrape',\n    context_notes: 'Growing SaaS company, recently hired 3 ops staff. Pain: manual lead routing.',\n    enrichment_data: {\n      company_size: '50-200',\n      funding_stage: 'Series A',\n      tech_stack: ['Salesforce', 'Slack', 'Notion']\n    }\n  },\n  {\n    name: 'Marcus Webb',\n    email: 'm.webb@brightpaths.com',\n    company: 'BrightPaths',\n    title: 'CEO',\n    phone: '+14155550123',\n    linkedin_url: 'https://linkedin.com/in/marcuswebb',\n    source_url: targetUrls[0] || 'scrape',\n    context_notes: 'B2B SaaS, 12-person team. No dedicated SDR. Looking to scale outbound.',\n    enrichment_data: {\n      company_size: '10-50',\n      funding_stage: 'Bootstrapped',\n      annual_revenue: '2M'\n    }\n  }\n];\n\n// Attach run config to each lead\nreturn mockLeads.map(lead => ({\n  json: {\n    ...lead,\n    client_id:    config.client_id,\n    workspace_id: config.workspace_id,\n    user_id:      config.user_id,\n    run_id:       config.run_id,\n  }\n}));"
+      },
+      "id": "scraper",
+      "name": "Bishop — Scrape Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 380],
+      "notes": "Replace mock data with real scraper (Clay.ai / Apollo.io / custom)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Batch all scraped leads into one array for pawn-verify\nconst items = $input.all();\nif (!items.length) return [];\n\n// Take config from first item\nconst first = items[0].json;\n\nreturn [{\n  json: {\n    client_id:    first.client_id,\n    workspace_id: first.workspace_id,\n    user_id:      first.user_id,\n    run_id:       first.run_id,\n    leads: items.map(i => i.json),\n  }\n}];"
+      },
+      "id": "batch",
+      "name": "Batch Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 380]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/pawn-verify",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "pawn-verify",
+      "name": "Pawn — Verify & Dedup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1200, 380],
+      "notes": "Calls pawn-verify edge function. Returns { clean, duplicates, invalid, stats }"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log Pawn stats and extract clean leads for Bishop\nconst result = $input.first().json;\nconst stats = result.stats || {};\n\nconsole.log(`[Pawn] Total: ${stats.total} | Clean: ${stats.clean} | Dupes: ${stats.duplicates} | Invalid: ${stats.invalid}`);\n\nif (!result.clean || result.clean.length === 0) {\n  console.log('[Pawn] No clean leads — stopping run.');\n  return [];\n}\n\n// Return each clean lead as separate item for Bishop processing\nreturn result.clean.map(lead => ({ json: lead }));"
+      },
+      "id": "pawn-filter",
+      "name": "Pawn — Filter Clean Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1440, 380]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/bishop-sweep",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\"user_id\": \"{{ $json.user_id }}\"}",
+        "options": {}
+      },
+      "id": "bishop-sweep",
+      "name": "Bishop — Generate Drafts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1680, 380],
+      "notes": "Calls bishop-sweep — generates AI email drafts for all eligible leads"
+    },
+    {
+      "parameters": {
+        "jsCode": "// After sweep, auto-send approved drafts\n// In PILOT mode: drafts go to Supabase for human review\n// In AUTO mode: call bishop-send for each draft\n\nconst sweepResult = $input.first().json;\nconst AUTO_SEND = process.env.BISHOP_AUTO_SEND === 'true';\n\nif (AUTO_SEND) {\n  console.log('[Bishop] AUTO_SEND enabled — drafts will be sent automatically');\n} else {\n  console.log('[Bishop] PILOT mode — drafts saved for human review in Supabase');\n}\n\nreturn [{ json: { ...sweepResult, auto_send: AUTO_SEND } }];"
+      },
+      "id": "auto-send-check",
+      "name": "Auto Send? (Pilot vs Auto)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1920, 380]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "auto-send-condition",
+              "leftValue": "={{ $json.auto_send }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-auto-send",
+      "name": "IF Auto Send",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2160, 380]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/ai_drafts?status=eq.PENDING_APPROVAL&select=id,lead_id,subject,body,user_id",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-pending-drafts",
+      "name": "Get Pending Drafts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2400, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/bishop-send",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\"draft_id\": \"{{ $json.id }}\", \"user_id\": \"{{ $json.user_id }}\"}",
+        "options": {}
+      },
+      "id": "bishop-send",
+      "name": "Bishop — Send Emails",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2640, 300],
+      "notes": "Calls bishop-send for each pending draft"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build a summary report for Queen / Slack notification\nconst items = $input.all();\nconst sendResults = items.map(i => i.json).filter(r => r.success);\n\nconst summary = {\n  timestamp: new Date().toISOString(),\n  sent_count: sendResults.length,\n  failed_count: items.length - sendResults.length,\n  leads_contacted: sendResults.map(r => r.to),\n};\n\nconsole.log('[Bishop] Run complete:', summary);\nreturn [{ json: summary }];"
+      },
+      "id": "summary",
+      "name": "Build Run Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2880, 380]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"text\": \"*Bishop Daily Run Complete* :chess_pawn:\\n>Sent: *{{ $json.sent_count }}* emails\\n>Failed: {{ $json.failed_count }}\\n>Time: {{ $json.timestamp }}\"\n}",
+        "options": {}
+      },
+      "id": "slack-notify",
+      "name": "Queen — Slack Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [3120, 380],
+      "notes": "Set SLACK_WEBHOOK_URL in n8n environment variables"
+    }
+  ],
+  "connections": {
+    "Daily Trigger (9am)":        { "main": [[{ "node": "Init Run Config", "type": "main", "index": 0 }]] },
+    "Manual Trigger (Webhook)":   { "main": [[{ "node": "Init Run Config", "type": "main", "index": 0 }]] },
+    "Init Run Config":            { "main": [[{ "node": "Bishop — Scrape Leads", "type": "main", "index": 0 }]] },
+    "Bishop — Scrape Leads":      { "main": [[{ "node": "Batch Leads", "type": "main", "index": 0 }]] },
+    "Batch Leads":                { "main": [[{ "node": "Pawn — Verify & Dedup", "type": "main", "index": 0 }]] },
+    "Pawn — Verify & Dedup":      { "main": [[{ "node": "Pawn — Filter Clean Leads", "type": "main", "index": 0 }]] },
+    "Pawn — Filter Clean Leads":  { "main": [[{ "node": "Bishop — Generate Drafts", "type": "main", "index": 0 }]] },
+    "Bishop — Generate Drafts":   { "main": [[{ "node": "Auto Send? (Pilot vs Auto)", "type": "main", "index": 0 }]] },
+    "Auto Send? (Pilot vs Auto)": { "main": [[{ "node": "IF Auto Send", "type": "main", "index": 0 }]] },
+    "IF Auto Send": {
+      "main": [
+        [{ "node": "Get Pending Drafts", "type": "main", "index": 0 }],
+        [{ "node": "Build Run Summary", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Pending Drafts":   { "main": [[{ "node": "Bishop — Send Emails", "type": "main", "index": 0 }]] },
+    "Bishop — Send Emails": { "main": [[{ "node": "Build Run Summary", "type": "main", "index": 0 }]] },
+    "Build Run Summary":    { "main": [[{ "node": "Queen — Slack Report", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromAList",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": ["bishop", "regent", "bpo"],
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "_readme": {
+    "description": "Bishop full pipeline: scrape → pawn dedup/verify → bishop-sweep drafts → bishop-send emails → Queen Slack report",
+    "environment_variables": {
+      "SUPABASE_URL": "Your Supabase project URL",
+      "SUPABASE_SERVICE_ROLE_KEY": "Supabase service role key (from project settings)",
+      "SLACK_WEBHOOK_URL": "Incoming webhook URL for #regent-reports Slack channel",
+      "BISHOP_AUTO_SEND": "Set to 'true' for autonomous sending. Leave unset for human-review (PILOT mode)"
+    },
+    "how_to_import": "In n8n: Workflows → Import from file → select this JSON",
+    "pilot_mode": "BISHOP_AUTO_SEND is NOT set → drafts saved to ai_drafts table for human approval in the Regent dashboard",
+    "auto_mode": "BISHOP_AUTO_SEND=true → emails sent automatically without human review"
+  }
+}

@@ -57,6 +57,7 @@ import MetaCallback from "./pages/MetaCallback";
 import Waitlist from "./pages/Waitlist";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
+import Clients from "./pages/Clients";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -104,6 +105,8 @@ function AppRoutes() {
       <Route path="/settings" element={<AuthGuard><Settings /></AuthGuard>} />
       <Route path="/settings/import" element={<AuthGuard><Import /></AuthGuard>} />
       <Route path="/command-center" element={<AuthGuard><CommandCenter /></AuthGuard>} />
+
+      <Route path="/clients" element={<AuthGuard><Clients /></AuthGuard>} />
 
       {/* INTEGRATIONS */}
       <Route path="/integrations/meta" element={<AuthGuard><MetaIntegration /></AuthGuard>} />
