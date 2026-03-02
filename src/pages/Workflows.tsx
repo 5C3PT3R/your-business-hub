@@ -1,436 +1,383 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  ReactFlow,
-  Background,
-  Controls,
-  MiniMap,
-  addEdge,
-  useNodesState,
-  useEdgesState,
-  Connection,
-  ReactFlowProvider,
-  ReactFlowInstance,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
-
+import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
-import { useWorkflows } from '@/hooks/useWorkflows';
-import { WorkflowCard } from '@/components/workflows/WorkflowCard';
-import { NodePalette } from '@/components/workflows/NodePalette';
-import { TriggerNode } from '@/components/workflows/nodes/TriggerNode';
-import { AIProcessorNode } from '@/components/workflows/nodes/AIProcessorNode';
-import { ActionNode } from '@/components/workflows/nodes/ActionNode';
-import { ConditionNode } from '@/components/workflows/nodes/ConditionNode';
-import { DelayNode } from '@/components/workflows/nodes/DelayNode';
-import { workflowTemplates } from '@/components/workflows/workflowTemplates';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Search,
-  Plus,
-  Loader2,
-  Wand2,
-  Workflow,
-  Play,
-  Zap,
-  UserPlus,
-  Target,
-  Mail,
-  Calendar,
+  Zap, Shield, Cpu, Swords, Castle, ScanSearch,
+  Crown, Mail, ClipboardList, Banknote, AlertTriangle,
+  Clock, Check, AlertCircle,
 } from 'lucide-react';
-import { TriggerType } from '@/types/workflows';
 
-const nodeTypes = {
-  trigger: TriggerNode,
-  ai_processor: AIProcessorNode,
-  action: ActionNode,
-  condition: ConditionNode,
-  delay: DelayNode,
-};
+// ─── Types ────────────────────────────────────────────────
 
-const triggerOptions = [
-  { value: 'contact_created', label: 'New Contact Created', icon: UserPlus },
-  { value: 'deal_stage_changed', label: 'Deal Stage Changed', icon: Target },
-  { value: 'email_received', label: 'Email Received', icon: Mail },
-  { value: 'form_submitted', label: 'Form Submitted', icon: Zap },
-  { value: 'meeting_scheduled', label: 'Meeting Scheduled', icon: Calendar },
+type WorkflowStatus = 'active' | 'paused' | 'error';
+
+interface ChainNode {
+  name:    string;
+  Icon:    React.ElementType;
+  special: boolean; // rust/human node
+}
+
+interface WorkflowDef {
+  id:          string;
+  name:        string;
+  status:      WorkflowStatus;
+  trigger:     { label: string; Icon: React.ElementType };
+  chain:       ChainNode[];
+  lastRun:     string;
+  successRate: number | null;
+  errorCount:  number | null;
+  errorNote:   string | null;
+}
+
+// ─── Static workflow definitions ──────────────────────────
+// These describe the Regent BPO system architecture — agent pipelines,
+// not user-created records.
+
+const WORKFLOWS: WorkflowDef[] = [
+  {
+    id:          'ticket-resolution',
+    name:        'New Ticket to Resolution',
+    status:      'active',
+    trigger:     { label: 'Email / WhatsApp', Icon: Mail },
+    chain:       [
+      { name: 'Knight', Icon: Shield,  special: false },
+      { name: 'Queen',  Icon: Cpu,     special: false },
+    ],
+    lastRun:     '2m ago',
+    successRate: 98,
+    errorCount:  null,
+    errorNote:   null,
+  },
+  {
+    id:          'lead-qualification',
+    name:        'Lead Qualification Flow',
+    status:      'active',
+    trigger:     { label: 'Pawn Import', Icon: ClipboardList },
+    chain:       [
+      { name: 'Pawn',   Icon: ScanSearch, special: false },
+      { name: 'Bishop', Icon: Swords,     special: false },
+      { name: 'Queen',  Icon: Cpu,        special: false },
+      { name: 'Rook',   Icon: Castle,     special: false },
+    ],
+    lastRun:     '15m ago',
+    successRate: 94,
+    errorCount:  null,
+    errorNote:   null,
+  },
+  {
+    id:          'crm-sync',
+    name:        'CRM Data Sync',
+    status:      'active',
+    trigger:     { label: 'Deal Closed', Icon: Banknote },
+    chain:       [
+      { name: 'Rook',  Icon: Castle, special: false },
+      { name: 'Queen', Icon: Cpu,    special: false },
+    ],
+    lastRun:     '1h ago',
+    successRate: 100,
+    errorCount:  null,
+    errorNote:   null,
+  },
+  {
+    id:          'escalation-routing',
+    name:        'Escalation Routing',
+    status:      'active',
+    trigger:     { label: 'Alert', Icon: AlertTriangle },
+    chain:       [
+      { name: 'Knight',      Icon: Shield, special: false },
+      { name: 'King (Human)', Icon: Crown,  special: true },
+    ],
+    lastRun:     '10m ago',
+    successRate: 100,
+    errorCount:  null,
+    errorNote:   null,
+  },
+  {
+    id:          'bishop-outreach',
+    name:        'Cold Outreach Campaign',
+    status:      'paused',
+    trigger:     { label: 'Hourly', Icon: Clock },
+    chain:       [
+      { name: 'Pawn',   Icon: ScanSearch, special: false },
+      { name: 'Bishop', Icon: Swords,     special: false },
+      { name: 'Rook',   Icon: Castle,     special: false },
+    ],
+    lastRun:     '3h ago',
+    successRate: null,
+    errorCount:  2,
+    errorNote:   'Sync paused: BISHOP_AUTO_SEND not set. Enable autonomous mode or approve drafts manually.',
+  },
 ];
 
-const templateIcons: Record<string, any> = {
-  UserPlus: UserPlus,
-  Calendar: Calendar,
-  Mail: Mail,
-  Target: Target,
-};
+// ─── Sub-components ───────────────────────────────────────
 
-function WorkflowsContent() {
-  const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [createMode, setCreateMode] = useState<'scratch' | 'template' | 'ai'>('template');
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [newWorkflow, setNewWorkflow] = useState({
-    name: '',
-    description: '',
-    trigger_type: 'contact_created' as TriggerType,
+function ChainConnector() {
+  return (
+    <div className="flex items-center mx-2 shrink-0">
+      {/* line */}
+      <div className="w-8 lg:w-14 h-px bg-[#E7E5E4] relative">
+        {/* arrowhead */}
+        <div
+          className="absolute right-0 top-1/2 w-1.5 h-1.5 border-t border-r border-[#E7E5E4]"
+          style={{ transform: 'translateY(-50%) rotate(45deg)' }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function TriggerBubble() {
+  return (
+    <div className="w-8 h-8 rounded-full bg-stone-100 border border-stone-200 flex items-center justify-center text-stone-400 shrink-0">
+      <Zap className="w-4 h-4" />
+    </div>
+  );
+}
+
+function DoneBubble() {
+  return (
+    <div className="w-8 h-8 rounded-full bg-stone-900 border border-stone-800 flex items-center justify-center text-white shrink-0">
+      <Check className="w-4 h-4" />
+    </div>
+  );
+}
+
+function AgentNodePill({ node }: { node: ChainNode }) {
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-2 px-3 py-1.5 rounded-full border text-[11px] font-medium shrink-0',
+        'uppercase tracking-wider',
+        node.special
+          ? 'bg-[#FFF8F5] border-[#CC5500]/30 text-[#CC5500]'
+          : 'bg-stone-50 border-[#E7E5E4] text-stone-600',
+      )}
+      style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+    >
+      <node.Icon
+        className="w-3.5 h-3.5 shrink-0"
+        style={{ color: node.special ? '#CC5500' : undefined }}
+      />
+      {node.name}
+    </div>
+  );
+}
+
+function StatusPill({ status, errorCount }: { status: WorkflowStatus; errorCount: number | null }) {
+  if (status === 'active') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+        Active
+      </span>
+    );
+  }
+  if (status === 'error') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-700 border border-red-200">
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+        Error
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-stone-100 text-stone-600 border border-[#E7E5E4]">
+      <span className="w-1.5 h-1.5 rounded-full bg-stone-400" />
+      {errorCount ? `${errorCount} Errors` : 'Paused'}
+    </span>
+  );
+}
+
+// ─── Main component ────────────────────────────────────────
+
+type FilterId = 'all' | 'active' | 'paused' | 'error';
+
+export default function Workflows() {
+  const [filter, setFilter] = useState<FilterId>('all');
+
+  const displayed = WORKFLOWS.filter(w => {
+    if (filter === 'active') return w.status === 'active';
+    if (filter === 'paused') return w.status === 'paused';
+    if (filter === 'error')  return w.status === 'error' || w.errorCount;
+    return true;
   });
 
-  const { workflows, loading, addWorkflow, deleteWorkflow, toggleWorkflowStatus, duplicateWorkflow } = useWorkflows();
-
-  const filteredWorkflows = workflows.filter((workflow) =>
-    workflow.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    workflow.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleCreateWorkflow = async () => {
-    if (createMode === 'template' && selectedTemplate) {
-      const template = workflowTemplates.find((t) => t.id === selectedTemplate);
-      if (template) {
-        const workflow = await addWorkflow({
-          name: template.name,
-          description: template.description,
-          trigger_type: template.trigger_type,
-          nodes: template.nodes,
-          edges: template.edges,
-        });
-        if (workflow) {
-          setIsCreateDialogOpen(false);
-          navigate(`/workflows/${workflow.id}`);
-        }
-      }
-    } else if (createMode === 'scratch') {
-      if (!newWorkflow.name) return;
-      const workflow = await addWorkflow({
-        name: newWorkflow.name,
-        description: newWorkflow.description,
-        trigger_type: newWorkflow.trigger_type,
-        nodes: [
-          {
-            id: 'trigger-1',
-            type: 'trigger',
-            position: { x: 250, y: 50 },
-            data: {
-              label: triggerOptions.find((t) => t.value === newWorkflow.trigger_type)?.label || 'Trigger',
-              triggerType: newWorkflow.trigger_type,
-            },
-          },
-        ],
-        edges: [],
-      });
-      if (workflow) {
-        setIsCreateDialogOpen(false);
-        navigate(`/workflows/${workflow.id}`);
-      }
-    } else if (createMode === 'ai') {
-      // AI generation would be implemented with OpenAI API
-      // For now, create a basic workflow
-      const workflow = await addWorkflow({
-        name: 'AI Generated Workflow',
-        description: aiPrompt,
-        trigger_type: 'contact_created',
-        nodes: [],
-        edges: [],
-      });
-      if (workflow) {
-        setIsCreateDialogOpen(false);
-        navigate(`/workflows/${workflow.id}`);
-      }
-    }
+  const counts = {
+    all:    WORKFLOWS.length,
+    active: WORKFLOWS.filter(w => w.status === 'active').length,
+    paused: WORKFLOWS.filter(w => w.status === 'paused').length,
+    error:  WORKFLOWS.filter(w => w.status === 'error' || w.errorCount).length,
   };
 
-  const resetCreateForm = () => {
-    setNewWorkflow({ name: '', description: '', trigger_type: 'contact_created' });
-    setSelectedTemplate(null);
-    setAiPrompt('');
-    setCreateMode('template');
-  };
+  const FILTERS: { id: FilterId; label: string }[] = [
+    { id: 'all',    label: 'All Workflows' },
+    { id: 'active', label: 'Active'        },
+    { id: 'paused', label: 'Paused'        },
+    { id: 'error',  label: 'Errors Only'   },
+  ];
 
   return (
     <MainLayout>
-      <Header
-        title="Workflows"
-        subtitle="Build AI-powered automations"
-      />
+      <Header title="Workflows" subtitle="Define and control how work moves through the system." />
 
-      <div className="p-4 md:p-6 space-y-6 relative overflow-hidden min-h-[calc(100vh-4rem)]">
-        {/* Animated background gradients */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-gradient-to-br from-blue-500/20 via-purple-500/15 to-pink-500/10 dark:from-blue-500/30 dark:via-purple-500/20 dark:to-pink-500/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-[-30%] left-[-15%] w-[500px] h-[500px] bg-gradient-to-tr from-cyan-500/15 via-blue-500/10 to-transparent dark:from-cyan-500/20 dark:via-blue-500/15 rounded-full blur-3xl" />
-          <div className="absolute top-[40%] left-[30%] w-[300px] h-[300px] bg-gradient-to-r from-violet-500/10 to-fuchsia-500/5 dark:from-violet-500/15 dark:to-fuchsia-500/10 rounded-full blur-2xl" />
-        </div>
-        {/* Search and Actions */}
-        <div className="flex flex-col sm:flex-row gap-3 animate-fade-in">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search workflows..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-          </div>
+      <div className="min-h-screen p-8" style={{ background: '#FDFBF7' }}>
 
-          <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
-            setIsCreateDialogOpen(open);
-            if (!open) resetCreateForm();
-          }}>
-            <DialogTrigger asChild>
-              <Button variant="gradient">
-                <Plus className="h-4 w-4 mr-2" />
-                Create Workflow
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Create New Workflow</DialogTitle>
-              </DialogHeader>
-
-              <Tabs value={createMode} onValueChange={(v) => setCreateMode(v as any)}>
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="template">
-                    <Workflow className="h-4 w-4 mr-2" />
-                    Template
-                  </TabsTrigger>
-                  <TabsTrigger value="scratch">
-                    <Plus className="h-4 w-4 mr-2" />
-                    From Scratch
-                  </TabsTrigger>
-                  <TabsTrigger value="ai">
-                    <Wand2 className="h-4 w-4 mr-2" />
-                    AI Generate
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="template" className="space-y-4 mt-4">
-                  <p className="text-sm text-muted-foreground">
-                    Choose a pre-built workflow template to get started quickly.
-                  </p>
-                  <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto">
-                    {workflowTemplates.map((template) => {
-                      const Icon = templateIcons[template.icon] || Workflow;
-                      return (
-                        <div
-                          key={template.id}
-                          onClick={() => setSelectedTemplate(template.id)}
-                          className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                            selectedTemplate === template.id
-                              ? 'border-primary bg-primary/5'
-                              : 'border-border hover:border-primary/50'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="p-2 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600">
-                              <Icon className="h-4 w-4 text-white" />
-                            </div>
-                            <h4 className="font-medium text-sm">{template.name}</h4>
-                          </div>
-                          <p className="text-xs text-muted-foreground line-clamp-2">
-                            {template.description}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="scratch" className="space-y-4 mt-4">
-                  <div className="space-y-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="workflow-name">Name</Label>
-                      <Input
-                        id="workflow-name"
-                        value={newWorkflow.name}
-                        onChange={(e) => setNewWorkflow({ ...newWorkflow, name: e.target.value })}
-                        placeholder="My Workflow"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="workflow-desc">Description</Label>
-                      <Textarea
-                        id="workflow-desc"
-                        value={newWorkflow.description}
-                        onChange={(e) => setNewWorkflow({ ...newWorkflow, description: e.target.value })}
-                        placeholder="What does this workflow do?"
-                        rows={2}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Trigger</Label>
-                      <Select
-                        value={newWorkflow.trigger_type}
-                        onValueChange={(v) => setNewWorkflow({ ...newWorkflow, trigger_type: v as TriggerType })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select trigger" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {triggerOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              <div className="flex items-center gap-2">
-                                <option.icon className="h-4 w-4" />
-                                {option.label}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="ai" className="space-y-4 mt-4">
-                  <p className="text-sm text-muted-foreground">
-                    Describe what you want to automate and AI will build the workflow for you.
-                  </p>
-                  <div className="space-y-2">
-                    <Label htmlFor="ai-prompt">Describe your workflow</Label>
-                    <Textarea
-                      id="ai-prompt"
-                      value={aiPrompt}
-                      onChange={(e) => setAiPrompt(e.target.value)}
-                      placeholder="Create a workflow that drafts a follow-up email if a high-value lead hasn't responded in 5 days..."
-                      rows={4}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                    <Wand2 className="h-4 w-4 text-amber-600" />
-                    <p className="text-xs text-amber-800">
-                      AI will analyze your description and create the workflow nodes automatically.
-                    </p>
-                  </div>
-                </TabsContent>
-              </Tabs>
-
-              <div className="flex justify-end gap-3 mt-4">
-                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  variant="gradient"
-                  onClick={handleCreateWorkflow}
-                  disabled={
-                    (createMode === 'template' && !selectedTemplate) ||
-                    (createMode === 'scratch' && !newWorkflow.name) ||
-                    (createMode === 'ai' && !aiPrompt)
-                  }
-                >
-                  {createMode === 'ai' && <Wand2 className="h-4 w-4 mr-2" />}
-                  Create Workflow
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-4 rounded-xl border bg-card">
-            <p className="text-sm text-muted-foreground">Total Workflows</p>
-            <p className="text-2xl font-bold">{workflows.length}</p>
-          </div>
-          <div className="p-4 rounded-xl border bg-card">
-            <p className="text-sm text-muted-foreground">Active</p>
-            <p className="text-2xl font-bold text-green-600">
-              {workflows.filter((w) => w.status === 'active').length}
+        {/* ── Page heading + filter bar ───────────────────── */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+          <div>
+            <h1
+              className="text-3xl text-stone-900 mb-2"
+              style={{ fontFamily: 'Instrument Serif, serif' }}
+            >
+              Workflow Definitions
+            </h1>
+            <p className="text-stone-500 text-sm">
+              Define and control how work moves through the system.
             </p>
           </div>
-          <div className="p-4 rounded-xl border bg-card">
-            <p className="text-sm text-muted-foreground">Total Runs</p>
-            <p className="text-2xl font-bold">
-              {workflows.reduce((sum, w) => sum + w.total_executions, 0)}
-            </p>
-          </div>
-          <div className="p-4 rounded-xl border bg-card">
-            <p className="text-sm text-muted-foreground">Success Rate</p>
-            <p className="text-2xl font-bold text-blue-600">
-              {workflows.length > 0
-                ? Math.round(
-                    (workflows.reduce((sum, w) => sum + w.successful_executions, 0) /
-                      Math.max(1, workflows.reduce((sum, w) => sum + w.total_executions, 0))) *
-                      100
-                  )
-                : 0}
-              %
-            </p>
-          </div>
-        </div>
 
-        {/* Loading */}
-        {loading && (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        )}
-
-        {/* Workflows Grid */}
-        {!loading && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-slide-up">
-            {filteredWorkflows.map((workflow) => (
-              <WorkflowCard
-                key={workflow.id}
-                workflow={workflow}
-                onClick={() => navigate(`/workflows/${workflow.id}`)}
-                onToggleStatus={() => toggleWorkflowStatus(workflow.id)}
-                onDuplicate={() => duplicateWorkflow(workflow.id)}
-                onDelete={() => deleteWorkflow(workflow.id)}
-              />
-            ))}
-
-            {filteredWorkflows.length === 0 && (
-              <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
-                <div className="p-4 rounded-full bg-gradient-to-br from-violet-100 to-purple-100 mb-4">
-                  <Workflow className="h-8 w-8 text-violet-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-foreground mb-1">
-                  {searchQuery ? 'No workflows found' : 'No workflows yet'}
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {searchQuery
-                    ? 'Try adjusting your search query'
-                    : 'Create your first AI-powered automation'}
-                </p>
-                {!searchQuery && (
-                  <Button variant="gradient" onClick={() => setIsCreateDialogOpen(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Workflow
-                  </Button>
+          {/* Filter pill-buttons */}
+          <div className="flex bg-white border border-stone-200 rounded-lg p-1 gap-1 shadow-sm shrink-0">
+            {FILTERS.map(f => (
+              <button
+                key={f.id}
+                onClick={() => setFilter(f.id)}
+                className={cn(
+                  'px-3 py-1.5 rounded-md text-xs font-medium transition-all',
+                  filter === f.id
+                    ? 'bg-[#1C1917] text-white'
+                    : 'text-stone-500 hover:bg-stone-50 hover:text-stone-900',
                 )}
-              </div>
-            )}
+              >
+                {f.label}
+                {counts[f.id] > 0 && filter !== f.id && (
+                  <span className="ml-1.5 text-[10px] opacity-60">{counts[f.id]}</span>
+                )}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
+
+        {/* ── Workflow list ────────────────────────────────── */}
+        <div className="space-y-4 pb-12">
+          {displayed.length === 0 ? (
+            <div className="bg-white border border-[#E7E5E4] rounded-lg p-12 text-center text-sm text-stone-400">
+              No workflows match this filter.
+            </div>
+          ) : (
+            displayed.map(wf => (
+              <WorkflowCard key={wf.id} wf={wf} />
+            ))
+          )}
+        </div>
       </div>
     </MainLayout>
   );
 }
 
-export default function Workflows() {
+// ─── Workflow card ─────────────────────────────────────────
+
+function WorkflowCard({ wf }: { wf: WorkflowDef }) {
+  const isPaused = wf.status === 'paused' || !!wf.errorCount;
+
   return (
-    <ReactFlowProvider>
-      <WorkflowsContent />
-    </ReactFlowProvider>
+    <div
+      className={cn(
+        'bg-white border rounded-lg p-6 group transition-all duration-200',
+        isPaused
+          ? 'border-l-4 border-l-amber-400 border-[#E7E5E4] hover:border-amber-300'
+          : 'border-[#E7E5E4] hover:border-stone-300 hover:shadow-sm',
+      )}
+    >
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+
+        {/* ── Left: name + trigger ──────────────────────── */}
+        <div className="w-full lg:w-56 shrink-0">
+          {/* Mobile-only status */}
+          <div className="flex items-center justify-between mb-2 lg:hidden">
+            <StatusPill status={wf.status} errorCount={wf.errorCount} />
+          </div>
+
+          <h3 className="text-sm font-semibold text-stone-900 mb-2 leading-snug">
+            {wf.name}
+          </h3>
+
+          <div className="flex items-center gap-2 text-stone-500">
+            <div className="w-6 h-6 rounded bg-stone-100 border border-stone-200 flex items-center justify-center shrink-0">
+              <wf.trigger.Icon className="w-3 h-3" />
+            </div>
+            <span
+              className="text-[11px] uppercase tracking-wider"
+              style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+            >
+              Trigger: {wf.trigger.label}
+            </span>
+          </div>
+        </div>
+
+        {/* ── Center: chain diagram ─────────────────────── */}
+        <div className="flex-1 flex items-center overflow-x-auto py-2 min-w-0">
+          <TriggerBubble />
+
+          {wf.chain.map((node, i) => (
+            <div key={i} className="flex items-center">
+              <ChainConnector />
+              <AgentNodePill node={node} />
+            </div>
+          ))}
+
+          <ChainConnector />
+          <DoneBubble />
+        </div>
+
+        {/* ── Right: status + stats ─────────────────────── */}
+        <div className="w-full lg:w-48 shrink-0 flex flex-row lg:flex-col items-center lg:items-end justify-between gap-4">
+          {/* Desktop-only status pill */}
+          <div className="hidden lg:block">
+            <StatusPill status={wf.status} errorCount={wf.errorCount} />
+          </div>
+
+          <div className="flex gap-6 lg:gap-8">
+            <div className="flex flex-col items-end">
+              <span
+                className="text-[10px] text-stone-400 uppercase tracking-wider mb-1"
+                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+              >
+                Last Run
+              </span>
+              <span className="text-sm font-medium text-stone-700">{wf.lastRun}</span>
+            </div>
+            <div className="flex flex-col items-end">
+              <span
+                className="text-[10px] text-stone-400 uppercase tracking-wider mb-1"
+                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+              >
+                {wf.errorCount ? 'Errors' : 'Success'}
+              </span>
+              {wf.errorCount ? (
+                <span className="text-sm font-bold text-amber-600">{wf.errorCount} Errors</span>
+              ) : (
+                <span className="text-sm font-medium text-emerald-600">{wf.successRate}%</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* ── Error/pause note ─────────────────────────────── */}
+      {wf.errorNote && (
+        <div className="mt-4 pt-4 border-t border-[#E7E5E4] flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+          <span className="text-xs text-amber-700 font-medium leading-relaxed flex-1">
+            {wf.errorNote}
+          </span>
+          <button className="text-xs font-medium text-stone-500 hover:text-stone-900 underline decoration-stone-300 underline-offset-4 shrink-0 ml-auto">
+            View Logs
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
