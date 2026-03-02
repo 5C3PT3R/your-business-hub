@@ -53,6 +53,7 @@ import {
   Castle,
   LayoutDashboard,
   Shield,
+  Activity,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useActionStats } from '@/hooks/useNextActions';
@@ -118,6 +119,12 @@ export function BreezeSidebar() {
       label: 'Dashboard',
       icon: Home,
       path: '/dashboard',
+    },
+    {
+      id: 'activity',
+      label: 'Activity',
+      icon: Activity,
+      path: '/activity',
     },
     {
       id: 'next-actions',
