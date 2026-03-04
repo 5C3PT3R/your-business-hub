@@ -165,7 +165,19 @@ export default function Knight() {
           return [ticket, ...prev];
         });
       });
-      return () => { ch.unsubscribe(); };
+
+      // Rebuild contactMap whenever a contact name changes
+      const contactSub = supabase
+        .channel('knight_contact_changes')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'contacts' }, () => {
+          rebuildContactMap();
+        })
+        .subscribe();
+
+      return () => {
+        ch.unsubscribe();
+        supabase.removeChannel(contactSub);
+      };
     }
   }, [workspace?.id]);
 
@@ -186,30 +198,35 @@ export default function Knight() {
     if (activeTab === 'kb' && workspace?.id) loadKb();
   }, [activeTab, workspace?.id, kbCategory]);
 
+  const rebuildContactMap = async () => {
+    if (!workspace?.id) return;
+    const [contactsRes, leadsRes] = await Promise.all([
+      supabase.from('contacts').select('id, name, phone').eq('workspace_id', workspace.id),
+      supabase.from('leads').select('id, name, phone'),
+    ]);
+    const normalize = (p: string) => p.replace(/\D/g, '').slice(-10);
+    const map = new Map<string, { name: string; type: 'contact' | 'lead'; id: string }>();
+    (contactsRes.data || []).forEach((c: any) => {
+      if (c.phone && c.name) map.set(normalize(c.phone), { name: c.name, type: 'contact', id: c.id });
+    });
+    (leadsRes.data || []).forEach((l: any) => {
+      if (l.phone && l.name) map.set(normalize(l.phone), { name: l.name, type: 'lead', id: l.id });
+    });
+    setContactMap(map);
+  };
+
   const loadData = async () => {
     if (!workspace?.id) return;
     setLoading(true);
     try {
-      const [ticketsData, statsData, configData, contactsRes, leadsRes] = await Promise.all([
+      const [ticketsData, statsData, configData] = await Promise.all([
         getTickets(workspace.id),
         getKnightStats(workspace.id),
         getKnightConfig(workspace.id),
-        supabase.from('contacts').select('id, name, phone').eq('workspace_id', workspace.id),
-        supabase.from('leads').select('id, name, phone'),
       ]);
       setTickets(ticketsData);
       setStats(statsData);
       setConfig(configData);
-
-      const normalize = (p: string) => p.replace(/\D/g, '').slice(-10);
-      const map = new Map<string, { name: string; type: 'contact' | 'lead'; id: string }>();
-      (contactsRes.data || []).forEach((c: any) => {
-        if (c.phone && c.name) map.set(normalize(c.phone), { name: c.name, type: 'contact', id: c.id });
-      });
-      (leadsRes.data || []).forEach((l: any) => {
-        if (l.phone && l.name) map.set(normalize(l.phone), { name: l.name, type: 'lead', id: l.id });
-      });
-      setContactMap(map);
       if (configData) {
         setDraftText({
           agent_name:           configData.agent_name || '',
@@ -217,6 +234,7 @@ export default function Knight() {
           persona_prompt:       configData.persona_prompt || '',
         });
       }
+      await rebuildContactMap();
     } finally {
       setLoading(false);
     }

@@ -128,7 +128,7 @@ export default function Contacts() {
 
   const handleEditContact = async () => {
     if (!editingContact?.name) return;
-    
+
     await updateContact(editingContact.id, {
       name: editingContact.name,
       email: editingContact.email || null,
@@ -137,7 +137,9 @@ export default function Contacts() {
       position: editingContact.position || null,
       status: editingContact.status,
     });
-    
+
+    // Always re-fetch to guarantee the card reflects the latest DB value
+    fetchContacts();
     setEditingContact(null);
     setIsEditDialogOpen(false);
   };

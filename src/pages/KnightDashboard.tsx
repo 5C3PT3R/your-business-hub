@@ -94,7 +94,19 @@ export default function KnightDashboard() {
           return [ticket, ...prev];
         });
       });
-      return () => { channel.unsubscribe(); };
+
+      // Rebuild contactMap whenever a contact name is edited
+      const contactSub = supabase
+        .channel('knight_dashboard_contact_changes')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'contacts' }, () => {
+          rebuildContactMap();
+        })
+        .subscribe();
+
+      return () => {
+        channel.unsubscribe();
+        supabase.removeChannel(contactSub);
+      };
     }
   }, [workspace?.id]);
 
@@ -114,15 +126,30 @@ export default function KnightDashboard() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [selectedTicket?.messages]);
 
+  const rebuildContactMap = async () => {
+    if (!workspace?.id) return;
+    const [contactsRes, leadsRes] = await Promise.all([
+      supabase.from('contacts').select('id, name, phone').eq('workspace_id', workspace.id),
+      supabase.from('leads').select('id, name, phone'),
+    ]);
+    const normalize = (p: string) => p.replace(/\D/g, '').slice(-10);
+    const map = new Map<string, { name: string; type: 'contact' | 'lead'; id: string }>();
+    (contactsRes.data || []).forEach((c: any) => {
+      if (c.phone && c.name) map.set(normalize(c.phone), { name: c.name, type: 'contact', id: c.id });
+    });
+    (leadsRes.data || []).forEach((l: any) => {
+      if (l.phone && l.name) map.set(normalize(l.phone), { name: l.name, type: 'lead', id: l.id });
+    });
+    setContactMap(map);
+  };
+
   const loadData = async () => {
     if (!workspace?.id) return;
     setLoading(true);
     try {
-      const [allTickets, configData, contactsRes, leadsRes] = await Promise.all([
+      const [allTickets, configData] = await Promise.all([
         getTickets(workspace.id),
         getKnightConfig(workspace.id),
-        supabase.from('contacts').select('id, name, phone').eq('workspace_id', workspace.id),
-        supabase.from('leads').select('id, name, phone'),
       ]);
       const relevant = allTickets
         .filter((t) => t.status === 'escalated' || t.status === 'open' || t.status === 'pending_user')
@@ -133,16 +160,7 @@ export default function KnightDashboard() {
         });
       setTickets(relevant);
       setConfig(configData);
-
-      const normalize = (p: string) => p.replace(/\D/g, '').slice(-10);
-      const map = new Map<string, { name: string; type: 'contact' | 'lead'; id: string }>();
-      (contactsRes.data || []).forEach((c: any) => {
-        if (c.phone && c.name) map.set(normalize(c.phone), { name: c.name, type: 'contact', id: c.id });
-      });
-      (leadsRes.data || []).forEach((l: any) => {
-        if (l.phone && l.name) map.set(normalize(l.phone), { name: l.name, type: 'lead', id: l.id });
-      });
-      setContactMap(map);
+      await rebuildContactMap();
     } finally {
       setLoading(false);
     }
