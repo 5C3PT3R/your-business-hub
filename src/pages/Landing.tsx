@@ -76,7 +76,7 @@ const Landing = () => {
       <nav className="fixed top-0 w-full z-40 backdrop-blur-md border-b" style={{ backgroundColor: "rgba(253,251,247,0.9)", borderColor: "#E7E5E4" }}>
         <div className="max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3 group cursor-pointer" onClick={() => navigate("/")}>
-            <img src="/regent-logo.png" alt="Regent" className="w-8 h-8 object-contain" />
+            <img src="/regent-logo.png" alt="Regent" className="w-8 h-8 rounded-sm object-cover" />
             <span className="text-2xl tracking-tight font-medium" style={{ fontFamily: "'Instrument Serif', serif" }}>
               Regent
             </span>
@@ -508,7 +508,7 @@ const Landing = () => {
           <div className="max-w-[1600px] mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 mb-20">
             <div>
               <div className="flex items-center gap-2 mb-6">
-                <img src="/regent-logo.png" alt="Regent" className="w-6 h-6 object-contain" />
+                <img src="/regent-logo.png" alt="Regent" className="w-6 h-6 rounded-sm object-cover" />
                 <span className="text-xl font-medium" style={{ fontFamily: "'Instrument Serif', serif" }}>Regent</span>
               </div>
               <p className="text-stone-500 text-sm leading-relaxed">

@@ -43,9 +43,7 @@ export default function Subscribe() {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl gradient-primary shadow-glow">
-              <Crown className="h-8 w-8 text-primary-foreground" />
-            </div>
+            <img src="/regent-logo.png" alt="Regent" className="h-16 w-16 rounded-2xl object-cover" />
           </div>
           <h1 className="text-3xl font-bold mb-2">Subscribe to Regent</h1>
           <p className="text-muted-foreground">

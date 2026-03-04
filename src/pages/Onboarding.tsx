@@ -285,8 +285,8 @@ export default function Onboarding() {
       <div className="w-full max-w-md relative z-10">
         {/* Logo/Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-            <Crown className="h-8 w-8 text-primary" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-xl mb-4">
+            <img src="/regent-logo.png" alt="Regent" className="w-16 h-16 rounded-xl object-cover" />
           </div>
           <h1 className="text-2xl font-bold">Welcome to Breeze</h1>
           <p className="text-muted-foreground mt-1">Let's set up your account</p>
