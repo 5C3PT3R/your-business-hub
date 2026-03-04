@@ -122,8 +122,16 @@ export default function BishopDrafts() {
         }).eq('id', draft.id);
       }
 
-      const { error } = await supabase.functions.invoke('bishop-send', { body });
-      if (error) throw new Error(error.message);
+      const sendUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bishop-send`;
+      const sendRes = await fetch(sendUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!sendRes.ok) { const d = await sendRes.json().catch(() => ({})); throw new Error(d?.error ?? `HTTP ${sendRes.status}`); }
 
       toast({ title: 'Email sent', description: `Sent to ${draft.lead?.email ?? 'lead'}` });
       setDrafts(p => p.filter(d => d.id !== draft.id));
@@ -158,8 +166,16 @@ export default function BishopDrafts() {
     if (!user) return;
     setSweeping(true);
     try {
-      const { error } = await supabase.functions.invoke('bishop-sweep', { body: { user_id: user.id } });
-      if (error) throw new Error(error.message);
+      const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bishop-sweep`;
+      const res = await fetch(fnUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({ user_id: user.id }),
+      });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d?.error ?? `HTTP ${res.status}`); }
       toast({ title: 'Sweep complete', description: 'New drafts generated' });
       await loadDrafts();
     } catch (e: any) {

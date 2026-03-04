@@ -51,14 +51,17 @@ export function BishopTrigger() {
     setLastResult(null);
 
     try {
-      // Call the Supabase Edge Function
-      const { data, error } = await supabase.functions.invoke('bishop-sweep', {
-        body: { user_id: user.id },
+      const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bishop-sweep`;
+      const res = await fetch(fnUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({ user_id: user.id }),
       });
-
-      if (error) {
-        throw error;
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
 
       setLastResult(data as SweepResult);
 
