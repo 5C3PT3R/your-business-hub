@@ -35,18 +35,23 @@ const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/gmail-oauth/callback`;
 
 // Note: State is now stored in database instead of memory to survive edge function restarts
 
+const ALLOWED_ORIGINS = ['https://hireregent.com', 'https://www.hireregent.com'];
+function getCorsOrigin(req: Request): string {
+  const origin = req.headers.get('origin') || '';
+  return ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+}
+
 serve(async (req) => {
   const url = new URL(req.url);
+  const corsOrigin = getCorsOrigin(req);
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': corsOrigin,
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  };
 
-  // CORS headers - Handle OPTIONS first before ANY other logic
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      headers: {
-        'Access-Control-Allow-Origin': 'https://hireregent.com',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      },
-    });
+    return new Response(null, { headers: corsHeaders });
   }
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
@@ -60,7 +65,7 @@ serve(async (req) => {
         status: 503,
         headers: {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': 'https://hireregent.com',
+          'Access-Control-Allow-Origin': corsOrigin,
         }
       }
     );
@@ -76,25 +81,25 @@ serve(async (req) => {
     // Accept any root path (/gmail-oauth, /gmail-oauth/, or even just /)
     if (url.pathname === '/gmail-oauth' || url.pathname === '/gmail-oauth/' || url.pathname === '/') {
       console.log('Matched OAuth start route');
-      return await handleOAuthStart(req, supabaseAdmin);
+      return await handleOAuthStart(req, supabaseAdmin, corsOrigin);
     }
 
     // Route: OAuth callback
     if (url.pathname.includes('/callback')) {
       console.log('Matched callback route');
-      return await handleOAuthCallback(req, supabaseAdmin);
+      return await handleOAuthCallback(req, supabaseAdmin, corsOrigin);
     }
 
     // Route: Disconnect Gmail
     if (url.pathname.includes('/disconnect') && req.method === 'POST') {
       console.log('Matched disconnect route');
-      return await handleDisconnect(req, supabaseAdmin);
+      return await handleDisconnect(req, supabaseAdmin, corsOrigin);
     }
 
     // Route: Get connection status
     if (url.pathname.includes('/status') && req.method === 'GET') {
       console.log('Matched status route');
-      return await handleStatus(req, supabaseAdmin);
+      return await handleStatus(req, supabaseAdmin, corsOrigin);
     }
 
     console.log('No route matched, returning 404');
@@ -102,7 +107,7 @@ serve(async (req) => {
       status: 404,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': 'https://hireregent.com',
+        'Access-Control-Allow-Origin': corsOrigin,
       }
     });
   } catch (error) {
@@ -117,7 +122,7 @@ serve(async (req) => {
 /**
  * Start OAuth flow - redirect user to Google
  */
-async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Response> {
+async function handleOAuthStart(req: Request, supabaseAdmin: any, corsOrigin: string): Promise<Response> {
   console.log('handleOAuthStart called');
   console.log('GMAIL_CLIENT_ID exists:', !!GMAIL_CLIENT_ID);
   console.log('GMAIL_CLIENT_SECRET exists:', !!GMAIL_CLIENT_SECRET);
@@ -134,7 +139,7 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
         status: 503,
         headers: {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': 'https://hireregent.com',
+          'Access-Control-Allow-Origin': corsOrigin,
         }
       }
     );
@@ -151,7 +156,7 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
         status: 401,
         headers: {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': 'https://hireregent.com',
+          'Access-Control-Allow-Origin': corsOrigin,
         }
       }
     );
@@ -180,7 +185,7 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
         status: 401,
         headers: {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': 'https://hireregent.com',
+          'Access-Control-Allow-Origin': corsOrigin,
         }
       }
     );
@@ -221,7 +226,7 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
     {
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': 'https://hireregent.com',
+        'Access-Control-Allow-Origin': corsOrigin,
       }
     }
   );
@@ -230,7 +235,7 @@ async function handleOAuthStart(req: Request, supabaseAdmin: any): Promise<Respo
 /**
  * Handle OAuth callback from Google
  */
-async function handleOAuthCallback(req: Request, supabase: any): Promise<Response> {
+async function handleOAuthCallback(req: Request, supabase: any, corsOrigin: string): Promise<Response> {
   const url = new URL(req.url);
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
@@ -306,8 +311,8 @@ async function handleOAuthCallback(req: Request, supabase: any): Promise<Respons
 
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.json();
-      console.error('Token exchange failed:', errorData);
-      throw new Error('Failed to exchange authorization code');
+      console.error('Token exchange failed:', JSON.stringify(errorData));
+      throw new Error(`OAuth error: ${errorData.error} — ${errorData.error_description}`);
     }
 
     const tokens = await tokenResponse.json();
@@ -396,7 +401,7 @@ async function handleOAuthCallback(req: Request, supabase: any): Promise<Respons
 /**
  * Disconnect Gmail integration
  */
-async function handleDisconnect(req: Request, supabaseAdmin: any): Promise<Response> {
+async function handleDisconnect(req: Request, supabaseAdmin: any, corsOrigin: string): Promise<Response> {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
@@ -434,7 +439,7 @@ async function handleDisconnect(req: Request, supabaseAdmin: any): Promise<Respo
     {
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': 'https://hireregent.com',
+        'Access-Control-Allow-Origin': corsOrigin,
       }
     }
   );
@@ -443,7 +448,7 @@ async function handleDisconnect(req: Request, supabaseAdmin: any): Promise<Respo
 /**
  * Get Gmail connection status
  */
-async function handleStatus(req: Request, supabaseAdmin: any): Promise<Response> {
+async function handleStatus(req: Request, supabaseAdmin: any, corsOrigin: string): Promise<Response> {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
@@ -479,7 +484,7 @@ async function handleStatus(req: Request, supabaseAdmin: any): Promise<Response>
     {
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': 'https://hireregent.com',
+        'Access-Control-Allow-Origin': corsOrigin,
       }
     }
   );
