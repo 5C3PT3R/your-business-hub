@@ -25,12 +25,11 @@ interface IcpSettings {
 interface RunHistoryRow {
   id: string;
   created_at: string;
-  source: string;
-  total_processed: number;
-  clean_count: number;
-  duplicate_count: number;
-  invalid_count: number;
-  metadata: Record<string, any> | null;
+  job_type: string;
+  total: number;
+  clean: number;
+  duplicates: number;
+  invalid: number;
 }
 
 const DEFAULT_ICP: IcpSettings = {
@@ -161,7 +160,7 @@ export default function BishopProspect() {
       .from('bishop_settings')
       .select('icp_titles, icp_industries, icp_company_size_max, icp_locations, icp_keywords, enabled_sources')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
     if (data) {
       setIcp({
@@ -179,8 +178,7 @@ export default function BishopProspect() {
     if (!user) return;
     const { data } = await supabase
       .from('pawn_jobs')
-      .select('id, created_at, source, total_processed, clean_count, duplicate_count, invalid_count, metadata')
-      .eq('user_id', user.id)
+      .select('id, created_at, job_type, total, clean, duplicates, invalid')
       .order('created_at', { ascending: false })
       .limit(10);
     setRunHistory(data ?? []);
@@ -513,19 +511,19 @@ export default function BishopProspect() {
                     >
                       <td className="px-4 py-3">
                         <span className="text-sm font-medium" style={{ color: '#1C1917' }}>
-                          {row.source || row.metadata?.sources?.join(', ') || 'Unknown'}
+                          {row.job_type || 'verify'}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <span className="text-sm font-semibold" style={{ color: '#CC5500' }}>
-                          {row.clean_count ?? 0}
+                          {row.clean ?? 0}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm" style={{ color: '#78716c' }}>
-                        {row.duplicate_count ?? 0}
+                        {row.duplicates ?? 0}
                       </td>
                       <td className="px-4 py-3 text-sm" style={{ color: '#78716c' }}>
-                        {row.invalid_count ?? 0}
+                        {row.invalid ?? 0}
                       </td>
                       <td className="px-4 py-3 text-sm" style={{ color: '#a8a29e' }}>
                         {formatDistanceToNow(new Date(row.created_at), { addSuffix: true })}
