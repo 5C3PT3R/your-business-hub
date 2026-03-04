@@ -43,7 +43,9 @@ import {
   Swords,
   Zap,
   Brain,
+  Plug,
 } from 'lucide-react';
+import { GmailConnect } from '@/components/integrations/GmailConnect';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -64,6 +66,7 @@ interface BishopSettings {
   days_to_second_followup: number;
   days_to_breakup: number;
   persona_prompt: string;
+  auto_send_enabled: boolean;
 }
 
 const DEFAULT_SETTINGS: BishopSettings = {
@@ -82,6 +85,7 @@ const DEFAULT_SETTINGS: BishopSettings = {
   days_to_second_followup: 4,
   days_to_breakup: 7,
   persona_prompt: '',
+  auto_send_enabled: false,
 };
 
 const VOICE_TONES = [
@@ -101,19 +105,46 @@ export default function BishopSettings() {
   const [newDomain, setNewDomain] = useState('');
   const [newSample, setNewSample] = useState('');
 
-  // Stats (mock for now)
-  const [stats] = useState({
-    activeLeads: 12,
-    draftsGenerated: 34,
-    replyRate: 18.5,
-    revenueRecovered: 45000,
+  const [stats, setStats] = useState({
+    activeLeads: 0,
+    draftsGenerated: 0,
+    replyRate: 0,
+    pendingApproval: 0,
   });
 
   useEffect(() => {
     if (user) {
       fetchSettings();
+      fetchStats();
     }
   }, [user]);
+
+  const fetchStats = async () => {
+    if (!user) return;
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+
+    const [activeRes, draftsRes, sentRes, replyRes, pendingRes] = await Promise.all([
+      supabase.from('leads').select('id', { count: 'exact', head: true })
+        .in('bishop_status', ['INTRO_SENT', 'FOLLOW_UP_NEEDED', 'NUDGE_SENT']),
+      supabase.from('ai_drafts').select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id).gte('created_at', monthStart),
+      supabase.from('ai_drafts').select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id).eq('status', 'SENT'),
+      supabase.from('ai_drafts').select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id).eq('status', 'SENT').eq('reply_received', true),
+      supabase.from('ai_drafts').select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id).eq('status', 'PENDING_APPROVAL'),
+    ]);
+
+    const sentCount = sentRes.count ?? 0;
+    const replyCount = replyRes.count ?? 0;
+    setStats({
+      activeLeads: activeRes.count ?? 0,
+      draftsGenerated: draftsRes.count ?? 0,
+      replyRate: sentCount > 0 ? Math.round((replyCount / sentCount) * 100 * 10) / 10 : 0,
+      pendingApproval: pendingRes.count ?? 0,
+    });
+  };
 
   const fetchSettings = async () => {
     if (!user) return;
@@ -225,7 +256,7 @@ export default function BishopSettings() {
 
       <div className="p-4 md:p-6 max-w-4xl">
         <Tabs defaultValue="radar" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="radar" className="gap-2">
               <Radio className="h-4 w-4" />
               <span className="hidden sm:inline">Radar</span>
@@ -241,6 +272,10 @@ export default function BishopSettings() {
             <TabsTrigger value="blacklist" className="gap-2">
               <Shield className="h-4 w-4" />
               <span className="hidden sm:inline">Blacklist</span>
+            </TabsTrigger>
+            <TabsTrigger value="connections" className="gap-2">
+              <Plug className="h-4 w-4" />
+              <span className="hidden sm:inline">Connections</span>
             </TabsTrigger>
           </TabsList>
 
@@ -281,20 +316,20 @@ export default function BishopSettings() {
                 <CardContent>
                   <div className="flex items-center text-sm text-muted-foreground">
                     <TrendingUp className="h-4 w-4 mr-1 text-green-500" />
-                    +2.3% from last month
+                    Of sent emails replied
                   </div>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardDescription>Revenue Recovered</CardDescription>
-                  <CardTitle className="text-2xl">${stats.revenueRecovered.toLocaleString()}</CardTitle>
+                  <CardDescription>Pending Approval</CardDescription>
+                  <CardTitle className="text-2xl">{stats.pendingApproval}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center text-sm text-muted-foreground">
-                    <Sparkles className="h-4 w-4 mr-1 text-primary" />
-                    From stalled deals
+                    <Clock className="h-4 w-4 mr-1 text-amber-500" />
+                    Drafts awaiting review
                   </div>
                 </CardContent>
               </Card>
@@ -639,6 +674,49 @@ export default function BishopSettings() {
 
                 <p className="text-xs text-muted-foreground">
                   Common exclusions: competitor domains, government (.gov), education (.edu)
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* CONNECTIONS TAB */}
+          <TabsContent value="connections" className="space-y-6">
+
+            {/* Gmail */}
+            <GmailConnect />
+
+            {/* Pilot / Auto mode */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-amber-500" />
+                  Send Mode
+                </CardTitle>
+                <CardDescription>
+                  Control whether Bishop sends emails automatically or waits for your approval.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-start justify-between gap-4 p-4 rounded-lg border">
+                  <div>
+                    <p className="font-medium">
+                      {settings.auto_send_enabled ? '⚡ Auto Mode' : '🧑‍✈️ Pilot Mode'}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      {settings.auto_send_enabled
+                        ? 'Bishop sends approved drafts automatically — no human review needed.'
+                        : 'Drafts go to the queue for your approval before sending.'}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.auto_send_enabled}
+                    onCheckedChange={(checked) =>
+                      setSettings({ ...settings, auto_send_enabled: checked })
+                    }
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Recommended: start in Pilot Mode until you've reviewed 10+ drafts and are confident in Bishop's output.
                 </p>
               </CardContent>
             </Card>

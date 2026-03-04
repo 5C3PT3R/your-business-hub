@@ -48,6 +48,9 @@ import Import from "./pages/Import";
 import CommandCenter from "./pages/CommandCenter";
 import Subscribe from "./pages/Subscribe";
 import BishopSettings from "./pages/BishopSettings";
+import BishopDrafts from "./pages/BishopDrafts";
+import BishopLeads from "./pages/BishopLeads";
+import BishopProspect from "./pages/BishopProspect";
 import Pawn from "./pages/Pawn";
 import Rook from "./pages/Rook";
 import Knight from "./pages/Knight";
@@ -93,6 +96,9 @@ function AppRoutes() {
       <Route path="/agents" element={<AuthGuard><Agents /></AuthGuard>} />
       <Route path="/agents/:id" element={<AuthGuard><AgentDetail /></AuthGuard>} />
       <Route path="/bishop" element={<AuthGuard><BishopSettings /></AuthGuard>} />
+      <Route path="/bishop/prospect" element={<AuthGuard><BishopProspect /></AuthGuard>} />
+      <Route path="/bishop/drafts" element={<AuthGuard><BishopDrafts /></AuthGuard>} />
+      <Route path="/bishop/leads" element={<AuthGuard><BishopLeads /></AuthGuard>} />
       <Route path="/pawn" element={<AuthGuard><Pawn /></AuthGuard>} />
       <Route path="/rook" element={<AuthGuard><Rook /></AuthGuard>} />
       <Route path="/knight" element={<AuthGuard><KnightDashboard /></AuthGuard>} />

@@ -1,37 +1,28 @@
 /**
  * REGENT: Bishop Sweep Edge Function
- * Production cloud version of the Bishop agent sweep logic.
  *
- * DAY 7: This function runs Bishop in the cloud without localhost dependency.
+ * Generates AI email drafts for leads due for follow-up.
+ * Production-ready: reads bishop_settings for timing, blacklist,
+ * golden samples, signature, and strategy toggles.
  *
- * Secrets Required (set via Supabase CLI or Dashboard):
- * - SUPABASE_URL: Your Supabase project URL
- * - SUPABASE_SERVICE_ROLE_KEY: Service role key for admin access
- * - OPENAI_API_KEY: OpenAI API key for draft generation
+ * Secrets Required:
+ * - SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ * - OPENAI_API_KEY | DEEPSEEK_API_KEY | OPENROUTER_API_KEY
  * - LLM_PROVIDER: 'openai' | 'deepseek' | 'openrouter' (default: openai)
- * - DEEPSEEK_API_KEY: DeepSeek API key (if using deepseek)
- * - OPENROUTER_API_KEY: OpenRouter API key (if using openrouter)
  *
- * To set secrets:
- * npx supabase secrets set OPENAI_API_KEY=sk-xxx
- *
- * Trigger:
  * POST /functions/v1/bishop-sweep
  * Body: { "user_id": "uuid" }
- * Headers: Authorization: Bearer <service_role_key>
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
 
-// CORS headers
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://hireregent.com',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-// Types
 type BishopStatus = 'INTRO_SENT' | 'FOLLOW_UP_NEEDED' | 'NUDGE_SENT' | 'BREAKUP_SENT' | 'ESCALATE_TO_KING';
 type Strategy = 'INTRO_FOLLOW_UP' | 'NUDGE' | 'BREAKUP' | 'NONE';
 
@@ -45,6 +36,22 @@ interface Lead {
   last_contact_date: string;
   next_action_due: string;
   notes: string | null;
+  context_notes: string | null;
+  enrichment_data: Record<string, any> | null;
+}
+
+interface BishopSettings {
+  days_to_first_followup: number;
+  days_to_second_followup: number;
+  days_to_breakup: number;
+  enable_sniper_intro: boolean;
+  enable_value_nudge: boolean;
+  enable_breakup: boolean;
+  blacklisted_domains: string[];
+  golden_samples: string[];
+  signature_html: string;
+  voice_tone: string;
+  persona_prompt: string | null;
 }
 
 interface Draft {
@@ -52,47 +59,44 @@ interface Draft {
   body: string;
 }
 
-// Timing constants (hardcoded per PRD)
-const TIMING = {
-  INTRO_FOLLOW_UP_DAYS: 2,
-  NUDGE_DAYS: 3,
-  BREAKUP_DAYS: 4,
-  NEXT_ACTION_INTRO: 3,
-  NEXT_ACTION_NUDGE: 4,
-};
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// Helpers
 function daysSince(dateStr: string): number {
-  const date = new Date(dateStr);
-  const now = new Date();
-  return Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
 }
 
 function daysFromNow(days: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  return date.toISOString();
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString();
 }
 
-function appendNote(existingNotes: string | null, newNote: string): string {
-  const timestamp = new Date().toISOString().split('T')[0];
-  const entry = `[${timestamp}] ${newNote}`;
-  return existingNotes ? `${existingNotes}\n${entry}` : entry;
+function appendNote(existing: string | null, note: string): string {
+  const entry = `[${new Date().toISOString().split('T')[0]}] ${note}`;
+  return existing ? `${existing}\n${entry}` : entry;
 }
 
-// Strategy resolver
-function determineStrategy(lead: Lead): Strategy {
-  const daysSinceContact = daysSince(lead.last_contact_date);
+function emailDomain(email: string): string {
+  return email.split('@')[1]?.toLowerCase() ?? '';
+}
+
+// ─── Strategy resolver (uses bishop_settings timing) ──────────────────────────
+
+function determineStrategy(lead: Lead, settings: BishopSettings): Strategy {
+  const days = daysSince(lead.last_contact_date);
 
   switch (lead.bishop_status) {
     case 'INTRO_SENT':
-      if (daysSinceContact >= TIMING.INTRO_FOLLOW_UP_DAYS) return 'INTRO_FOLLOW_UP';
+      if (settings.enable_sniper_intro && days >= settings.days_to_first_followup)
+        return 'INTRO_FOLLOW_UP';
       break;
     case 'FOLLOW_UP_NEEDED':
-      if (daysSinceContact >= TIMING.NUDGE_DAYS) return 'NUDGE';
+      if (settings.enable_value_nudge && days >= settings.days_to_second_followup)
+        return 'NUDGE';
       break;
     case 'NUDGE_SENT':
-      if (daysSinceContact >= TIMING.BREAKUP_DAYS) return 'BREAKUP';
+      if (settings.enable_breakup && days >= settings.days_to_breakup)
+        return 'BREAKUP';
       break;
     case 'BREAKUP_SENT':
     case 'ESCALATE_TO_KING':
@@ -101,13 +105,12 @@ function determineStrategy(lead: Lead): Strategy {
   return 'NONE';
 }
 
-// Get next state
-function getNextState(strategy: Strategy): { status: BishopStatus; nextActionDue: string | null } {
+function getNextState(strategy: Strategy, settings: BishopSettings): { status: BishopStatus; nextActionDue: string | null } {
   switch (strategy) {
     case 'INTRO_FOLLOW_UP':
-      return { status: 'FOLLOW_UP_NEEDED', nextActionDue: daysFromNow(TIMING.NEXT_ACTION_INTRO) };
+      return { status: 'FOLLOW_UP_NEEDED', nextActionDue: daysFromNow(settings.days_to_second_followup) };
     case 'NUDGE':
-      return { status: 'NUDGE_SENT', nextActionDue: daysFromNow(TIMING.NEXT_ACTION_NUDGE) };
+      return { status: 'NUDGE_SENT', nextActionDue: daysFromNow(settings.days_to_breakup) };
     case 'BREAKUP':
       return { status: 'BREAKUP_SENT', nextActionDue: null };
     default:
@@ -115,8 +118,33 @@ function getNextState(strategy: Strategy): { status: BishopStatus; nextActionDue
   }
 }
 
-// LLM draft generation
-async function generateDraft(lead: Lead, strategy: Strategy, config: { baseURL: string; apiKey: string; model: string }): Promise<Draft> {
+// ─── Draft generation ─────────────────────────────────────────────────────────
+
+async function generateDraft(
+  lead: Lead,
+  strategy: Strategy,
+  settings: BishopSettings,
+  llm: { baseURL: string; apiKey: string; model: string },
+  enrichContext?: string
+): Promise<Draft> {
+
+  // Build few-shot examples block from golden samples
+  const samplesBlock = settings.golden_samples.length > 0
+    ? `\n\nHere are examples of emails this sender has written previously. Match their style:\n---\n${settings.golden_samples.slice(0, 3).join('\n---\n')}\n---`
+    : '';
+
+  // Build persona context
+  const personaBlock = settings.persona_prompt
+    ? `\n\nPersona context: ${settings.persona_prompt}`
+    : '';
+
+  // Build company enrichment context for personalization
+  const enrichBlock = enrichContext
+    ? `\n\nCompany context (use for personalization — do NOT quote verbatim):\n${enrichContext}`
+    : '';
+
+  const toneNote = `Write in a ${settings.voice_tone.toLowerCase()} tone.`;
+
   const prompts: Record<string, string> = {
     INTRO_FOLLOW_UP: `Write a SHORT follow-up email (2-4 sentences) to ${lead.name} at ${lead.company}.
 This is a follow-up to an intro email sent a few days ago.
@@ -125,7 +153,9 @@ This is a follow-up to an intro email sent a few days ago.
 - Sound human and calm
 - Do NOT say "just checking in"
 - Do NOT mention AI
+- ${toneNote}${enrichBlock}${samplesBlock}${personaBlock}
 Return JSON only: {"subject": "...", "body": "..."}`,
+
     NUDGE: `Write a SHORT gentle nudge email (2-4 sentences) to ${lead.name} at ${lead.company}.
 They haven't replied to previous emails.
 - Offer an easy next step OR an easy exit
@@ -133,14 +163,17 @@ They haven't replied to previous emails.
 - Be professional and calm
 - Sound human
 - Do NOT mention AI
+- ${toneNote}${enrichBlock}${samplesBlock}${personaBlock}
 Return JSON only: {"subject": "...", "body": "..."}`,
+
     BREAKUP: `Write a SHORT close-the-loop email (2-4 sentences) to ${lead.name} at ${lead.company}.
-This is a final message - they haven't replied to multiple emails.
+This is a final message — they haven't replied to multiple emails.
 - Thank them for their time
 - Leave the door open
 - Be gracious and professional
 - No guilt-tripping
 - Do NOT mention AI
+- ${toneNote}${enrichBlock}${samplesBlock}${personaBlock}
 Return JSON only: {"subject": "...", "body": "..."}`,
   };
 
@@ -148,130 +181,101 @@ Return JSON only: {"subject": "...", "body": "..."}`,
   if (!prompt) throw new Error(`No prompt for strategy: ${strategy}`);
 
   try {
-    const response = await fetch(`${config.baseURL}/chat/completions`, {
+    const response = await fetch(`${llm.baseURL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey}`,
+        'Authorization': `Bearer ${llm.apiKey}`,
       },
       body: JSON.stringify({
-        model: config.model,
+        model: llm.model,
         messages: [
           { role: 'system', content: 'You write short, professional, human-sounding emails. Return JSON only.' },
           { role: 'user', content: prompt },
         ],
         temperature: 0.7,
-        max_tokens: 300,
+        max_tokens: 400,
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`LLM API error: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`LLM API error: ${response.status}`);
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content?.trim();
     if (!content) throw new Error('Empty LLM response');
 
-    // Parse JSON (handle markdown code blocks)
     let jsonStr = content;
-    if (content.includes('```json')) {
-      jsonStr = content.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-    } else if (content.includes('```')) {
-      jsonStr = content.replace(/```\n?/g, '');
-    }
+    if (content.includes('```json')) jsonStr = content.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+    else if (content.includes('```')) jsonStr = content.replace(/```\n?/g, '');
 
     const parsed = JSON.parse(jsonStr.trim());
     return { subject: parsed.subject, body: parsed.body };
   } catch (error) {
     console.error('[BISHOP] Draft generation error:', error);
-    // Fallback drafts
     const fallbacks: Record<string, Draft> = {
       INTRO_FOLLOW_UP: {
-        subject: `Quick follow-up - ${lead.company}`,
+        subject: `Quick follow-up — ${lead.company}`,
         body: `Hi ${lead.name},\n\nWanted to follow up on my previous note. Would love to hear if this resonates with what ${lead.company} is working on.\n\nWould a brief call next week work?\n\nBest`,
       },
       NUDGE: {
-        subject: `One more thought - ${lead.company}`,
+        subject: `One more thought — ${lead.company}`,
         body: `Hi ${lead.name},\n\nI know things get busy. If now isn't the right time, no worries at all. Otherwise, happy to find 15 minutes that works for you.\n\nBest`,
       },
       BREAKUP: {
-        subject: `Closing the loop - ${lead.company}`,
+        subject: `Closing the loop — ${lead.company}`,
         body: `Hi ${lead.name},\n\nI'll assume the timing isn't right and won't follow up again. If anything changes down the road, I'm always happy to reconnect.\n\nWishing you and the team all the best.`,
       },
     };
-    return fallbacks[strategy] || fallbacks.INTRO_FOLLOW_UP;
+    return fallbacks[strategy] ?? fallbacks.INTRO_FOLLOW_UP;
   }
 }
 
-serve(async (req: Request) => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
+// ─── Main handler ─────────────────────────────────────────────────────────────
 
+serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
   try {
-    // Get environment variables
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const llmProvider = Deno.env.get('LLM_PROVIDER') || 'openai';
 
     if (!supabaseUrl || !supabaseServiceKey) {
       return new Response(JSON.stringify({ error: 'Supabase credentials not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // LLM config
     const llmConfigs: Record<string, { baseURL: string; apiKey: string | undefined; model: string }> = {
-      openai: {
-        baseURL: 'https://api.openai.com/v1',
-        apiKey: Deno.env.get('OPENAI_API_KEY'),
-        model: 'gpt-4o-mini',
-      },
-      deepseek: {
-        baseURL: 'https://api.deepseek.com/v1',
-        apiKey: Deno.env.get('DEEPSEEK_API_KEY'),
-        model: 'deepseek-chat',
-      },
-      openrouter: {
-        baseURL: 'https://openrouter.ai/api/v1',
-        apiKey: Deno.env.get('OPENROUTER_API_KEY'),
-        model: 'deepseek/deepseek-chat',
-      },
+      openai:     { baseURL: 'https://api.openai.com/v1',         apiKey: Deno.env.get('OPENAI_API_KEY'),     model: 'gpt-4o-mini' },
+      deepseek:   { baseURL: 'https://api.deepseek.com/v1',       apiKey: Deno.env.get('DEEPSEEK_API_KEY'),   model: 'deepseek-chat' },
+      openrouter: { baseURL: 'https://openrouter.ai/api/v1',      apiKey: Deno.env.get('OPENROUTER_API_KEY'), model: 'deepseek/deepseek-chat' },
     };
 
     const llmConfig = llmConfigs[llmProvider];
     if (!llmConfig?.apiKey) {
       return new Response(JSON.stringify({ error: `LLM API key not configured for ${llmProvider}` }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Parse request
     const { user_id } = await req.json();
     if (!user_id) {
       return new Response(JSON.stringify({ error: 'user_id is required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     console.log(`[BISHOP] Starting sweep for user: ${user_id.substring(0, 8)}...`);
 
-    // Initialize Supabase client with service role
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // DAY 6: Check subscription status
+    // ── Subscription check ───────────────────────────────────────────────────
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('is_active, subscription_tier, subscription_expires_at')
@@ -280,30 +284,59 @@ serve(async (req: Request) => {
 
     if (profileError || !profile) {
       return new Response(JSON.stringify({ error: 'User profile not found' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     const isActive = profile.is_active === true;
     const notExpired = !profile.subscription_expires_at || new Date(profile.subscription_expires_at) > new Date();
-
     if (!isActive || !notExpired) {
-      return new Response(JSON.stringify({
-        error: 'Subscription required',
-        message: 'User does not have an active subscription',
-      }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      return new Response(JSON.stringify({ error: 'Subscription required' }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log(`[BISHOP] Subscription OK: ${profile.subscription_tier}`);
+    // ── Fetch workspace_id ───────────────────────────────────────────────────
+    const { data: membership } = await supabase
+      .from('workspace_memberships')
+      .select('workspace_id')
+      .eq('user_id', user_id)
+      .limit(1)
+      .single();
 
-    // Fetch eligible leads
+    const workspaceId: string | null = membership?.workspace_id ?? null;
+
+    // ── Fetch bishop_settings ────────────────────────────────────────────────
+    const DEFAULT_SETTINGS: BishopSettings = {
+      days_to_first_followup: 3,
+      days_to_second_followup: 4,
+      days_to_breakup: 7,
+      enable_sniper_intro: true,
+      enable_value_nudge: true,
+      enable_breakup: true,
+      blacklisted_domains: [],
+      golden_samples: [],
+      signature_html: '',
+      voice_tone: 'Professional',
+      persona_prompt: null,
+    };
+
+    const { data: settingsRow } = await supabase
+      .from('bishop_settings')
+      .select('*')
+      .eq('user_id', user_id)
+      .single();
+
+    const settings: BishopSettings = settingsRow
+      ? { ...DEFAULT_SETTINGS, ...settingsRow }
+      : DEFAULT_SETTINGS;
+
+    console.log(`[BISHOP] Settings loaded. Blacklist: ${settings.blacklisted_domains.length} domains, Samples: ${settings.golden_samples.length}`);
+
+    // ── Fetch eligible leads ─────────────────────────────────────────────────
     const { data: leads, error: leadsError } = await supabase
       .from('leads')
-      .select('id, user_id, name, email, company, bishop_status, last_contact_date, next_action_due, notes')
+      .select('id, user_id, name, email, company, bishop_status, last_contact_date, next_action_due, notes, context_notes, enrichment_data')
       .eq('user_id', user_id)
       .lte('next_action_due', new Date().toISOString())
       .not('bishop_status', 'eq', 'ESCALATE_TO_KING')
@@ -311,50 +344,77 @@ serve(async (req: Request) => {
 
     if (leadsError) {
       return new Response(JSON.stringify({ error: 'Failed to fetch leads', details: leadsError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     if (!leads || leads.length === 0) {
-      return new Response(JSON.stringify({
-        success: true,
-        message: 'No leads due for action',
-        leads_processed: 0,
-        drafts_created: 0,
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      return new Response(JSON.stringify({ success: true, message: 'No leads due for action', leads_processed: 0, drafts_created: 0 }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log(`[BISHOP] Found ${leads.length} leads to process`);
+    // ── Apply blacklist filter ───────────────────────────────────────────────
+    const blacklistSet = new Set(settings.blacklisted_domains.map(d => d.toLowerCase()));
+    const eligibleLeads = (leads as Lead[]).filter(l => {
+      if (!l.email) return false;
+      const domain = emailDomain(l.email);
+      if (blacklistSet.has(domain)) {
+        console.log(`[BISHOP] Skipping ${l.name} (${domain} blacklisted)`);
+        return false;
+      }
+      return true;
+    });
 
-    // Process leads
+    console.log(`[BISHOP] ${leads.length} leads found, ${eligibleLeads.length} after blacklist filter`);
+
+    // ── Process each lead ────────────────────────────────────────────────────
     let draftsCreated = 0;
-    const results: Array<{ lead: string; strategy: string; success: boolean }> = [];
+    const results: Array<{ lead: string; strategy: string; success: boolean; skipped?: boolean }> = [];
 
-    for (const lead of leads as Lead[]) {
-      const strategy = determineStrategy(lead);
+    for (const lead of eligibleLeads) {
+      const strategy = determineStrategy(lead, settings);
 
       if (strategy === 'NONE') {
-        results.push({ lead: lead.name, strategy: 'NONE', success: true });
+        results.push({ lead: lead.name, strategy: 'NONE', success: true, skipped: true });
         continue;
       }
 
       console.log(`[BISHOP] Processing ${lead.name}: ${strategy}`);
 
-      // Generate draft
-      const draft = await generateDraft(lead, strategy, llmConfig as { baseURL: string; apiKey: string; model: string });
+      // Enrich lead with company website context for personalization
+      let enrichContext = lead.context_notes ?? '';
+      try {
+        const enrichRes = await supabase.functions.invoke('bishop-enrich', {
+          body: { lead_id: lead.id, user_id },
+        });
+        if (enrichRes.data?.summary) {
+          enrichContext = enrichRes.data.summary;
+        }
+      } catch (enrichErr) {
+        console.warn(`[BISHOP] Enrich failed for ${lead.name}:`, enrichErr);
+        // Non-fatal — proceed without enrichment
+      }
 
-      // Insert draft
+      // Generate draft
+      const draft = await generateDraft(lead, strategy, settings, llmConfig as { baseURL: string; apiKey: string; model: string }, enrichContext || undefined);
+
+      // Append email signature if set
+      let finalBody = draft.body;
+      if (settings.signature_html?.trim()) {
+        finalBody = `${draft.body}\n\n${settings.signature_html.replace(/<[^>]+>/g, '')}`;
+      }
+
+      // Insert draft with workspace_id + strategy_used
       const { error: draftError } = await supabase.from('ai_drafts').insert({
-        user_id: user_id,
+        user_id,
+        workspace_id: workspaceId,
         lead_id: lead.id,
         subject: draft.subject,
-        body: draft.body,
-        plain_text: draft.body,
+        body: finalBody,
+        plain_text: finalBody,
         persona_used: 'BISHOP_SWEEP',
+        strategy_used: strategy,
         is_ai_draft: true,
         status: 'PENDING_APPROVAL',
         metadata: {
@@ -363,6 +423,8 @@ serve(async (req: Request) => {
           company: lead.company,
           generated_by: 'bishop-sweep-edge',
           generated_at: new Date().toISOString(),
+          llm_provider: llmProvider,
+          golden_samples_used: settings.golden_samples.length,
         },
       });
 
@@ -372,13 +434,13 @@ serve(async (req: Request) => {
         continue;
       }
 
-      // Update lead state
-      const { status: nextStatus, nextActionDue } = getNextState(strategy);
-      const noteMessage = {
-        INTRO_FOLLOW_UP: 'Sent intro follow-up (cloud)',
-        NUDGE: 'Sent nudge (cloud)',
-        BREAKUP: 'Sent breakup (cloud)',
-      }[strategy];
+      // Advance lead state
+      const { status: nextStatus, nextActionDue } = getNextState(strategy, settings);
+      const noteMsg: Record<string, string> = {
+        INTRO_FOLLOW_UP: 'Draft created: intro follow-up',
+        NUDGE: 'Draft created: value nudge',
+        BREAKUP: 'Draft created: breakup',
+      };
 
       await supabase
         .from('leads')
@@ -386,7 +448,7 @@ serve(async (req: Request) => {
           bishop_status: nextStatus,
           last_contact_date: new Date().toISOString(),
           next_action_due: nextActionDue,
-          notes: appendNote(lead.notes, noteMessage || `Processed with ${strategy}`),
+          notes: appendNote(lead.notes, noteMsg[strategy] ?? `Draft created: ${strategy}`),
         })
         .eq('id', lead.id);
 
@@ -400,13 +462,13 @@ serve(async (req: Request) => {
     return new Response(JSON.stringify({
       success: true,
       message: 'Bishop sweep completed',
-      leads_processed: leads.length,
+      leads_processed: eligibleLeads.length,
       drafts_created: draftsCreated,
+      blacklisted_skipped: leads.length - eligibleLeads.length,
       results,
       timestamp: new Date().toISOString(),
     }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
@@ -415,8 +477,7 @@ serve(async (req: Request) => {
       error: 'Bishop sweep failed',
       details: error instanceof Error ? error.message : 'Unknown error',
     }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });

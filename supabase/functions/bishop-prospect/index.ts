@@ -1,0 +1,500 @@
+/**
+ * REGENT: Bishop Prospect Edge Function
+ *
+ * Multi-source lead sourcing for Bishop's SDR pipeline.
+ * Sources leads from Apollo, Hunter, Product Hunt, Hacker News,
+ * or a custom URL — then validates + deduplicates via pawn-verify.
+ *
+ * POST /functions/v1/bishop-prospect
+ * {
+ *   user_id: string,
+ *   sources: string[],       // ['apollo','hunter','product_hunt','hacker_news','url']
+ *   icp: {
+ *     titles: string[],      // ['Founder','CEO','CTO']
+ *     industries: string[],  // ['SaaS','B2B Software']
+ *     company_size_max: number, // default 200
+ *     locations: string[],   // ['United States','Canada']
+ *     keywords: string[],    // ['bootstrapped','seed']
+ *     target_url: string     // for 'url' source
+ *   }
+ * }
+ *
+ * Secrets required:
+ *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ *   APOLLO_API_KEY     (optional — Apollo source)
+ *   HUNTER_API_KEY     (optional — Hunter source)
+ *   PRODUCT_HUNT_TOKEN (optional — Product Hunt source, free dev token)
+ */
+
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': 'https://hireregent.com',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+interface ICP {
+  titles: string[];
+  industries: string[];
+  company_size_max: number;
+  locations: string[];
+  keywords: string[];
+  target_url?: string;
+}
+
+interface RawLead {
+  name: string;
+  email: string;
+  company: string;
+  title?: string;
+  linkedin_url?: string;
+  source_url?: string;
+  context_notes?: string;
+  enrichment_data?: Record<string, any>;
+}
+
+// ─── Apollo.io ────────────────────────────────────────────
+async function sourceApollo(icp: ICP): Promise<RawLead[]> {
+  const apiKey = Deno.env.get('APOLLO_API_KEY');
+  if (!apiKey) {
+    console.warn('[Prospect] Apollo API key not set — skipping');
+    return [];
+  }
+
+  try {
+    const payload: any = {
+      per_page: 25,
+      page: 1,
+    };
+    if (icp.titles.length > 0) payload.person_titles = icp.titles;
+    if (icp.locations.length > 0) payload.person_locations = icp.locations;
+    if (icp.company_size_max > 0) {
+      payload.organization_num_employees_ranges = [`1,${icp.company_size_max}`];
+    }
+    if (icp.industries.length > 0) payload.organization_industries = icp.industries;
+    if (icp.keywords.length > 0) payload.q_keywords = icp.keywords.join(' ');
+
+    const res = await fetch('https://api.apollo.io/v1/mixed_people/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': apiKey,
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      console.error('[Prospect] Apollo error:', res.status, err);
+      return [];
+    }
+
+    const data = await res.json();
+    const people: any[] = data.people || [];
+
+    return people
+      .filter((p: any) => p.email && p.first_name)
+      .map((p: any) => ({
+        name: `${p.first_name || ''} ${p.last_name || ''}`.trim(),
+        email: p.email,
+        company: p.organization?.name || p.employment_history?.[0]?.organization_name || '',
+        title: p.title || '',
+        linkedin_url: p.linkedin_url || '',
+        source_url: `https://app.apollo.io/#/people/${p.id}`,
+        context_notes: `Apollo: ${p.title || 'Unknown title'} at ${p.organization?.name || 'Unknown company'}`,
+        enrichment_data: {
+          apollo_id: p.id,
+          company_size: p.organization?.num_employees,
+          industry: p.organization?.industry,
+          funding: p.organization?.funding_events?.[0]?.type,
+        },
+      }));
+  } catch (err) {
+    console.error('[Prospect] Apollo fetch error:', err);
+    return [];
+  }
+}
+
+// ─── Hunter.io ────────────────────────────────────────────
+async function sourceHunter(icp: ICP): Promise<RawLead[]> {
+  const apiKey = Deno.env.get('HUNTER_API_KEY');
+  if (!apiKey) {
+    console.warn('[Prospect] Hunter API key not set — skipping');
+    return [];
+  }
+
+  // Hunter works per-domain — use keyword-based company search if no specific domains
+  const searchTerms = icp.keywords.length > 0 ? icp.keywords : icp.industries.slice(0, 3);
+  if (searchTerms.length === 0) {
+    console.warn('[Prospect] Hunter source requires keywords or industries to search');
+    return [];
+  }
+
+  const leads: RawLead[] = [];
+
+  for (const term of searchTerms.slice(0, 3)) {
+    try {
+      const url = `https://api.hunter.io/v2/domain-search?company=${encodeURIComponent(term)}&api_key=${apiKey}&limit=10`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!res.ok) continue;
+
+      const data = await res.json();
+      const domain = data.data?.domain;
+      const company = data.data?.organization || term;
+      const emails: any[] = data.data?.emails || [];
+
+      for (const e of emails) {
+        if (!e.value || !e.first_name) continue;
+        // Filter by target titles if specified
+        if (icp.titles.length > 0) {
+          const titleMatch = icp.titles.some(t =>
+            (e.position || '').toLowerCase().includes(t.toLowerCase())
+          );
+          if (!titleMatch) continue;
+        }
+        leads.push({
+          name: `${e.first_name || ''} ${e.last_name || ''}`.trim(),
+          email: e.value,
+          company,
+          title: e.position || '',
+          linkedin_url: e.linkedin || '',
+          source_url: `https://${domain}`,
+          context_notes: `Hunter: ${e.position || 'Unknown role'} at ${company}`,
+          enrichment_data: { company_domain: domain, hunter_confidence: e.confidence },
+        });
+      }
+    } catch (err) {
+      console.error('[Prospect] Hunter error for term', term, err);
+    }
+  }
+
+  return leads;
+}
+
+// ─── Product Hunt (free) ──────────────────────────────────
+async function sourceProductHunt(): Promise<RawLead[]> {
+  const token = Deno.env.get('PRODUCT_HUNT_TOKEN');
+
+  const query = `{
+    posts(first: 20, order: NEWEST, topic: "productivity") {
+      nodes {
+        name
+        tagline
+        url
+        makers {
+          name
+          username
+          profileUrl
+          headline
+          twitterUsername
+        }
+      }
+    }
+  }`;
+
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch('https://api.producthunt.com/v2/api/graphql', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ query }),
+      signal: AbortSignal.timeout(12000),
+    });
+
+    if (!res.ok) {
+      console.error('[Prospect] Product Hunt error:', res.status);
+      return [];
+    }
+
+    const data = await res.json();
+    const posts: any[] = data.data?.posts?.nodes || [];
+    const leads: RawLead[] = [];
+
+    for (const post of posts) {
+      for (const maker of post.makers || []) {
+        // Try to construct email from twitter or username (best-effort)
+        // We can't get real emails from PH without enrichment — return as LinkedIn leads
+        // that pawn-verify will try to validate
+        const profileUrl = maker.profileUrl || `https://www.producthunt.com/@${maker.username}`;
+
+        // Only include if they have a headline (means they're serious)
+        if (!maker.name || !maker.headline) continue;
+
+        // Generate a placeholder email to check via Hunter later
+        // In practice, use enrichment to find real email
+        leads.push({
+          name: maker.name,
+          email: `${maker.username}@placeholder.producthunt`,  // placeholder — pawn-verify will mark invalid
+          company: post.name || '',
+          title: maker.headline || '',
+          linkedin_url: profileUrl,
+          source_url: post.url,
+          context_notes: `Product Hunt maker: ${maker.headline} — built "${post.name}": ${post.tagline}`,
+          enrichment_data: {
+            product_hunt_username: maker.username,
+            product_name: post.name,
+            product_tagline: post.tagline,
+            twitter: maker.twitterUsername,
+          },
+        });
+      }
+    }
+
+    return leads;
+  } catch (err) {
+    console.error('[Prospect] Product Hunt error:', err);
+    return [];
+  }
+}
+
+// ─── Hacker News "Who is Hiring" ──────────────────────────
+async function sourceHackerNews(icp: ICP): Promise<RawLead[]> {
+  try {
+    // Find the most recent "Ask HN: Who is Hiring?" post
+    const searchRes = await fetch(
+      'https://hn.algolia.com/api/v1/search?query=Ask+HN%3A+Who+is+hiring&tags=ask_hn&hitsPerPage=3',
+      { signal: AbortSignal.timeout(8000) }
+    );
+    if (!searchRes.ok) return [];
+
+    const searchData = await searchRes.json();
+    const topPost = searchData.hits?.[0];
+    if (!topPost) return [];
+
+    const postId = topPost.objectID;
+
+    // Get comments for this post
+    const commentsRes = await fetch(
+      `https://hn.algolia.com/api/v1/search?tags=comment,story_${postId}&hitsPerPage=50`,
+      { signal: AbortSignal.timeout(10000) }
+    );
+    if (!commentsRes.ok) return [];
+
+    const commentsData = await commentsRes.json();
+    const comments: any[] = commentsData.hits || [];
+
+    const leads: RawLead[] = [];
+    const emailRegex = /\b[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}\b/g;
+
+    for (const comment of comments) {
+      const text: string = comment.comment_text || '';
+      if (!text) continue;
+
+      // Skip if doesn't mention any ICP keywords/titles
+      const textLower = text.toLowerCase();
+      const hasRelevantTitle = icp.titles.length === 0 || icp.titles.some(t =>
+        textLower.includes(t.toLowerCase())
+      );
+      if (!hasRelevantTitle) continue;
+
+      // Extract emails from comment
+      const emails = text.match(emailRegex) || [];
+      // Skip comments with no email
+      if (emails.length === 0) continue;
+
+      // Extract company name (usually first line or "at CompanyName")
+      const firstLine = text.replace(/<[^>]+>/g, '').split('\n')[0].slice(0, 100);
+      const companyMatch = firstLine.match(/(?:at|@)\s+([A-Z][a-zA-Z0-9\s]+?)(?:\s*[|,–-]|$)/);
+      const company = companyMatch ? companyMatch[1].trim() : firstLine.trim();
+
+      for (const email of emails.slice(0, 2)) {
+        leads.push({
+          name: '',  // Unknown from HN
+          email,
+          company: company.slice(0, 100),
+          title: '',
+          source_url: `https://news.ycombinator.com/item?id=${postId}`,
+          context_notes: `Hacker News "Who is Hiring": ${firstLine.slice(0, 200)}`,
+          enrichment_data: {
+            hn_post_id: postId,
+            comment_id: comment.objectID,
+          },
+        });
+      }
+    }
+
+    return leads;
+  } catch (err) {
+    console.error('[Prospect] HN error:', err);
+    return [];
+  }
+}
+
+// ─── Custom URL scraper ───────────────────────────────────
+async function sourceCustomUrl(url: string): Promise<RawLead[]> {
+  if (!url) return [];
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; RegentBot/1.0)',
+        Accept: 'text/html,text/plain',
+      },
+      signal: AbortSignal.timeout(12000),
+    });
+
+    if (!res.ok) return [];
+
+    const text = await res.text();
+    const emailRegex = /\b[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}\b/g;
+    const emails = [...new Set(text.match(emailRegex) || [])];
+
+    // Try to extract name hints near each email
+    const leads: RawLead[] = [];
+    const freeProviders = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com'];
+
+    for (const email of emails.slice(0, 50)) {
+      const domain = email.split('@')[1]?.toLowerCase();
+      if (!domain) continue;
+
+      // Try to find nearby name context
+      const emailIdx = text.indexOf(email);
+      const surroundingText = text.slice(Math.max(0, emailIdx - 100), emailIdx + 100)
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      leads.push({
+        name: '',
+        email,
+        company: freeProviders.includes(domain) ? '' : domain.replace(/^www\./, ''),
+        title: '',
+        source_url: url,
+        context_notes: `Scraped from ${url}: ${surroundingText.slice(0, 200)}`,
+        enrichment_data: { source_url: url },
+      });
+    }
+
+    return leads;
+  } catch (err) {
+    console.error('[Prospect] Custom URL error:', err);
+    return [];
+  }
+}
+
+// ─── Main handler ──────────────────────────────────────────
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 200, headers: corsHeaders });
+  }
+
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405, headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    });
+  }
+
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  );
+
+  try {
+    const body = await req.json();
+    const { user_id, sources = [], icp = {} } = body;
+
+    if (!user_id) {
+      return new Response(JSON.stringify({ error: 'user_id is required' }), {
+        status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+
+    const icpConfig: ICP = {
+      titles: icp.titles || [],
+      industries: icp.industries || [],
+      company_size_max: icp.company_size_max || 200,
+      locations: icp.locations || [],
+      keywords: icp.keywords || [],
+      target_url: icp.target_url || '',
+    };
+
+    const enabledSources: string[] = sources.length > 0
+      ? sources
+      : ['product_hunt', 'hacker_news'];
+
+    // Run all enabled sources in parallel
+    const sourcePromises: Promise<RawLead[]>[] = [];
+    if (enabledSources.includes('apollo')) sourcePromises.push(sourceApollo(icpConfig));
+    if (enabledSources.includes('hunter')) sourcePromises.push(sourceHunter(icpConfig));
+    if (enabledSources.includes('product_hunt')) sourcePromises.push(sourceProductHunt());
+    if (enabledSources.includes('hacker_news')) sourcePromises.push(sourceHackerNews(icpConfig));
+    if (enabledSources.includes('url') && icpConfig.target_url) {
+      sourcePromises.push(sourceCustomUrl(icpConfig.target_url));
+    }
+
+    const results = await Promise.allSettled(sourcePromises);
+    const allLeads: RawLead[] = results.flatMap(r =>
+      r.status === 'fulfilled' ? r.value : []
+    );
+
+    console.log(`[Prospect] Sourced ${allLeads.length} raw leads from ${enabledSources.join(', ')}`);
+
+    if (allLeads.length === 0) {
+      return new Response(JSON.stringify({
+        success: true,
+        stats: { total: 0, clean: 0, duplicates: 0, invalid: 0, inserted: 0 },
+        message: 'No leads sourced from selected sources',
+      }), {
+        status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+
+    // Get workspace_id for scoping
+    const { data: membership } = await supabase
+      .from('workspace_memberships')
+      .select('workspace_id')
+      .eq('user_id', user_id)
+      .limit(1)
+      .single();
+    const workspaceId = membership?.workspace_id ?? null;
+
+    // Run through pawn-verify for dedup + email validation + insertion
+    const pawnRes = await supabase.functions.invoke('pawn-verify', {
+      body: {
+        leads: allLeads,
+        user_id,
+        workspace_id: workspaceId,
+        auto_insert: true,
+      },
+    });
+
+    if (pawnRes.error) {
+      console.error('[Prospect] pawn-verify error:', pawnRes.error);
+      return new Response(JSON.stringify({ error: 'Validation failed: ' + pawnRes.error.message }), {
+        status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+
+    const stats = pawnRes.data?.stats || {};
+    console.log('[Prospect] pawn-verify result:', stats);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        sources_used: enabledSources,
+        stats: {
+          total: stats.total || allLeads.length,
+          clean: stats.clean || 0,
+          duplicates: stats.duplicates || 0,
+          invalid: stats.invalid || 0,
+          inserted: stats.inserted || 0,
+        },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+    );
+
+  } catch (err) {
+    console.error('[Prospect] Unexpected error:', err);
+    return new Response(JSON.stringify({ error: String(err) }), {
+      status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    });
+  }
+});
