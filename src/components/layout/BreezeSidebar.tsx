@@ -643,12 +643,7 @@ export function BreezeSidebar() {
       <div className="relative z-10 h-16 flex items-center justify-between px-4 border-b border-gray-100 dark:border-amber-500/10">
         {!isCollapsed && (
           <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 flex items-center justify-center shadow-lg shadow-amber-500/30">
-                <Crown className="h-5 w-5 text-white" />
-              </div>
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 blur-lg opacity-30 hidden dark:block" />
-            </div>
+            <img src="/regent-logo.png" alt="Regent" className="w-9 h-9 object-contain" />
             <div>
               <span className="font-bold text-gray-900 dark:text-white tracking-tight text-lg font-serif">REGENT</span>
               <p className="text-[10px] text-amber-600 dark:text-amber-500/70 font-medium tracking-widest">SALES ENGINE</p>
@@ -657,9 +652,7 @@ export function BreezeSidebar() {
         )}
         {isCollapsed && (
           <div className="relative mx-auto">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 flex items-center justify-center shadow-lg shadow-amber-500/30">
-              <Crown className="h-5 w-5 text-white" />
-            </div>
+            <img src="/regent-logo.png" alt="Regent" className="w-9 h-9 object-contain" />
           </div>
         )}
 

@@ -76,14 +76,7 @@ const Landing = () => {
       <nav className="fixed top-0 w-full z-40 backdrop-blur-md border-b" style={{ backgroundColor: "rgba(253,251,247,0.9)", borderColor: "#E7E5E4" }}>
         <div className="max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3 group cursor-pointer" onClick={() => navigate("/")}>
-            <div className="relative w-8 h-8 flex items-center justify-center bg-stone-900 text-white rounded-sm overflow-hidden transition-transform duration-300 group-hover:rotate-180">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L15 5H9L12 2Z" fill="currentColor" />
-                <path d="M16 6H8V8H16V6Z" fill="currentColor" />
-                <path d="M7 9H17L18 12H6L7 9Z" fill="currentColor" />
-                <path d="M6 13H18V18C18 19.6569 16.6569 21 15 21H9C7.34315 21 6 19.6569 6 18V13Z" fill="currentColor" fillOpacity="0.8" />
-              </svg>
-            </div>
+            <img src="/regent-logo.png" alt="Regent" className="w-8 h-8 object-contain" />
             <span className="text-2xl tracking-tight font-medium" style={{ fontFamily: "'Instrument Serif', serif" }}>
               Regent
             </span>
@@ -515,7 +508,7 @@ const Landing = () => {
           <div className="max-w-[1600px] mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 mb-20">
             <div>
               <div className="flex items-center gap-2 mb-6">
-                <div className="w-6 h-6 bg-stone-900 flex items-center justify-center text-white rounded-sm text-xs">R</div>
+                <img src="/regent-logo.png" alt="Regent" className="w-6 h-6 object-contain" />
                 <span className="text-xl font-medium" style={{ fontFamily: "'Instrument Serif', serif" }}>Regent</span>
               </div>
               <p className="text-stone-500 text-sm leading-relaxed">
