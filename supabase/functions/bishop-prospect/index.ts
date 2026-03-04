@@ -82,10 +82,11 @@ async function sourceApollo(icp: ICP): Promise<RawLead[]> {
     if (icp.industries.length > 0) payload.organization_industries = icp.industries;
     if (icp.keywords.length > 0) payload.q_keywords = icp.keywords.join(' ');
 
-    const res = await fetch('https://api.apollo.io/v1/mixed_people/search', {
+    const res = await fetch('https://api.apollo.io/api/v1/mixed_people/search', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache',
         'X-Api-Key': apiKey,
       },
       body: JSON.stringify(payload),
