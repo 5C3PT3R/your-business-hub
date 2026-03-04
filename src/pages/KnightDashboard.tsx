@@ -1,101 +1,115 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { KnightSetupChecklist } from '@/components/knight/KnightSetupChecklist';
 import {
-  Shield,
-  MessageSquare,
-  AlertTriangle,
-  Bot,
-  RefreshCw,
-  Sparkles,
-  CheckCircle2,
-  ChevronRight,
-  Trash2,
-  FileText,
-  Copy,
-  Loader2,
+  Shield, MessageSquare, AlertTriangle, Bot, RefreshCw, Sparkles,
+  CheckCircle2, ChevronRight, Trash2, FileText, Copy, Loader2,
+  TrendingUp, Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { useToast } from '@/hooks/use-toast';
 import {
-  getTickets,
-  getTicketDetail,
-  updateTicketStatus,
-  deleteTicket,
-  getKnightConfig,
-  subscribeToTickets,
-  subscribeToMessages,
-  type Ticket,
-  type TicketDetail,
-  type TicketMessage,
-  type KnightConfig,
+  getTickets, getTicketDetail, updateTicketStatus, deleteTicket,
+  getKnightConfig, subscribeToTickets, subscribeToMessages,
+  type Ticket, type TicketDetail, type TicketMessage, type KnightConfig,
 } from '@/lib/knight-ticket-service';
 
-export default function KnightDashboard() {
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const { workspace } = useWorkspace();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+// ─── Helpers ──────────────────────────────────────────────
 
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [selectedTicket, setSelectedTicket] = useState<TicketDetail | null>(null);
-  const [config, setConfig] = useState<KnightConfig | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [contactMap, setContactMap] = useState<Map<string, { name: string; type: 'contact' | 'lead'; id: string }>>(new Map());
-  const [transcript, setTranscript] = useState('');
+function formatTime(date: Date): string {
+  const now  = new Date();
+  const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
+  if (diff < 60)       return 'Just now';
+  if (diff < 3600)     return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400)    return `${Math.floor(diff / 3600)}h ago`;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function sentimentEmoji(score: number | null | undefined) {
+  if (!score) return null;
+  if (score >= 7) return { emoji: '😊', color: 'text-emerald-600' };
+  if (score >= 4) return { emoji: '😐', color: 'text-amber-600'   };
+  return            { emoji: '😠', color: 'text-red-600'          };
+}
+
+// ─── Metric tile ──────────────────────────────────────────
+
+function MetricTile({ label, value, Icon, highlight }: {
+  label: string; value: string | number; Icon: React.ElementType; highlight?: boolean;
+}) {
+  return (
+    <div className={cn(
+      'flex flex-col gap-2 p-4 rounded-lg border',
+      highlight ? 'bg-[#FFF8F5] border-[#CC5500]/20' : 'bg-stone-50 border-[#E7E5E4]',
+    )}>
+      <div className="flex items-center gap-2">
+        <div className={cn('w-7 h-7 rounded-md flex items-center justify-center',
+          highlight ? 'bg-[#CC5500]/10' : 'bg-white border border-[#E7E5E4]',
+        )}>
+          <Icon className={cn('w-3.5 h-3.5', highlight ? 'text-[#CC5500]' : 'text-stone-500')} />
+        </div>
+        <span className="text-[10px] uppercase tracking-wider text-stone-500"
+          style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+          {label}
+        </span>
+      </div>
+      <span className={cn('text-2xl font-bold', highlight ? 'text-[#CC5500]' : 'text-stone-900')}
+        style={{ fontFamily: 'Instrument Serif, serif' }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+// ─── Main ─────────────────────────────────────────────────
+
+export default function KnightDashboard() {
+  const navigate         = useNavigate();
+  const { toast }        = useToast();
+  const { workspace }    = useWorkspace();
+  const messagesEndRef   = useRef<HTMLDivElement>(null);
+
+  const [tickets, setTickets]                       = useState<Ticket[]>([]);
+  const [selectedTicket, setSelectedTicket]         = useState<TicketDetail | null>(null);
+  const [config, setConfig]                         = useState<KnightConfig | null>(null);
+  const [loading, setLoading]                       = useState(true);
+  const [contactMap, setContactMap]                 = useState<Map<string, { name: string; type: 'contact' | 'lead'; id: string }>>(new Map());
+  const [transcript, setTranscript]                 = useState('');
   const [generatingTranscript, setGeneratingTranscript] = useState(false);
 
-  // Load escalated/halted tickets
   useEffect(() => {
     if (workspace?.id) {
       loadData();
-
       const channel = subscribeToTickets(workspace.id, (ticket) => {
         setTickets((prev) => {
-          // Only keep escalated/open tickets
           if (ticket.status !== 'escalated' && ticket.status !== 'open') {
             return prev.filter((t) => t.id !== ticket.id);
           }
-          const index = prev.findIndex((t) => t.id === ticket.id);
-          if (index >= 0) {
-            const updated = [...prev];
-            updated[index] = ticket;
-            return updated;
-          }
+          const i = prev.findIndex((t) => t.id === ticket.id);
+          if (i >= 0) { const u = [...prev]; u[i] = ticket; return u; }
           return [ticket, ...prev];
         });
       });
-
-      return () => {
-        channel.unsubscribe();
-      };
+      return () => { channel.unsubscribe(); };
     }
   }, [workspace?.id]);
 
-  // Subscribe to messages for selected ticket
   useEffect(() => {
     if (!selectedTicket?.ticket.id) return;
-
-    const channel = subscribeToMessages(selectedTicket.ticket.id, (newMessage: TicketMessage) => {
+    const channel = subscribeToMessages(selectedTicket.ticket.id, (msg: TicketMessage) => {
       setSelectedTicket((prev) => {
-        if (!prev || prev.ticket.id !== newMessage.ticket_id) return prev;
-        if (prev.messages.some((m) => m.id === newMessage.id)) return prev;
-        return { ...prev, messages: [...prev.messages, newMessage] };
+        if (!prev || prev.ticket.id !== msg.ticket_id) return prev;
+        if (prev.messages.some((m) => m.id === msg.id)) return prev;
+        return { ...prev, messages: [...prev.messages, msg] };
       });
     });
-
-    return () => {
-      channel.unsubscribe();
-    };
+    return () => { channel.unsubscribe(); };
   }, [selectedTicket?.ticket.id]);
 
-  // Auto-scroll to bottom when messages update
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [selectedTicket?.messages]);
@@ -110,7 +124,6 @@ export default function KnightDashboard() {
         supabase.from('contacts').select('id, name, phone').eq('workspace_id', workspace.id),
         supabase.from('leads').select('id, name, phone'),
       ]);
-      // Show escalated first, then open tickets sorted by updated_at
       const relevant = allTickets
         .filter((t) => t.status === 'escalated' || t.status === 'open' || t.status === 'pending_user')
         .sort((a, b) => {
@@ -130,8 +143,6 @@ export default function KnightDashboard() {
         if (l.phone && l.name) map.set(normalize(l.phone), { name: l.name, type: 'lead', id: l.id });
       });
       setContactMap(map);
-    } catch (error) {
-      console.error('[KnightDashboard] Load error:', error);
     } finally {
       setLoading(false);
     }
@@ -147,47 +158,23 @@ export default function KnightDashboard() {
     if (!selectedTicket || selectedTicket.messages.length === 0) return;
     setGeneratingTranscript(true);
     try {
-      // Build conversation text for AI
-      const convoLines = selectedTicket.messages.map((msg) => {
-        const sender =
-          msg.sender_type === 'knight' ? agentName
-          : msg.sender_type === 'human_agent' ? 'Agent'
-          : 'Customer';
+      const agentName = config?.agent_name || 'Knight';
+      const content = selectedTicket.messages.map((msg) => {
+        const sender = msg.sender_type === 'knight' ? agentName
+          : msg.sender_type === 'human_agent' ? 'Agent' : 'Customer';
         return `${sender}: ${msg.content}`;
+      }).join('\n');
+
+      const { data, error } = await supabase.functions.invoke('knight-summarize', {
+        body: { content },
       });
 
-      const res = await fetch('https://api.deepseek.com/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer sk-6b26c326653f4a5c877f2db1d3d03aa4',
-        },
-        body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a support conversation analyst. Read the following customer support conversation and provide a concise summary. Include: 1) What the customer wanted, 2) How it was handled, 3) Current status/outcome. Keep it brief and clear — 3-5 sentences max.',
-            },
-            {
-              role: 'user',
-              content: `Channel: ${selectedTicket.ticket.source_channel}\nCustomer: ${selectedTicket.ticket.source_handle}\n\nConversation:\n${convoLines.join('\n')}`,
-            },
-          ],
-          max_tokens: 300,
-        }),
-      });
-
-      const data = await res.json();
-      const summary = data.choices?.[0]?.message?.content;
-
-      if (summary) {
-        setTranscript(summary);
-      } else {
-        toast({ title: 'AI returned empty response', variant: 'destructive' });
+      if (error || !data?.summary) {
+        toast({ title: 'Failed to generate summary', variant: 'destructive' });
+        return;
       }
-    } catch (err) {
-      console.error('[KnightDashboard] Transcript error:', err);
+      setTranscript(data.summary);
+    } catch {
       toast({ title: 'Failed to generate summary', variant: 'destructive' });
     } finally {
       setGeneratingTranscript(false);
@@ -195,363 +182,336 @@ export default function KnightDashboard() {
   };
 
   const handleResolve = async (ticketId: string) => {
-    const success = await updateTicketStatus(ticketId, 'resolved');
-    if (success) {
-      toast({ title: 'Ticket resolved' });
-      setSelectedTicket(null);
-      loadData();
-    }
+    const ok = await updateTicketStatus(ticketId, 'resolved');
+    if (ok) { toast({ title: 'Ticket resolved' }); setSelectedTicket(null); loadData(); }
   };
 
   const handleDelete = async (ticketId: string) => {
-    const success = await deleteTicket(ticketId);
-    if (success) {
-      toast({ title: 'Conversation deleted' });
-      setSelectedTicket(null);
-      loadData();
-    } else {
-      toast({ title: 'Failed to delete', variant: 'destructive' });
-    }
+    const ok = await deleteTicket(ticketId);
+    if (ok) { toast({ title: 'Conversation deleted' }); setSelectedTicket(null); loadData(); }
+    else    { toast({ title: 'Failed to delete', variant: 'destructive' }); }
   };
-
-  const agentName = config?.agent_name || 'Knight';
 
   const resolveContact = (handle: string) => {
-    const normalized = handle.replace(/\D/g, '').slice(-10);
-    return normalized.length >= 7 ? (contactMap.get(normalized) ?? null) : null;
+    const n = handle.replace(/\D/g, '').slice(-10);
+    return n.length >= 7 ? (contactMap.get(n) ?? null) : null;
   };
 
+  const agentName      = config?.agent_name || 'Knight';
   const escalatedCount = tickets.filter((t) => t.status === 'escalated').length;
-  const needsAttentionCount = tickets.filter(
-    (t) => t.status === 'escalated' || t.priority === 'critical'
-  ).length;
-
-  if (loading) {
-    return (
-      <MainLayout>
-        <Header title="Knight Dashboard" subtitle="Loading..." />
-        <div className="flex items-center justify-center min-h-[600px]">
-          <div className="flex flex-col items-center gap-4">
-            <Shield className="h-12 w-12 text-primary animate-pulse" />
-            <p className="text-sm text-muted-foreground">Loading dashboard...</p>
-          </div>
-        </div>
-      </MainLayout>
-    );
-  }
+  const openCount      = tickets.filter((t) => t.status === 'open').length;
+  const avgSentiment   = tickets.length
+    ? Math.round(tickets.reduce((s, t) => s + (t.sentiment_score || 5), 0) / tickets.length * 10) / 10
+    : null;
 
   return (
     <MainLayout>
       <Header
-        title="Knight Dashboard"
-        subtitle="Monitor and manage customer conversations"
+        title="Knight"
+        subtitle="Escalated conversations & human oversight"
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate('/knight/settings')}>
+            <button
+              onClick={() => navigate('/knight?tab=settings')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-[#E7E5E4] bg-white text-xs text-stone-600 hover:bg-stone-50 transition-colors"
+            >
               Settings
-            </Button>
-            <Button variant="outline" size="sm" onClick={loadData}>
-              <RefreshCw className="h-4 w-4 mr-2" />
+            </button>
+            <button
+              onClick={loadData}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-[#E7E5E4] bg-white text-xs text-stone-600 hover:bg-stone-50 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={cn('w-3.5 h-3.5', loading && 'animate-spin')} />
               Refresh
-            </Button>
+            </button>
           </div>
         }
       />
 
-      {/* Status Bar */}
-      <div className="px-4 md:px-6 pt-4 flex gap-3">
-        {needsAttentionCount > 0 ? (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/20">
-            <AlertTriangle className="h-4 w-4 text-red-500" />
-            <span className="text-sm font-medium text-red-500">
-              {needsAttentionCount} ticket{needsAttentionCount > 1 ? 's' : ''} need{needsAttentionCount === 1 ? 's' : ''} attention
-            </span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20">
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
-            <span className="text-sm font-medium text-green-500">All clear — no escalations</span>
-          </div>
-        )}
-        {escalatedCount > 0 && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/20">
-            <Shield className="h-4 w-4 text-orange-500" />
-            <span className="text-sm font-medium text-orange-500">
-              {escalatedCount} escalated
-            </span>
-          </div>
-        )}
-      </div>
+      <div className="min-h-screen p-6" style={{ background: '#FDFBF7' }}>
 
-      {/* Main Layout */}
-      <div className="p-4 md:p-6 flex gap-4 h-[calc(100vh-220px)]">
-        {/* Ticket List */}
-        <Card variant="glass" className="w-80 flex-shrink-0 flex flex-col overflow-hidden">
-          <div className="p-3 border-b">
-            <h3 className="text-sm font-semibold">Active Conversations</h3>
-            <p className="text-xs text-muted-foreground">{tickets.length} ticket{tickets.length !== 1 ? 's' : ''}</p>
-          </div>
-          <div className="flex-1 overflow-y-auto divide-y divide-border">
-            {tickets.length === 0 ? (
-              <div className="p-8 text-center">
-                <CheckCircle2 className="h-10 w-10 mx-auto mb-3 text-green-500/50" />
-                <p className="text-sm font-medium">No tickets need attention</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {agentName} is handling everything
-                </p>
-              </div>
-            ) : (
-              tickets.map((ticket) => {
-                const contact = resolveContact(ticket.source_handle);
-                return (
-                  <button
-                    key={ticket.id}
-                    onClick={() => handleSelectTicket(ticket)}
-                    className={cn(
-                      'w-full p-3 text-left hover:bg-muted/50 transition-colors',
-                      selectedTicket?.ticket.id === ticket.id && 'bg-primary/5 border-l-2 border-l-primary'
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          {ticket.status === 'escalated' ? (
-                            <AlertTriangle className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
-                          ) : ticket.priority === 'critical' ? (
-                            <AlertTriangle className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" />
-                          ) : (
-                            <MessageSquare className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                          )}
-                          <span className="text-sm font-semibold truncate">
-                            {contact ? contact.name : ticket.source_handle}
-                          </span>
+        {/* Grain overlay */}
+        <div className="fixed inset-0 pointer-events-none opacity-[0.015]"
+          style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 512 512\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'g\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.75\' numOctaves=\'4\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23g)\'/%3E%3C/svg%3E")' }}
+        />
+
+        {/* Setup Checklist */}
+        <KnightSetupChecklist />
+
+        {/* Metric tiles */}
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <MetricTile label="Escalated" value={escalatedCount} Icon={AlertTriangle} highlight={escalatedCount > 0} />
+          <MetricTile label="Open Tickets" value={openCount}   Icon={MessageSquare} />
+          <MetricTile label="Avg Sentiment" value={avgSentiment != null ? `${avgSentiment}/10` : '—'} Icon={TrendingUp} />
+        </div>
+
+        {/* Split view */}
+        <div className="flex gap-4" style={{ height: 'calc(100vh - 340px)', minHeight: 420 }}>
+
+          {/* Ticket list */}
+          <div className="w-72 flex-shrink-0 bg-white border border-[#E7E5E4] rounded-lg flex flex-col overflow-hidden">
+            <div className="p-4 border-b border-[#E7E5E4]">
+              <h3 className="text-sm font-semibold text-stone-900"
+                style={{ fontFamily: 'Instrument Serif, serif' }}>
+                Active Conversations
+              </h3>
+              <p className="text-xs text-stone-400 mt-0.5">
+                {tickets.length} ticket{tickets.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto divide-y divide-[#E7E5E4]">
+              {tickets.length === 0 ? (
+                <div className="p-8 text-center">
+                  <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-emerald-400/50" />
+                  <p className="text-sm font-medium text-stone-700">No escalations</p>
+                  <p className="text-xs text-stone-400 mt-1">{agentName} is handling everything</p>
+                </div>
+              ) : (
+                tickets.map((ticket) => {
+                  const contact  = resolveContact(ticket.source_handle);
+                  const sent     = sentimentEmoji(ticket.sentiment_score);
+                  const isSelected = selectedTicket?.ticket.id === ticket.id;
+                  return (
+                    <button
+                      key={ticket.id}
+                      onClick={() => handleSelectTicket(ticket)}
+                      className={cn(
+                        'w-full p-3 text-left hover:bg-stone-50 transition-colors border-l-4',
+                        isSelected         ? 'bg-stone-50 border-l-[#CC5500]'
+                        : ticket.status === 'escalated' ? 'border-l-red-400'
+                        : ticket.priority === 'critical'  ? 'border-l-amber-400'
+                        : 'border-l-transparent',
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            {ticket.status === 'escalated' ? (
+                              <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                            ) : (
+                              <MessageSquare className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                            )}
+                            <span className="text-sm font-semibold text-stone-900 truncate">
+                              {contact ? contact.name : ticket.source_handle}
+                            </span>
+                          </div>
+                          <div className="text-xs text-stone-400 truncate ml-5 mb-1.5">
+                            {contact ? ticket.source_handle : (ticket.summary || ticket.source_channel)}
+                          </div>
+                          <div className="flex items-center gap-1.5 ml-5 flex-wrap">
+                            {contact && (
+                              <span className={cn(
+                                'text-[10px] px-1.5 py-0.5 rounded-full border uppercase tracking-wider',
+                                contact.type === 'lead'
+                                  ? 'bg-blue-50 text-blue-600 border-blue-200'
+                                  : 'bg-purple-50 text-purple-600 border-purple-200',
+                              )} style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                                {contact.type}
+                              </span>
+                            )}
+                            {sent && (
+                              <span className={cn('text-[11px]', sent.color)}>{sent.emoji} {ticket.sentiment_score}/10</span>
+                            )}
+                            <span className="text-[10px] text-stone-400 ml-auto">
+                              {formatTime(new Date(ticket.updated_at))}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1.5 ml-5 mb-1">
-                          {contact && (
-                            <Badge variant="outline" className={cn('text-[10px] py-0', contact.type === 'lead' ? 'text-blue-500 border-blue-500/30' : 'text-purple-500 border-purple-500/30')}>
-                              {contact.type}
-                            </Badge>
-                          )}
-                          <span className="text-xs text-muted-foreground truncate">
-                            {contact ? ticket.source_handle : ticket.summary}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 ml-5">
-                          {ticket.status === 'escalated' && (
-                            <Badge variant="outline" className="text-[10px] bg-red-500/10 text-red-500 border-red-500/30">
-                              Escalated
-                            </Badge>
-                          )}
-                          <Badge variant="outline" className={cn('text-[10px]', ticket.priority === 'critical' ? 'bg-red-500/10 text-red-500 border-red-500/30' : ticket.priority === 'medium' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30' : 'bg-green-500/10 text-green-500 border-green-500/30')}>
-                            {ticket.priority}
-                          </Badge>
-                          <span className="text-[10px] text-muted-foreground">
-                            {formatTime(new Date(ticket.updated_at))}
-                          </span>
-                        </div>
+                        <ChevronRight className="w-4 h-4 text-stone-300 shrink-0 mt-1" />
                       </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
-                    </div>
-                  </button>
-                );
-              })
-            )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
           </div>
-        </Card>
 
-        {/* Conversation + Guide Panel */}
-        {selectedTicket ? (
-          <div className="flex-1 flex flex-col gap-4 min-w-0">
-            {/* Ticket Header */}
-            <Card variant="glass" className="p-4">
+          {/* Conversation pane */}
+          {selectedTicket ? (
+            <div className="flex-1 flex flex-col gap-3 min-w-0">
+
+              {/* Ticket header */}
               {(() => {
                 const contact = resolveContact(selectedTicket.ticket.source_handle);
-                const score = selectedTicket.ticket.sentiment_score;
-                const sentimentEmoji = score ? (score >= 7 ? '😊' : score >= 4 ? '😐' : '😠') : null;
-                const sentimentColor = score ? (score >= 7 ? 'text-green-500' : score >= 4 ? 'text-yellow-500' : 'text-red-500') : '';
+                const sent    = sentimentEmoji(selectedTicket.ticket.sentiment_score);
                 return (
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
+                  <div className="bg-white border border-[#E7E5E4] rounded-lg p-4 flex items-start justify-between gap-3 shrink-0">
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="font-bold text-base">
+                        <span className="text-lg font-bold text-stone-900"
+                          style={{ fontFamily: 'Instrument Serif, serif' }}>
                           {contact ? contact.name : selectedTicket.ticket.source_handle}
                         </span>
                         {contact && (
-                          <Badge variant="outline" className={cn('text-xs', contact.type === 'lead' ? 'text-blue-500 border-blue-500/30' : 'text-purple-500 border-purple-500/30')}>
-                            {contact.type}
-                          </Badge>
-                        )}
-                        {contact && (
-                          <button
-                            onClick={() => navigate(`/${contact.type === 'lead' ? 'leads' : 'contacts'}?highlight=${contact.id}`)}
-                            className="text-xs text-primary hover:underline"
-                          >
-                            View {contact.type} ↗
-                          </button>
+                          <>
+                            <span className={cn(
+                              'text-[10px] px-1.5 py-0.5 rounded-full border uppercase tracking-wider',
+                              contact.type === 'lead'
+                                ? 'bg-blue-50 text-blue-600 border-blue-200'
+                                : 'bg-purple-50 text-purple-600 border-purple-200',
+                            )} style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                              {contact.type}
+                            </span>
+                            <button
+                              onClick={() => navigate(`/${contact.type === 'lead' ? 'leads' : 'contacts'}?highlight=${contact.id}`)}
+                              className="text-xs text-[#CC5500] hover:underline"
+                            >
+                              View {contact.type} ↗
+                            </button>
+                          </>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {contact && <span className="text-xs text-muted-foreground">{selectedTicket.ticket.source_handle}</span>}
-                        <Badge variant="outline" className="text-xs capitalize">{selectedTicket.ticket.source_channel}</Badge>
+                      <div className="flex items-center gap-2 flex-wrap text-xs text-stone-500">
+                        {contact && <span>{selectedTicket.ticket.source_handle}</span>}
+                        <span className="capitalize px-1.5 py-0.5 rounded border border-[#E7E5E4] bg-stone-50">
+                          {selectedTicket.ticket.source_channel}
+                        </span>
                         {selectedTicket.ticket.status === 'escalated' && (
-                          <Badge variant="outline" className="text-xs bg-red-500/10 text-red-500 border-red-500/30">Escalated</Badge>
+                          <span className="px-1.5 py-0.5 rounded border bg-red-50 text-red-600 border-red-200 text-[10px] uppercase tracking-wider"
+                            style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                            Escalated
+                          </span>
                         )}
-                        {sentimentEmoji && score && (
-                          <span className={cn('text-xs font-medium', sentimentColor)}>{sentimentEmoji} {score}/10</span>
+                        {sent && (
+                          <span className={cn('font-medium', sent.color)}>
+                            {sent.emoji} {selectedTicket.ticket.sentiment_score}/10
+                          </span>
                         )}
-                        <span className="text-xs text-muted-foreground">{selectedTicket.messages.length} messages</span>
+                        <span>{selectedTicket.messages.length} messages</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <Button variant="outline" size="sm" onClick={() => handleResolve(selectedTicket.ticket.id)} className="text-green-600 border-green-500/30 hover:bg-green-500/10">
-                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                      <button
+                        onClick={() => handleResolve(selectedTicket.ticket.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-emerald-700 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
                         Resolve
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleDelete(selectedTicket.ticket.id)} className="text-red-500 border-red-500/30 hover:bg-red-500/10">
-                        <Trash2 className="h-4 w-4 mr-2" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(selectedTicket.ticket.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
                         Delete
-                      </Button>
+                      </button>
                     </div>
                   </div>
                 );
               })()}
-            </Card>
 
-            {/* Messages */}
-            <Card variant="glass" className="flex-1 flex flex-col overflow-hidden">
-              <div className="flex-1 p-4 overflow-y-auto space-y-3">
-                {selectedTicket.messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={cn(
-                      'flex',
-                      msg.sender_type === 'user' ? 'justify-start' : 'justify-end'
-                    )}
-                  >
+              {/* Messages */}
+              <div className="flex-1 bg-white border border-[#E7E5E4] rounded-lg flex flex-col overflow-hidden min-h-0">
+                <div className="flex-1 p-4 overflow-y-auto space-y-3">
+                  {selectedTicket.messages.map((msg) => (
                     <div
-                      className={cn(
-                        'max-w-[75%] rounded-lg p-3',
+                      key={msg.id}
+                      className={cn('flex', msg.sender_type === 'user' ? 'justify-start' : 'justify-end')}
+                    >
+                      <div className={cn(
+                        'max-w-[75%] rounded-xl p-3',
                         msg.sender_type === 'user'
-                          ? 'bg-muted'
+                          ? 'bg-stone-100 text-stone-800'
                           : msg.sender_type === 'knight'
                           ? msg.metadata?.guided
-                            ? 'bg-purple-500/10 border border-purple-500/20'
-                            : 'bg-primary/10 border border-primary/20'
-                          : 'bg-blue-500/10 border border-blue-500/20'
-                      )}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        {msg.sender_type === 'knight' && (
-                          msg.metadata?.guided
-                            ? <Sparkles className="h-3 w-3 text-purple-500" />
-                            : <Bot className="h-3 w-3 text-primary" />
+                            ? 'bg-purple-50 border border-purple-100 text-purple-900'
+                            : 'bg-[#FFF8F5] border border-[#CC5500]/10 text-stone-800'
+                          : 'bg-blue-50 border border-blue-100 text-blue-900',
+                      )}>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          {msg.sender_type === 'knight' && (
+                            msg.metadata?.guided
+                              ? <Sparkles className="w-3 h-3 text-purple-500" />
+                              : <Bot className="w-3 h-3 text-[#CC5500]" />
+                          )}
+                          <span className="text-[11px] font-medium text-stone-500">
+                            {msg.sender_type === 'knight'
+                              ? (msg.metadata?.guided ? `${agentName} (guided)` : agentName)
+                              : msg.sender_type === 'human_agent' ? 'You' : 'Customer'}
+                          </span>
+                          <span className="text-[10px] text-stone-400">
+                            {formatTime(new Date(msg.created_at))}
+                          </span>
+                        </div>
+                        <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                        {msg.metadata?.guided && msg.metadata?.instruction && (
+                          <p className="text-[10px] text-purple-400 mt-1.5 italic">
+                            Instruction: "{msg.metadata.instruction}"
+                          </p>
                         )}
-                        <span className="text-xs font-medium">
-                          {msg.sender_type === 'knight'
-                            ? (msg.metadata?.guided ? `${agentName} (guided by you)` : agentName)
-                            : msg.sender_type === 'human_agent'
-                            ? 'You'
-                            : 'Customer'}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {formatTime(new Date(msg.created_at))}
-                        </span>
                       </div>
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                      {msg.metadata?.guided && msg.metadata?.instruction && (
-                        <p className="text-[10px] text-purple-500/60 mt-1.5 italic">
-                          Your instruction: "{msg.metadata.instruction}"
-                        </p>
-                      )}
+                    </div>
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+              </div>
+
+              {/* AI Summary */}
+              <div className="bg-white border border-[#E7E5E4] rounded-lg p-4 shrink-0">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-md bg-[#CC5500]/10 flex items-center justify-center">
+                      <FileText className="w-3.5 h-3.5 text-[#CC5500]" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-stone-900">AI Summary</p>
+                      <p className="text-xs text-stone-400">Generated by Queen via DeepSeek</p>
                     </div>
                   </div>
-                ))}
-                <div ref={messagesEndRef} />
-              </div>
-            </Card>
-
-            {/* AI Transcript */}
-            <Card variant="glass" className="p-4 max-h-[240px] flex flex-col">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-primary flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium">AI Summary</p>
-                    <p className="text-xs text-muted-foreground">
-                      AI-generated gist of this conversation
-                    </p>
+                  <div className="flex items-center gap-2">
+                    {transcript && (
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(transcript); toast({ title: 'Copied' }); }}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-stone-600 border border-[#E7E5E4] rounded-md hover:bg-stone-50 transition-colors"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        Copy
+                      </button>
+                    )}
+                    <button
+                      onClick={generateTranscript}
+                      disabled={generatingTranscript}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#1C1917] text-white rounded-md hover:bg-stone-800 transition-colors disabled:opacity-50"
+                    >
+                      {generatingTranscript ? (
+                        <><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating…</>
+                      ) : (
+                        <><Sparkles className="w-3.5 h-3.5" />{transcript ? 'Regenerate' : 'Generate Summary'}</>
+                      )}
+                    </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {transcript && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        navigator.clipboard.writeText(transcript);
-                        toast({ title: 'Transcript copied to clipboard' });
-                      }}
-                    >
-                      <Copy className="h-3.5 w-3.5 mr-1.5" />
-                      Copy
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    onClick={generateTranscript}
-                    disabled={generatingTranscript}
-                  >
-                    {generatingTranscript ? (
-                      <>
-                        <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-                        {transcript ? 'Regenerate' : 'Generate Summary'}
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-              {transcript ? (
-                <div className="flex-1 overflow-y-auto text-sm text-foreground/80 bg-muted/30 rounded-md p-3 leading-relaxed">
-                  {transcript}
-                </div>
-              ) : (
-                <div className="flex-1 flex items-center justify-center text-center py-4">
-                  <p className="text-xs text-muted-foreground">
-                    Click "Generate Summary" to get an AI-powered gist of this conversation
+                {transcript ? (
+                  <p className="text-sm text-stone-600 leading-relaxed bg-stone-50 rounded-lg p-3">
+                    {transcript}
                   </p>
-                </div>
-              )}
-            </Card>
-          </div>
-        ) : (
-          <Card variant="glass" className="flex-1 flex items-center justify-center">
-            <div className="text-center max-w-sm">
-              <Shield className="h-14 w-14 mx-auto mb-4 text-muted-foreground/30" />
-              <p className="text-lg font-medium mb-2">Knight Dashboard</p>
-              <p className="text-sm text-muted-foreground">
-                Select a conversation from the left to view messages and generate transcripts.
-              </p>
+                ) : (
+                  <p className="text-xs text-stone-400 text-center py-3">
+                    Click "Generate Summary" for an AI-powered gist of this conversation
+                  </p>
+                )}
+              </div>
             </div>
-          </Card>
-        )}
+          ) : (
+            <div className="flex-1 bg-white border border-[#E7E5E4] rounded-lg flex items-center justify-center">
+              <div className="text-center max-w-xs">
+                <div className="w-16 h-16 rounded-2xl bg-stone-100 flex items-center justify-center mx-auto mb-4">
+                  <Shield className="w-8 h-8 text-stone-300" />
+                </div>
+                <p className="text-base font-semibold text-stone-700"
+                  style={{ fontFamily: 'Instrument Serif, serif' }}>
+                  Select a conversation
+                </p>
+                <p className="text-xs text-stone-400 mt-1">
+                  Choose a ticket on the left to view messages and generate summaries.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </MainLayout>
   );
-}
-
-function formatTime(date: Date): string {
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / (1000 * 60));
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }

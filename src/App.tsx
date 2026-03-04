@@ -53,6 +53,7 @@ import Rook from "./pages/Rook";
 import Knight from "./pages/Knight";
 import KnightDashboard from "./pages/KnightDashboard";
 import Activity from "./pages/Activity";
+import Insights from "./pages/Insights";
 import MetaIntegration from "./pages/MetaIntegration";
 import MetaCallback from "./pages/MetaCallback";
 import Waitlist from "./pages/Waitlist";
@@ -97,6 +98,7 @@ function AppRoutes() {
       <Route path="/knight" element={<AuthGuard><KnightDashboard /></AuthGuard>} />
       <Route path="/knight/settings" element={<AuthGuard><Knight /></AuthGuard>} />
       <Route path="/activity" element={<AuthGuard><Activity /></AuthGuard>} />
+      <Route path="/insights" element={<AuthGuard><Insights /></AuthGuard>} />
       <Route path="/workflows" element={<AuthGuard><Workflows /></AuthGuard>} />
       <Route path="/workflows/:id" element={<AuthGuard><WorkflowEditor /></AuthGuard>} />
       <Route path="/tasks" element={<AuthGuard><Tasks /></AuthGuard>} />

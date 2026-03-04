@@ -14,6 +14,7 @@ import {
   Bot,
   Workflow,
   BarChart3,
+  Lightbulb,
   Plug,
   Settings,
   Search,
@@ -125,6 +126,12 @@ export function BreezeSidebar() {
       label: 'Activity',
       icon: Activity,
       path: '/activity',
+    },
+    {
+      id: 'insights',
+      label: 'Insights',
+      icon: Lightbulb,
+      path: '/insights',
     },
     {
       id: 'next-actions',
