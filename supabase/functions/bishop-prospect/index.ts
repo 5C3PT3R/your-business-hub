@@ -455,47 +455,89 @@ serve(async (req) => {
       });
     }
 
-    // Get workspace_id for scoping
+    // Get workspace_id (best-effort)
     const { data: membership } = await supabase
       .from('workspace_memberships')
       .select('workspace_id')
       .eq('user_id', user_id)
       .limit(1)
-      .single();
-    const workspaceId = membership?.workspace_id ?? null;
+      .maybeSingle();
+    const workspaceId: string | null = membership?.workspace_id ?? null;
 
-    // Run through pawn-verify for dedup + email validation + insertion
-    const pawnRes = await supabase.functions.invoke('pawn-verify', {
-      body: {
-        leads: allLeads,
-        user_id,
-        workspace_id: workspaceId,
-        auto_insert: true,
-      },
-    });
+    // ── Inline validation + dedup + insert ────────────────
+    const EMAIL_RE = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+    const BLOCKED = new Set(['mailinator.com','guerrillamail.com','tempmail.com',
+      'yopmail.com','10minutemail.com','trashmail.com','fakeinbox.com',
+      'placeholder.producthunt','sharklasers.com','spam4.me','dispostable.com']);
 
-    if (pawnRes.error) {
-      console.error('[Prospect] pawn-verify error:', pawnRes.error);
-      return new Response(JSON.stringify({ error: 'Validation failed: ' + pawnRes.error.message }), {
-        status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      });
+    const validLeads = allLeads.filter(l => {
+      if (!l.email || !EMAIL_RE.test(l.email.trim())) return false;
+      const domain = l.email.split('@')[1]?.toLowerCase() ?? '';
+      return !BLOCKED.has(domain);
+    }).map(l => ({ ...l, email: l.email.trim().toLowerCase() }));
+
+    const invalidCount = allLeads.length - validLeads.length;
+
+    // Dedup: find which emails already exist
+    let existingEmails = new Set<string>();
+    if (validLeads.length > 0) {
+      const emails = validLeads.map(l => l.email);
+      const { data: existing } = await supabase
+        .from('leads')
+        .select('email')
+        .in('email', emails)
+        .eq('user_id', user_id);
+      existingEmails = new Set((existing || []).map((r: any) => r.email));
     }
 
-    const stats = pawnRes.data?.stats || {};
-    console.log('[Prospect] pawn-verify result:', stats);
+    const newLeads = validLeads.filter(l => !existingEmails.has(l.email));
+    const duplicateCount = validLeads.length - newLeads.length;
+
+    // Insert new leads
+    let inserted = 0;
+    if (newLeads.length > 0) {
+      const now = new Date().toISOString();
+      const toInsert = newLeads.map(l => ({
+        name:              l.name || null,
+        email:             l.email,
+        company:           l.company || null,
+        source:            'web_scrape',
+        status:            'new',
+        bishop_status:     'INTRO_SENT',
+        user_id,
+        workspace_id:      workspaceId,
+        context_notes:     l.context_notes || null,
+        enrichment_data:   l.enrichment_data || {},
+        last_contact_date: null,
+        next_action_due:   now,
+      }));
+
+      const { error: insertErr } = await supabase.from('leads').insert(toInsert);
+      if (insertErr) {
+        console.error('[Prospect] Insert error:', insertErr.message);
+        // Try without workspace_id if that's the constraint issue
+        if (insertErr.message?.includes('workspace_id') || insertErr.message?.includes('null')) {
+          const fallback = toInsert.map(l => ({ ...l, workspace_id: undefined }));
+          const { error: fallbackErr } = await supabase.from('leads').insert(fallback);
+          if (!fallbackErr) inserted = newLeads.length;
+          else console.error('[Prospect] Fallback insert also failed:', fallbackErr.message);
+        }
+      } else {
+        inserted = newLeads.length;
+      }
+    }
+
+    const stats = {
+      total:      allLeads.length,
+      clean:      newLeads.length,
+      duplicates: duplicateCount,
+      invalid:    invalidCount,
+      inserted,
+    };
+    console.log('[Prospect] Done:', stats);
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        sources_used: enabledSources,
-        stats: {
-          total: stats.total || allLeads.length,
-          clean: stats.clean || 0,
-          duplicates: stats.duplicates || 0,
-          invalid: stats.invalid || 0,
-          inserted: stats.inserted || 0,
-        },
-      }),
+      JSON.stringify({ success: true, sources_used: enabledSources, stats }),
       { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
     );
 
