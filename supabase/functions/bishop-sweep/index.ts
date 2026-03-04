@@ -17,11 +17,17 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://hireregent.com',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+const ALLOWED_ORIGINS = ['https://hireregent.com', 'https://www.hireregent.com'];
+
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get('origin') || '';
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
+}
 
 type BishopStatus = 'INTRO_SENT' | 'FOLLOW_UP_NEEDED' | 'NUDGE_SENT' | 'BREAKUP_SENT' | 'ESCALATE_TO_KING';
 type Strategy = 'INTRO_FOLLOW_UP' | 'NUDGE' | 'BREAKUP' | 'NONE';
@@ -233,6 +239,7 @@ Return JSON only: {"subject": "...", "body": "..."}`,
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
@@ -405,10 +412,9 @@ serve(async (req: Request) => {
         finalBody = `${draft.body}\n\n${settings.signature_html.replace(/<[^>]+>/g, '')}`;
       }
 
-      // Insert draft with workspace_id + strategy_used
+      // Insert draft
       const { error: draftError } = await supabase.from('ai_drafts').insert({
         user_id,
-        workspace_id: workspaceId,
         lead_id: lead.id,
         subject: draft.subject,
         body: finalBody,

@@ -175,8 +175,10 @@ export default function BishopDrafts() {
         },
         body: JSON.stringify({ user_id: user.id }),
       });
-      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d?.error ?? `HTTP ${res.status}`); }
-      toast({ title: 'Sweep complete', description: 'New drafts generated' });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result?.error ?? `HTTP ${res.status}`);
+      const n = result?.drafts_created ?? 0;
+      toast({ title: 'Sweep complete', description: n > 0 ? `${n} draft${n !== 1 ? 's' : ''} generated` : 'No eligible leads due right now' });
       await loadDrafts();
     } catch (e: any) {
       toast({ title: 'Sweep failed', description: e.message, variant: 'destructive' });
