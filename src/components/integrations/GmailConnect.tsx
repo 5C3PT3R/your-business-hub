@@ -39,6 +39,7 @@ export function GmailConnect() {
         {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           },
         }
       );
@@ -78,6 +79,7 @@ export function GmailConnect() {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${session.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           'Content-Type': 'application/json',
         },
       });
@@ -146,6 +148,7 @@ export function GmailConnect() {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${session.access_token}`,
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           },
         }
       );
