@@ -515,12 +515,19 @@ serve(async (req) => {
       const { error: insertErr } = await supabase.from('leads').insert(toInsert);
       if (insertErr) {
         console.error('[Prospect] Insert error:', insertErr.message);
-        // Try without workspace_id if that's the constraint issue
-        if (insertErr.message?.includes('workspace_id') || insertErr.message?.includes('null')) {
-          const fallback = toInsert.map(l => ({ ...l, workspace_id: undefined }));
-          const { error: fallbackErr } = await supabase.from('leads').insert(fallback);
-          if (!fallbackErr) inserted = newLeads.length;
-          else console.error('[Prospect] Fallback insert also failed:', fallbackErr.message);
+        // Always retry without workspace_id — it may be a FK constraint issue
+        const fallback = toInsert.map(({ workspace_id: _ws, ...l }) => l);
+        const { error: fallbackErr } = await supabase.from('leads').insert(fallback);
+        if (!fallbackErr) {
+          inserted = newLeads.length;
+        } else {
+          console.error('[Prospect] Fallback insert also failed:', fallbackErr.message);
+          // Surface error in stats for diagnosis
+          return new Response(JSON.stringify({
+            success: false,
+            error: `Insert failed: ${fallbackErr.message}`,
+            stats: { total: allLeads.length, clean: newLeads.length, duplicates: duplicateCount, invalid: invalidCount, inserted: 0 },
+          }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
         }
       } else {
         inserted = newLeads.length;
