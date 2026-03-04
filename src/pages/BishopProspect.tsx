@@ -236,8 +236,18 @@ export default function BishopProspect() {
       // Save ICP first
       await saveSettings();
 
-      const { data, error } = await supabase.functions.invoke('bishop-prospect', {
-        body: {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bishop-prospect`;
+      const res = await fetch(fnUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
           user_id: user.id,
           sources: icp.enabled_sources,
           icp: {
@@ -248,10 +258,11 @@ export default function BishopProspect() {
             keywords: icp.icp_keywords,
             target_url: icp.enabled_sources.includes('url') ? customUrl : undefined,
           },
-        },
+        }),
       });
 
-      if (error) throw new Error(error.message);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
 
       const stats = data?.stats ?? {};
       setLastResult({
