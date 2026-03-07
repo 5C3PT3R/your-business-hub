@@ -68,7 +68,7 @@ export default function BishopDrafts() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const loadDrafts = useCallback(async () => {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     setLoading(true);
     let query = supabase
       .from('ai_drafts')

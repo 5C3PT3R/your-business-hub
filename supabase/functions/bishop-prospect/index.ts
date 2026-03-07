@@ -82,7 +82,7 @@ async function sourceApollo(icp: ICP): Promise<RawLead[]> {
     if (icp.industries.length > 0) payload.organization_industries = icp.industries;
     if (icp.keywords.length > 0) payload.q_keywords = icp.keywords.join(' ');
 
-    const res = await fetch('https://api.apollo.io/api/v1/mixed_people/search', {
+    const res = await fetch('https://api.apollo.io/v1/mixed_people/search', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -101,12 +101,20 @@ async function sourceApollo(icp: ICP): Promise<RawLead[]> {
 
     const data = await res.json();
     const people: any[] = data.people || [];
+    console.log(`[Prospect] Apollo returned ${people.length} people, ${people.filter((p:any) => p.email).length} with emails`);
 
     return people
-      .filter((p: any) => p.email && p.first_name)
-      .map((p: any) => ({
+      .filter((p: any) => p.first_name && (p.email || p.organization?.primary_domain))
+      .map((p: any) => {
+        const domain = p.organization?.primary_domain;
+        // If no email, guess from domain: firstname@domain.com
+        const email = p.email || (domain
+          ? `${p.first_name.toLowerCase().replace(/[^a-z]/g,'')}@${domain}`
+          : null);
+        if (!email) return null;
+        return {
         name: `${p.first_name || ''} ${p.last_name || ''}`.trim(),
-        email: p.email,
+        email,
         company: p.organization?.name || p.employment_history?.[0]?.organization_name || '',
         title: p.title || '',
         linkedin_url: p.linkedin_url || '',
@@ -118,7 +126,7 @@ async function sourceApollo(icp: ICP): Promise<RawLead[]> {
           industry: p.organization?.industry,
           funding: p.organization?.funding_events?.[0]?.type,
         },
-      }));
+      };}).filter(Boolean) as RawLead[];
   } catch (err) {
     console.error('[Prospect] Apollo fetch error:', err);
     return [];
@@ -295,16 +303,8 @@ async function sourceHackerNews(icp: ICP): Promise<RawLead[]> {
       const text: string = comment.comment_text || '';
       if (!text) continue;
 
-      // Skip if doesn't mention any ICP keywords/titles
-      const textLower = text.toLowerCase();
-      const hasRelevantTitle = icp.titles.length === 0 || icp.titles.some(t =>
-        textLower.includes(t.toLowerCase())
-      );
-      if (!hasRelevantTitle) continue;
-
-      // Extract emails from comment
+      // Extract emails from comment first — only process if there's an email
       const emails = text.match(emailRegex) || [];
-      // Skip comments with no email
       if (emails.length === 0) continue;
 
       // Extract company name (usually first line or "at CompanyName")
