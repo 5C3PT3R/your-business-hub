@@ -55,7 +55,7 @@ export default function BishopDrafts() {
   const leadIdFilter = searchParams.get('lead_id');
 
   const [drafts, setDrafts] = useState<Draft[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
   const [sweeping, setSweeping] = useState(false);
 
