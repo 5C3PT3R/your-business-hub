@@ -200,14 +200,12 @@ async function sourceProductHunt(): Promise<RawLead[]> {
         name
         tagline
         url
-        website
         makers {
           name
           username
           profileUrl
           headline
           twitterUsername
-          websiteUrl
         }
       }
     }
@@ -237,10 +235,10 @@ async function sourceProductHunt(): Promise<RawLead[]> {
     const leads: RawLead[] = [];
 
     for (const post of posts) {
-      // Extract domain from product website
+      // Extract domain from product URL (PH posts link to the product's site)
       let productDomain = '';
       try {
-        const siteUrl = post.website || post.url || '';
+        const siteUrl = post.url || '';
         if (siteUrl && !siteUrl.includes('producthunt.com')) {
           productDomain = new URL(siteUrl).hostname.replace(/^www\./, '');
         }
