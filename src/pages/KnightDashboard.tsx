@@ -183,12 +183,18 @@ export default function KnightDashboard() {
         return `${sender}: ${msg.content}`;
       }).join('\n');
 
-      const { data, error } = await supabase.functions.invoke('knight-summarize', {
-        body: { content },
+      const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/knight-summarize`;
+      const res = await fetch(fnUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({ content }),
       });
-
-      if (error || !data?.summary) {
-        toast({ title: 'Failed to generate summary', variant: 'destructive' });
+      const data = await res.json();
+      if (!res.ok || !data?.summary) {
+        toast({ title: 'Failed to generate summary', description: data?.error, variant: 'destructive' });
         return;
       }
       setTranscript(data.summary);
