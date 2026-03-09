@@ -273,9 +273,11 @@ export default function BishopProspect() {
         inserted: stats.inserted ?? 0,
       });
 
+      const breakdown = data?.source_breakdown ?? {};
+      const breakdownStr = Object.entries(breakdown).map(([k, v]) => `${k}: ${v}`).join(' · ');
       toast({
         title: `${stats.inserted ?? 0} new leads found`,
-        description: `${stats.duplicates ?? 0} duplicates skipped, ${stats.invalid ?? 0} invalid`,
+        description: breakdownStr || `${stats.duplicates ?? 0} dupes, ${stats.invalid ?? 0} invalid`,
       });
 
       await loadHistory();

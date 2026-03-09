@@ -429,28 +429,34 @@ serve(async (req) => {
       ? sources
       : ['product_hunt', 'hacker_news'];
 
-    // Run all enabled sources in parallel
-    const sourcePromises: Promise<RawLead[]>[] = [];
-    if (enabledSources.includes('apollo')) sourcePromises.push(sourceApollo(icpConfig));
-    if (enabledSources.includes('hunter')) sourcePromises.push(sourceHunter(icpConfig));
-    if (enabledSources.includes('product_hunt')) sourcePromises.push(sourceProductHunt());
-    if (enabledSources.includes('hacker_news')) sourcePromises.push(sourceHackerNews(icpConfig));
+    // Run all enabled sources in parallel with per-source tracking
+    const sourceTasks: { name: string; promise: Promise<RawLead[]> }[] = [];
+    if (enabledSources.includes('apollo')) sourceTasks.push({ name: 'apollo', promise: sourceApollo(icpConfig) });
+    if (enabledSources.includes('hunter')) sourceTasks.push({ name: 'hunter', promise: sourceHunter(icpConfig) });
+    if (enabledSources.includes('product_hunt')) sourceTasks.push({ name: 'product_hunt', promise: sourceProductHunt() });
+    if (enabledSources.includes('hacker_news')) sourceTasks.push({ name: 'hacker_news', promise: sourceHackerNews(icpConfig) });
     if (enabledSources.includes('url') && icpConfig.target_url) {
-      sourcePromises.push(sourceCustomUrl(icpConfig.target_url));
+      sourceTasks.push({ name: 'url', promise: sourceCustomUrl(icpConfig.target_url) });
     }
 
-    const results = await Promise.allSettled(sourcePromises);
-    const allLeads: RawLead[] = results.flatMap(r =>
-      r.status === 'fulfilled' ? r.value : []
-    );
+    const results = await Promise.allSettled(sourceTasks.map(t => t.promise));
+    const sourceBreakdown: Record<string, number> = {};
+    const allLeads: RawLead[] = results.flatMap((r, i) => {
+      const name = sourceTasks[i].name;
+      const leads = r.status === 'fulfilled' ? r.value : [];
+      sourceBreakdown[name] = leads.length;
+      if (r.status === 'rejected') console.error(`[Prospect] ${name} failed:`, r.reason);
+      return leads;
+    });
 
-    console.log(`[Prospect] Sourced ${allLeads.length} raw leads from ${enabledSources.join(', ')}`);
+    console.log(`[Prospect] Per-source: ${JSON.stringify(sourceBreakdown)}`);
 
     if (allLeads.length === 0) {
       return new Response(JSON.stringify({
         success: true,
         stats: { total: 0, clean: 0, duplicates: 0, invalid: 0, inserted: 0 },
-        message: 'No leads sourced from selected sources',
+        source_breakdown: sourceBreakdown,
+        message: `No leads found. Per source: ${JSON.stringify(sourceBreakdown)}`,
       }), {
         status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
@@ -545,7 +551,7 @@ serve(async (req) => {
     console.log('[Prospect] Done:', stats);
 
     return new Response(
-      JSON.stringify({ success: true, sources_used: enabledSources, stats }),
+      JSON.stringify({ success: true, sources_used: enabledSources, stats, source_breakdown: sourceBreakdown }),
       { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
     );
 
