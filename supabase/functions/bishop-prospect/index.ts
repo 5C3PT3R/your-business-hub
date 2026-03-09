@@ -281,12 +281,8 @@ async function sourceProductHunt(): Promise<RawLead[]> {
           } catch {}
         }
 
-        // Fallback: firstname@domain
-        if (!email && productDomain) {
-          const firstName = maker.name.split(' ')[0].toLowerCase().replace(/[^a-z]/g, '');
-          email = `${firstName}@${productDomain}`;
-        }
-
+        // Do NOT guess emails from slug-derived domains — they almost always bounce.
+        // PH leads are only included when Hunter.io confirmed a real email.
         if (!email) continue;
 
         leads.push({
@@ -354,10 +350,13 @@ async function sourceHackerNews(icp: ICP): Promise<RawLead[]> {
       const emails = text.match(emailRegex) || [];
       if (emails.length === 0) continue;
 
-      // Extract company name (usually first line or "at CompanyName")
-      const firstLine = text.replace(/<[^>]+>/g, '').split('\n')[0].slice(0, 100);
-      const companyMatch = firstLine.match(/(?:at|@)\s+([A-Z][a-zA-Z0-9\s]+?)(?:\s*[|,–-]|$)/);
-      const company = companyMatch ? companyMatch[1].trim() : firstLine.trim();
+      // Extract company name — HN format is "CompanyName | Location | Role | ..."
+      const firstLine = text.replace(/<[^>]+>/g, '').split('\n')[0];
+      // Take segment before first | as company name
+      const beforePipe = firstLine.split('|')[0].trim();
+      const company = (beforePipe.length > 2 && beforePipe.length < 60)
+        ? beforePipe
+        : firstLine.slice(0, 50).trim();
 
       for (const email of emails.slice(0, 2)) {
         leads.push({
@@ -557,7 +556,7 @@ serve(async (req) => {
         company:           l.company || null,
         source:            'web_scrape',
         status:            'new',
-        bishop_status:     'INTRO_SENT',
+        bishop_status:     'NEW',
         user_id,
         workspace_id:      workspaceId,
         context_notes:     l.context_notes || null,

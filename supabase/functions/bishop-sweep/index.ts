@@ -29,8 +29,8 @@ function getCorsHeaders(req: Request) {
   };
 }
 
-type BishopStatus = 'INTRO_SENT' | 'FOLLOW_UP_NEEDED' | 'NUDGE_SENT' | 'BREAKUP_SENT' | 'ESCALATE_TO_KING';
-type Strategy = 'INTRO_FOLLOW_UP' | 'NUDGE' | 'BREAKUP' | 'NONE';
+type BishopStatus = 'NEW' | 'INTRO_SENT' | 'FOLLOW_UP_NEEDED' | 'NUDGE_SENT' | 'BREAKUP_SENT' | 'ESCALATE_TO_KING';
+type Strategy = 'INTRO' | 'INTRO_FOLLOW_UP' | 'NUDGE' | 'BREAKUP' | 'NONE';
 
 interface Lead {
   id: string;
@@ -92,6 +92,10 @@ function determineStrategy(lead: Lead, settings: BishopSettings): Strategy {
   const days = daysSince(lead.last_contact_date);
 
   switch (lead.bishop_status) {
+    case 'NEW':
+    case null:
+    case undefined:
+      return 'INTRO';
     case 'INTRO_SENT':
       if (settings.enable_sniper_intro && days >= settings.days_to_first_followup)
         return 'INTRO_FOLLOW_UP';
@@ -113,6 +117,8 @@ function determineStrategy(lead: Lead, settings: BishopSettings): Strategy {
 
 function getNextState(strategy: Strategy, settings: BishopSettings): { status: BishopStatus; nextActionDue: string | null } {
   switch (strategy) {
+    case 'INTRO':
+      return { status: 'INTRO_SENT', nextActionDue: daysFromNow(settings.days_to_first_followup) };
     case 'INTRO_FOLLOW_UP':
       return { status: 'FOLLOW_UP_NEEDED', nextActionDue: daysFromNow(settings.days_to_second_followup) };
     case 'NUDGE':
@@ -151,8 +157,36 @@ async function generateDraft(
 
   const toneNote = `Write in a ${settings.voice_tone.toLowerCase()} tone.`;
 
+  // Try to extract a first name from email local part if lead has no name
+  // e.g. john.doe@company.com → "John", recruiting@company.com → skip (generic role words)
+  const GENERIC_EMAIL_PREFIXES = new Set(['recruiting', 'hello', 'hi', 'info', 'contact', 'team', 'support', 'sales', 'admin', 'noreply', 'no-reply', 'founders', 'founder', 'press', 'jobs', 'career', 'careers']);
+  function extractNameFromEmail(email: string): string | null {
+    const local = email.split('@')[0].toLowerCase().replace(/[^a-z.]/g, '');
+    if (GENERIC_EMAIL_PREFIXES.has(local)) return null;
+    const parts = local.split('.').filter(p => p.length > 1);
+    if (parts.length === 0) return null;
+    return parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+  }
+
+  const rawName = lead.name && lead.name.trim();
+  const recipientName = rawName || extractNameFromEmail(lead.email) || 'there';
+  const companyName = lead.company && lead.company.trim() ? lead.company.trim() : 'your company';
+
   const prompts: Record<string, string> = {
-    INTRO_FOLLOW_UP: `Write a SHORT follow-up email (2-4 sentences) to ${lead.name} at ${lead.company}.
+    INTRO: `Write a SHORT first-touch cold email (3-5 sentences) to ${recipientName} at ${companyName}.
+THIS IS THE VERY FIRST EMAIL — there is NO previous conversation, NO previous email, NO prior contact of any kind.
+- Subject: make it specific to their company/role — do NOT use "Quick follow-up", "Following up", or anything implying prior contact
+- Open with something relevant to what they are building
+- Lead with value, not a pitch
+- Ask ONE clear question to open a conversation
+- Sound human, warm, concise
+- Do NOT say "follow up", "following up", "previous note", "my last email", or imply any prior contact
+- Do NOT mention AI
+- Do NOT use "I hope this finds you well" or filler openers
+- ${toneNote}${enrichBlock}${samplesBlock}${personaBlock}
+Return JSON only: {"subject": "...", "body": "..."}`,
+
+    INTRO_FOLLOW_UP: `Write a SHORT follow-up email (2-4 sentences) to ${recipientName} at ${companyName}.
 This is a follow-up to an intro email sent a few days ago.
 - Be value-anchored, not pushy
 - Ask ONE clear question
@@ -162,7 +196,7 @@ This is a follow-up to an intro email sent a few days ago.
 - ${toneNote}${enrichBlock}${samplesBlock}${personaBlock}
 Return JSON only: {"subject": "...", "body": "..."}`,
 
-    NUDGE: `Write a SHORT gentle nudge email (2-4 sentences) to ${lead.name} at ${lead.company}.
+    NUDGE: `Write a SHORT gentle nudge email (2-4 sentences) to ${recipientName} at ${companyName}.
 They haven't replied to previous emails.
 - Offer an easy next step OR an easy exit
 - No urgency or pressure
@@ -196,7 +230,7 @@ Return JSON only: {"subject": "...", "body": "..."}`,
       body: JSON.stringify({
         model: llm.model,
         messages: [
-          { role: 'system', content: 'You write short, professional, human-sounding emails. Return JSON only.' },
+          { role: 'system', content: 'You write short, professional, human-sounding cold emails. Never mention prior contact unless the prompt says so. Return JSON only: {"subject":"...","body":"..."}' },
           { role: 'user', content: prompt },
         ],
         temperature: 0.7,
@@ -204,7 +238,10 @@ Return JSON only: {"subject": "...", "body": "..."}`,
       }),
     });
 
-    if (!response.ok) throw new Error(`LLM API error: ${response.status}`);
+    if (!response.ok) {
+      const errBody = await response.text();
+      throw new Error(`LLM API error ${response.status}: ${errBody}`);
+    }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content?.trim();
@@ -217,22 +254,26 @@ Return JSON only: {"subject": "...", "body": "..."}`,
     const parsed = JSON.parse(jsonStr.trim());
     return { subject: parsed.subject, body: parsed.body };
   } catch (error) {
-    console.error('[BISHOP] Draft generation error:', error);
+    console.error('[BISHOP] Draft generation error for strategy', strategy, ':', error);
     const fallbacks: Record<string, Draft> = {
+      INTRO: {
+        subject: `Quick question for ${companyName}`,
+        body: `Hi ${recipientName},\n\nI came across ${companyName} and wanted to reach out — we help small SaaS teams automate their sales outreach so they can focus on building.\n\nWould it be worth a 15-minute chat to see if there's a fit?\n\nBest`,
+      },
       INTRO_FOLLOW_UP: {
-        subject: `Quick follow-up — ${lead.company}`,
-        body: `Hi ${lead.name},\n\nWanted to follow up on my previous note. Would love to hear if this resonates with what ${lead.company} is working on.\n\nWould a brief call next week work?\n\nBest`,
+        subject: `Re: ${companyName}`,
+        body: `Hi ${recipientName},\n\nJust wanted to resurface my last note in case it got buried. Happy to share more if it's relevant to what you're working on at ${companyName}.\n\nBest`,
       },
       NUDGE: {
-        subject: `One more thought — ${lead.company}`,
-        body: `Hi ${lead.name},\n\nI know things get busy. If now isn't the right time, no worries at all. Otherwise, happy to find 15 minutes that works for you.\n\nBest`,
+        subject: `One more thought — ${companyName}`,
+        body: `Hi ${recipientName},\n\nI know things get busy. If now isn't the right time, no worries at all. Otherwise, happy to find 15 minutes that works for you.\n\nBest`,
       },
       BREAKUP: {
-        subject: `Closing the loop — ${lead.company}`,
-        body: `Hi ${lead.name},\n\nI'll assume the timing isn't right and won't follow up again. If anything changes down the road, I'm always happy to reconnect.\n\nWishing you and the team all the best.`,
+        subject: `Closing the loop — ${companyName}`,
+        body: `Hi ${recipientName},\n\nI'll assume the timing isn't right and won't follow up again. If anything changes down the road, I'm always happy to reconnect.\n\nWishing you and the team all the best.`,
       },
     };
-    return fallbacks[strategy] ?? fallbacks.INTRO_FOLLOW_UP;
+    return fallbacks[strategy] ?? fallbacks['INTRO']!;
   }
 }
 
@@ -345,9 +386,9 @@ serve(async (req: Request) => {
       .from('leads')
       .select('id, user_id, name, email, company, bishop_status, last_contact_date, next_action_due, notes, context_notes, enrichment_data')
       .eq('user_id', user_id)
-      .lte('next_action_due', new Date().toISOString())
       .not('bishop_status', 'eq', 'ESCALATE_TO_KING')
-      .not('bishop_status', 'eq', 'BREAKUP_SENT');
+      .not('bishop_status', 'eq', 'BREAKUP_SENT')
+      .limit(50);
 
     if (leadsError) {
       return new Response(JSON.stringify({ error: 'Failed to fetch leads', details: leadsError.message }), {
@@ -375,16 +416,13 @@ serve(async (req: Request) => {
 
     console.log(`[BISHOP] ${leads.length} leads found, ${eligibleLeads.length} after blacklist filter`);
 
-    // ── Process each lead ────────────────────────────────────────────────────
-    let draftsCreated = 0;
+    // ── Process leads in parallel (batches of 10) ────────────────────────────
     const results: Array<{ lead: string; strategy: string; success: boolean; skipped?: boolean }> = [];
 
-    for (const lead of eligibleLeads) {
+    const processLead = async (lead: Lead) => {
       const strategy = determineStrategy(lead, settings);
-
       if (strategy === 'NONE') {
-        results.push({ lead: lead.name, strategy: 'NONE', success: true, skipped: true });
-        continue;
+        return { lead: lead.name, strategy: 'NONE', success: true, skipped: true };
       }
 
       console.log(`[BISHOP] Processing ${lead.name}: ${strategy}`);
@@ -395,11 +433,8 @@ serve(async (req: Request) => {
         const enrichRes = await supabase.functions.invoke('bishop-enrich', {
           body: { lead_id: lead.id, user_id },
         });
-        if (enrichRes.data?.summary) {
-          enrichContext = enrichRes.data.summary;
-        }
-      } catch (enrichErr) {
-        console.warn(`[BISHOP] Enrich failed for ${lead.name}:`, enrichErr);
+        if (enrichRes.data?.summary) enrichContext = enrichRes.data.summary;
+      } catch {
         // Non-fatal — proceed without enrichment
       }
 
@@ -436,8 +471,7 @@ serve(async (req: Request) => {
 
       if (draftError) {
         console.error(`[BISHOP] Draft insert error for ${lead.name}:`, draftError.message);
-        results.push({ lead: lead.name, strategy, success: false });
-        continue;
+        return { lead: lead.name, strategy, success: false };
       }
 
       // Advance lead state
@@ -458,10 +492,19 @@ serve(async (req: Request) => {
         })
         .eq('id', lead.id);
 
-      draftsCreated++;
-      results.push({ lead: lead.name, strategy, success: true });
       console.log(`[BISHOP] ${lead.name}: ${lead.bishop_status} → ${nextStatus}`);
+      return { lead: lead.name, strategy, success: true };
+    };
+
+    // Process in batches of 10 to avoid rate limits
+    const BATCH_SIZE = 10;
+    for (let i = 0; i < eligibleLeads.length; i += BATCH_SIZE) {
+      const batch = eligibleLeads.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(batch.map(processLead));
+      results.push(...batchResults);
     }
+
+    const draftsCreated = results.filter(r => r.success && !r.skipped).length;
 
     console.log(`[BISHOP] Sweep complete. Drafts created: ${draftsCreated}`);
 

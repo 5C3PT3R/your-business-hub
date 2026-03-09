@@ -65,7 +65,13 @@ import Terms from "./pages/Terms";
 import Clients from "./pages/Clients";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function AppRoutes() {
   return (

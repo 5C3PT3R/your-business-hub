@@ -559,67 +559,70 @@ export default function BishopSettings() {
                     Golden Samples
                   </CardTitle>
                   <CardDescription>
-                    Paste 3 emails you sent that got a reply
+                    Paste emails in the style you want Bishop to copy. The AI will match your tone, structure, and length.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Show existing samples or empty slots */}
-                  {[0, 1, 2].map((index) => {
-                    const sample = settings.golden_samples[index];
-                    return (
-                      <div key={index} className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">
-                          Sample {index + 1} {sample ? '(saved)' : '(empty)'}
-                        </Label>
-                        {sample ? (
-                          <div className="relative p-3 rounded-lg border bg-muted/50">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="absolute top-2 right-2 h-6 w-6 p-0"
-                              onClick={() => removeSample(index)}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                            <p className="text-sm pr-8 line-clamp-4 font-mono">{sample}</p>
-                          </div>
-                        ) : (
-                          <Textarea
-                            placeholder={`Paste successful email #${index + 1}...`}
-                            value={index === settings.golden_samples.length ? newSample : ''}
-                            onChange={(e) => {
-                              if (index === settings.golden_samples.length) {
-                                setNewSample(e.target.value);
-                              }
-                            }}
-                            rows={4}
-                            className="font-mono text-sm"
-                            disabled={index !== settings.golden_samples.length}
-                          />
-                        )}
+                  {/* Editable saved samples */}
+                  {settings.golden_samples.map((sample, index) => (
+                    <div key={index} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">Sample {index + 1}</Label>
+                        <button
+                          onClick={() => removeSample(index)}
+                          className="text-xs text-destructive hover:text-destructive/80 flex items-center gap-1"
+                        >
+                          <X className="h-3 w-3" /> Remove
+                        </button>
                       </div>
-                    );
-                  })}
+                      <Textarea
+                        value={sample}
+                        onChange={(e) => {
+                          const updated = [...settings.golden_samples];
+                          updated[index] = e.target.value;
+                          setSettings({ ...settings, golden_samples: updated });
+                        }}
+                        rows={5}
+                        className="font-mono text-sm"
+                        placeholder="Paste your email here..."
+                      />
+                    </div>
+                  ))}
 
-                  {/* Add Sample Button */}
-                  {settings.golden_samples.length < 3 && newSample && (
-                    <Button variant="outline" onClick={addSample} className="w-full">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Sample {settings.golden_samples.length + 1}
-                    </Button>
+                  {/* Add new sample */}
+                  {settings.golden_samples.length < 5 && (
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">
+                        {settings.golden_samples.length === 0 ? 'Sample 1' : `Add sample ${settings.golden_samples.length + 1}`}
+                      </Label>
+                      <Textarea
+                        placeholder="Paste a real email you've sent that got a good reply — subject line, body, sign-off..."
+                        value={newSample}
+                        onChange={(e) => setNewSample(e.target.value)}
+                        rows={5}
+                        className="font-mono text-sm"
+                      />
+                      {newSample.trim() && (
+                        <Button variant="outline" size="sm" onClick={addSample} className="w-full mt-1">
+                          <Plus className="h-4 w-4 mr-2" />
+                          Save Sample
+                        </Button>
+                      )}
+                    </div>
                   )}
 
-                  {/* Train Model Button */}
-                  <Button
-                    variant="default"
-                    className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700"
-                    disabled={settings.golden_samples.length < 2}
-                  >
-                    <Brain className="h-4 w-4 mr-2" />
-                    {settings.golden_samples.length < 2
-                      ? `Need ${2 - settings.golden_samples.length} more sample(s)`
-                      : 'Train Model'}
-                  </Button>
+                  {settings.golden_samples.length === 0 && !newSample && (
+                    <p className="text-xs text-muted-foreground text-center py-2">
+                      No samples yet. Add 1–5 emails and Bishop will copy their style.
+                    </p>
+                  )}
+
+                  {/* Save reminder */}
+                  {settings.golden_samples.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {settings.golden_samples.length} sample{settings.golden_samples.length > 1 ? 's' : ''} active — hit <strong>Save Settings</strong> to apply.
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             </div>
