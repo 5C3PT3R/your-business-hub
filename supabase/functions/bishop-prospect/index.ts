@@ -194,16 +194,17 @@ async function sourceProductHunt(): Promise<RawLead[]> {
   const token = Deno.env.get('PRODUCT_HUNT_TOKEN');
   const hunterKey = Deno.env.get('HUNTER_API_KEY');
 
+  // No topic filter — get newest across all categories
   const query = `{
-    posts(first: 20, order: NEWEST, topic: "productivity") {
+    posts(first: 30, order: NEWEST) {
       nodes {
         name
         tagline
+        slug
         url
         makers {
           name
           username
-          profileUrl
           headline
           twitterUsername
         }
@@ -226,34 +227,51 @@ async function sourceProductHunt(): Promise<RawLead[]> {
     });
 
     if (!res.ok) {
-      console.error('[Prospect] Product Hunt error:', res.status);
+      const errText = await res.text();
+      console.error('[Prospect] Product Hunt HTTP error:', res.status, errText.slice(0, 200));
       return [];
     }
 
     const data = await res.json();
+    if (data.errors) {
+      console.error('[Prospect] Product Hunt GraphQL errors:', JSON.stringify(data.errors).slice(0, 300));
+      return [];
+    }
+
     const posts: any[] = data.data?.posts?.nodes || [];
+    console.log(`[Prospect] Product Hunt returned ${posts.length} posts`);
     const leads: RawLead[] = [];
 
     for (const post of posts) {
-      // Extract domain from product URL (PH posts link to the product's site)
+      // Derive domain from slug, then product name as fallback
       let productDomain = '';
-      try {
-        const siteUrl = post.url || '';
-        if (siteUrl && !siteUrl.includes('producthunt.com')) {
-          productDomain = new URL(siteUrl).hostname.replace(/^www\./, '');
-        }
-      } catch {}
 
-      for (const maker of post.makers || []) {
-        if (!maker.name || !maker.headline) continue;
-        const profileUrl = maker.profileUrl || `https://www.producthunt.com/@${maker.username}`;
+      if (!productDomain && post.slug) {
+        // e.g. slug = "my-cool-app" → try mycoolapp.com, my-cool-app.com
+        const slug = post.slug.toLowerCase().replace(/[^a-z0-9-]/g, '');
+        const slugNoDash = slug.replace(/-/g, '');
+        productDomain = slugNoDash.length > 2 ? `${slugNoDash}.com` : '';
+      }
 
-        // Try to find real email via Hunter if we have a domain
+      // Fallback: derive from product name
+      if (!productDomain && post.name) {
+        const nameSlug = post.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (nameSlug.length > 2) productDomain = `${nameSlug}.com`;
+      }
+
+      for (const maker of (post.makers || [])) {
+        if (!maker.name) continue; // only require a name
+        const profileUrl = `https://www.producthunt.com/@${maker.username}`;
+
+        // Try Hunter email-finder if we have a real domain
         let email = '';
         if (hunterKey && productDomain) {
           try {
+            const nameParts = maker.name.trim().split(' ');
+            const firstName = nameParts[0];
+            const lastName = nameParts.slice(1).join(' ');
             const hunterRes = await fetch(
-              `https://api.hunter.io/v2/email-finder?domain=${productDomain}&first_name=${encodeURIComponent(maker.name.split(' ')[0])}&last_name=${encodeURIComponent(maker.name.split(' ').slice(1).join(' '))}&api_key=${hunterKey}`,
+              `https://api.hunter.io/v2/email-finder?domain=${productDomain}&first_name=${encodeURIComponent(firstName)}&last_name=${encodeURIComponent(lastName)}&api_key=${hunterKey}`,
               { signal: AbortSignal.timeout(5000) }
             );
             if (hunterRes.ok) {
@@ -263,7 +281,7 @@ async function sourceProductHunt(): Promise<RawLead[]> {
           } catch {}
         }
 
-        // Fallback: guess firstname@domain
+        // Fallback: firstname@domain
         if (!email && productDomain) {
           const firstName = maker.name.split(' ')[0].toLowerCase().replace(/[^a-z]/g, '');
           email = `${firstName}@${productDomain}`;
@@ -275,21 +293,23 @@ async function sourceProductHunt(): Promise<RawLead[]> {
           name: maker.name,
           email,
           company: post.name || '',
-          title: maker.headline || '',
+          title: maker.headline || 'Maker',
           linkedin_url: profileUrl,
           source_url: post.url,
-          context_notes: `Product Hunt maker: ${maker.headline} — built "${post.name}": ${post.tagline}`,
+          context_notes: `Product Hunt maker${maker.headline ? ': ' + maker.headline : ''} — built "${post.name}": ${post.tagline}`,
           enrichment_data: {
             product_hunt_username: maker.username,
             product_name: post.name,
             product_tagline: post.tagline,
             twitter: maker.twitterUsername,
             product_domain: productDomain,
+            domain_source: 'guessed',
           },
         });
       }
     }
 
+    console.log(`[Prospect] Product Hunt extracted ${leads.length} leads from ${posts.length} posts`);
     return leads;
   } catch (err) {
     console.error('[Prospect] Product Hunt error:', err);
