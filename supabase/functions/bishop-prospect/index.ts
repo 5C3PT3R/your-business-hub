@@ -192,6 +192,7 @@ async function sourceHunter(icp: ICP): Promise<RawLead[]> {
 // ─── Product Hunt (free) ──────────────────────────────────
 async function sourceProductHunt(): Promise<RawLead[]> {
   const token = Deno.env.get('PRODUCT_HUNT_TOKEN');
+  const hunterKey = Deno.env.get('HUNTER_API_KEY');
 
   const query = `{
     posts(first: 20, order: NEWEST, topic: "productivity") {
@@ -199,12 +200,14 @@ async function sourceProductHunt(): Promise<RawLead[]> {
         name
         tagline
         url
+        website
         makers {
           name
           username
           profileUrl
           headline
           twitterUsername
+          websiteUrl
         }
       }
     }
@@ -234,20 +237,45 @@ async function sourceProductHunt(): Promise<RawLead[]> {
     const leads: RawLead[] = [];
 
     for (const post of posts) {
+      // Extract domain from product website
+      let productDomain = '';
+      try {
+        const siteUrl = post.website || post.url || '';
+        if (siteUrl && !siteUrl.includes('producthunt.com')) {
+          productDomain = new URL(siteUrl).hostname.replace(/^www\./, '');
+        }
+      } catch {}
+
       for (const maker of post.makers || []) {
-        // Try to construct email from twitter or username (best-effort)
-        // We can't get real emails from PH without enrichment — return as LinkedIn leads
-        // that pawn-verify will try to validate
+        if (!maker.name || !maker.headline) continue;
         const profileUrl = maker.profileUrl || `https://www.producthunt.com/@${maker.username}`;
 
-        // Only include if they have a headline (means they're serious)
-        if (!maker.name || !maker.headline) continue;
+        // Try to find real email via Hunter if we have a domain
+        let email = '';
+        if (hunterKey && productDomain) {
+          try {
+            const hunterRes = await fetch(
+              `https://api.hunter.io/v2/email-finder?domain=${productDomain}&first_name=${encodeURIComponent(maker.name.split(' ')[0])}&last_name=${encodeURIComponent(maker.name.split(' ').slice(1).join(' '))}&api_key=${hunterKey}`,
+              { signal: AbortSignal.timeout(5000) }
+            );
+            if (hunterRes.ok) {
+              const hunterData = await hunterRes.json();
+              email = hunterData.data?.email || '';
+            }
+          } catch {}
+        }
 
-        // Generate a placeholder email to check via Hunter later
-        // In practice, use enrichment to find real email
+        // Fallback: guess firstname@domain
+        if (!email && productDomain) {
+          const firstName = maker.name.split(' ')[0].toLowerCase().replace(/[^a-z]/g, '');
+          email = `${firstName}@${productDomain}`;
+        }
+
+        if (!email) continue;
+
         leads.push({
           name: maker.name,
-          email: `${maker.username}@placeholder.producthunt`,  // placeholder — pawn-verify will mark invalid
+          email,
           company: post.name || '',
           title: maker.headline || '',
           linkedin_url: profileUrl,
@@ -258,6 +286,7 @@ async function sourceProductHunt(): Promise<RawLead[]> {
             product_name: post.name,
             product_tagline: post.tagline,
             twitter: maker.twitterUsername,
+            product_domain: productDomain,
           },
         });
       }
