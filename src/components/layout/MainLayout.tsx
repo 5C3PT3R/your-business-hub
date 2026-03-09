@@ -1,5 +1,5 @@
-import { ReactNode, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { ReactNode, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { BreezeSidebar } from './BreezeSidebar';
 import { MobileNavigation } from './MobileNavigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,13 +14,22 @@ interface MainLayoutProps {
 export function MainLayout({ children }: MainLayoutProps) {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const isMobile = useIsMobile();
+  const mainRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
     }
   }, [user, loading, navigate]);
+
+  // Scroll main content to top only on route change, not on re-renders
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0;
+    }
+  }, [location.pathname]);
 
   if (loading) {
     return (
@@ -61,10 +70,13 @@ export function MainLayout({ children }: MainLayoutProps) {
       </div>
 
       {!isMobile && <BreezeSidebar />}
-      <main className={cn(
-        'flex-1 h-screen overflow-y-auto relative z-10',
-        isMobile && 'pb-20' // Add bottom padding for mobile nav
-      )}>
+      <main
+        ref={mainRef}
+        className={cn(
+          'flex-1 h-screen overflow-y-auto relative z-10',
+          isMobile && 'pb-20'
+        )}
+      >
         {children}
       </main>
       <AgentButton />
