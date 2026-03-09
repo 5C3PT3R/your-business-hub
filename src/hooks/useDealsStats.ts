@@ -40,7 +40,7 @@ export function useDealsStats() {
               filter: `user_id=eq.${session.user.id}`,
             },
             () => {
-              fetchStats();
+              fetchStats(false);
             }
           )
           .subscribe();
@@ -54,9 +54,9 @@ export function useDealsStats() {
     setupSubscription();
   }, []);
 
-  async function fetchStats() {
+  async function fetchStats(showLoading = true) {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session?.user) {

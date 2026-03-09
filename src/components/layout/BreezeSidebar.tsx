@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -108,7 +108,8 @@ export function BreezeSidebar() {
     .toUpperCase()
     .slice(0, 2);
 
-  const menuStructure: MenuItem[] = [
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const menuStructure: MenuItem[] = useMemo(() => [
     {
       id: 'command-center',
       label: 'Command Center',
@@ -315,9 +316,11 @@ export function BreezeSidebar() {
         },
       ],
     },
-  ];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [stats, inboxStats, contactsStats, dealsStats, leads.length]);
 
-  const automationItems: MenuItem[] = [
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const automationItems: MenuItem[] = useMemo(() => [
     {
       id: 'ai-agents',
       label: 'AI Agents',
@@ -602,7 +605,8 @@ export function BreezeSidebar() {
         },
       ],
     },
-  ];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], []);
 
   const toggleExpand = (itemId: string) => {
     setExpandedItems(prev =>
