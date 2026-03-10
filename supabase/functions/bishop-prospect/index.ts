@@ -525,41 +525,51 @@ serve(async (req) => {
       'yopmail.com','10minutemail.com','trashmail.com','fakeinbox.com',
       'placeholder.producthunt','sharklasers.com','spam4.me','dispostable.com']);
 
+    // Validate + intra-batch dedup (same email from multiple sources)
+    const seenInBatch = new Set<string>();
     const validLeads = allLeads.filter(l => {
       if (!l.email || !EMAIL_RE.test(l.email.trim())) return false;
       const domain = l.email.split('@')[1]?.toLowerCase() ?? '';
-      return !BLOCKED.has(domain);
+      if (BLOCKED.has(domain)) return false;
+      const norm = l.email.trim().toLowerCase();
+      if (seenInBatch.has(norm)) return false;
+      seenInBatch.add(norm);
+      return true;
     }).map(l => ({ ...l, email: l.email.trim().toLowerCase() }));
 
     const invalidCount = allLeads.length - validLeads.length;
 
-    // ── Dedup (skipped on force_refresh) ──────────────────
-    let leadsToWrite = validLeads;
-    let duplicateCount = 0;
-
-    if (!force_refresh) {
-      // Normal mode: skip emails already in the pipeline
-      let existingEmails = new Set<string>();
-      if (validLeads.length > 0) {
-        const emails = validLeads.map(l => l.email);
-        const { data: existing } = await supabase
-          .from('leads')
-          .select('email')
-          .in('email', emails)
-          .eq('user_id', user_id);
-        existingEmails = new Set((existing || []).map((r: any) => r.email));
-      }
-      leadsToWrite = validLeads.filter(l => !existingEmails.has(l.email));
-      duplicateCount = validLeads.length - leadsToWrite.length;
+    // ── Dedup ──────────────────────────────────────────────
+    let existingEmails = new Set<string>();
+    if (validLeads.length > 0) {
+      const emails = validLeads.map(l => l.email);
+      const { data: existing } = await supabase
+        .from('leads')
+        .select('email')
+        .in('email', emails)
+        .eq('user_id', user_id);
+      existingEmails = new Set((existing || []).map((r: any) => r.email));
     }
 
-    // ── Upsert ─────────────────────────────────────────────
-    // force_refresh uses upsert — existing leads are reset to NEW status.
-    // Normal mode uses insert (skips dupes via dedup above).
+    // force_refresh: delete existing rows for the emails we're about to insert (reset them)
+    if (force_refresh && existingEmails.size > 0) {
+      const { error: delErr } = await supabase
+        .from('leads')
+        .delete()
+        .eq('user_id', user_id)
+        .in('email', [...existingEmails]);
+      if (delErr) console.error('[Prospect] force_refresh delete error:', delErr.message);
+      else existingEmails = new Set(); // all cleared — treat all as new
+    }
+
+    const newLeads = validLeads.filter(l => !existingEmails.has(l.email));
+    const duplicateCount = validLeads.length - newLeads.length;
+
+    // ── Insert ─────────────────────────────────────────────
     let inserted = 0;
-    if (leadsToWrite.length > 0) {
+    if (newLeads.length > 0) {
       const now = new Date().toISOString();
-      const toWrite = leadsToWrite.map(l => ({
+      const toInsert = newLeads.map(l => ({
         name:              l.name || null,
         email:             l.email,
         company:           l.company || null,
@@ -574,35 +584,24 @@ serve(async (req) => {
         next_action_due:   now,
       }));
 
-      const upsertOpts = force_refresh
-        ? { onConflict: 'email,user_id', ignoreDuplicates: false }  // reset existing rows
-        : undefined;
-
-      const op = force_refresh
-        ? supabase.from('leads').upsert(toWrite, upsertOpts!)
-        : supabase.from('leads').insert(toWrite);
-
-      const { error: writeErr } = await op;
-      if (writeErr) {
-        console.error('[Prospect] Write error:', writeErr.message);
+      const { error: insertErr } = await supabase.from('leads').insert(toInsert);
+      if (insertErr) {
+        console.error('[Prospect] Insert error:', insertErr.message);
         // Retry without workspace_id (FK constraint fallback)
-        const fallback = toWrite.map(({ workspace_id: _ws, ...l }) => l);
-        const fallbackOp = force_refresh
-          ? supabase.from('leads').upsert(fallback, upsertOpts!)
-          : supabase.from('leads').insert(fallback);
-        const { error: fallbackErr } = await fallbackOp;
+        const fallback = toInsert.map(({ workspace_id: _ws, ...l }) => l);
+        const { error: fallbackErr } = await supabase.from('leads').insert(fallback);
         if (!fallbackErr) {
-          inserted = leadsToWrite.length;
+          inserted = newLeads.length;
         } else {
           console.error('[Prospect] Fallback also failed:', fallbackErr.message);
           return new Response(JSON.stringify({
             success: false,
-            error: `Write failed: ${fallbackErr.message}`,
-            stats: { total: allLeads.length, clean: leadsToWrite.length, duplicates: duplicateCount, invalid: invalidCount, inserted: 0 },
+            error: `Insert failed: ${fallbackErr.message}`,
+            stats: { total: allLeads.length, clean: newLeads.length, duplicates: duplicateCount, invalid: invalidCount, inserted: 0 },
           }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
         }
       } else {
-        inserted = leadsToWrite.length;
+        inserted = newLeads.length;
       }
     }
 
