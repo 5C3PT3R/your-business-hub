@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import {
   Target, Loader2, Search, Users, CheckCircle, AlertCircle,
-  Globe, X, ChevronRight,
+  Globe, X, RefreshCw,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -45,34 +45,39 @@ const SOURCES = [
   {
     id: 'apollo',
     label: 'Apollo.io',
-    description: 'B2B lead database — search by title, industry, size',
+    description: 'B2B lead database — filters by title, location, industry, size',
     requiresKey: true,
+    icpFiltered: true,
     keyName: 'APOLLO_API_KEY',
   },
   {
     id: 'hunter',
     label: 'Hunter.io',
-    description: 'Email finder — find contacts by company domain',
+    description: 'Email finder — finds contacts by keyword/domain',
     requiresKey: true,
+    icpFiltered: true,
     keyName: 'HUNTER_API_KEY',
   },
   {
     id: 'product_hunt',
     label: 'Product Hunt',
-    description: 'SaaS founders from latest product launches',
+    description: 'Latest product launches — returns same founders each run regardless of ICP',
     requiresKey: false,
+    icpFiltered: false,
   },
   {
     id: 'hacker_news',
     label: 'Hacker News',
-    description: '"Who is Hiring" threads — startup contacts',
+    description: '"Who is Hiring" thread — same monthly leads regardless of ICP filters',
     requiresKey: false,
+    icpFiltered: false,
   },
   {
     id: 'url',
     label: 'Custom URL',
     description: 'Scrape emails from any webpage or directory',
     requiresKey: false,
+    icpFiltered: false,
   },
 ];
 
@@ -152,6 +157,7 @@ export default function BishopProspect() {
   const [runHistory, setRunHistory] = useState<RunHistoryRow[]>([]);
   const [lastResult, setLastResult] = useState<{
     total: number; clean: number; duplicates: number; invalid: number; inserted: number;
+    wasRefresh?: boolean;
   } | null>(null);
 
   const loadSettings = useCallback(async () => {
@@ -222,7 +228,7 @@ export default function BishopProspect() {
     }));
   };
 
-  const handleFindLeads = async () => {
+  const handleFindLeads = async (forceRefresh = false) => {
     if (!user) return;
     if (icp.enabled_sources.length === 0) {
       toast({ title: 'Select at least one source', variant: 'destructive' });
@@ -233,7 +239,6 @@ export default function BishopProspect() {
     setLastResult(null);
 
     try {
-      // Save ICP first
       await saveSettings();
 
       const { data: { session } } = await supabase.auth.getSession();
@@ -250,6 +255,7 @@ export default function BishopProspect() {
         body: JSON.stringify({
           user_id: user.id,
           sources: icp.enabled_sources,
+          force_refresh: forceRefresh,
           icp: {
             titles: icp.icp_titles,
             industries: icp.icp_industries,
@@ -271,13 +277,14 @@ export default function BishopProspect() {
         duplicates: stats.duplicates ?? 0,
         invalid: stats.invalid ?? 0,
         inserted: stats.inserted ?? 0,
+        wasRefresh: forceRefresh,
       });
 
       const breakdown = data?.source_breakdown ?? {};
       const breakdownStr = Object.entries(breakdown).map(([k, v]) => `${k}: ${v}`).join(' · ');
       toast({
-        title: `${stats.inserted ?? 0} new leads found`,
-        description: breakdownStr || `${stats.duplicates ?? 0} dupes, ${stats.invalid ?? 0} invalid`,
+        title: `${stats.inserted ?? 0} new leads added`,
+        description: breakdownStr || `${stats.duplicates ?? 0} dupes skipped`,
       });
 
       await loadHistory();
@@ -422,6 +429,16 @@ export default function BishopProspect() {
                             Free
                           </span>
                         )}
+                        {source.icpFiltered && (
+                          <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: '#eff6ff', color: '#2563eb', fontFamily: "'Space Grotesk', sans-serif" }}>
+                            ICP filtered
+                          </span>
+                        )}
+                        {source.icpFiltered === false && (
+                          <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: '#fafaf9', color: '#a8a29e', fontFamily: "'Space Grotesk', sans-serif" }}>
+                            Not ICP filtered
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs mt-0.5" style={{ color: '#78716c' }}>{source.description}</p>
                     </div>
@@ -452,27 +469,42 @@ export default function BishopProspect() {
         </div>
 
         {/* Result banner */}
-        {lastResult && (
-          <div
-            className="rounded-xl border p-4 mb-6 flex items-start gap-3"
-            style={{ borderColor: '#d1fae5', background: '#f0fdf4' }}
-          >
-            <CheckCircle className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: '#16a34a' }} />
-            <div>
-              <p className="text-sm font-semibold" style={{ color: '#15803d' }}>
-                {lastResult.inserted} new leads added to pipeline
-              </p>
-              <p className="text-xs mt-0.5" style={{ color: '#4ade80' }}>
-                {lastResult.total} raw · {lastResult.clean} clean · {lastResult.duplicates} dupes skipped · {lastResult.invalid} invalid
-              </p>
-            </div>
-          </div>
-        )}
+        {lastResult && (() => {
+          const allDupes = lastResult.inserted === 0 && lastResult.duplicates > 0;
+          const nothingFound = lastResult.total === 0;
+          const bgColor = nothingFound ? '#fafaf9' : allDupes ? '#fffbeb' : '#f0fdf4';
+          const borderColor = nothingFound ? '#E7E5E4' : allDupes ? '#fde68a' : '#d1fae5';
+          const textColor = nothingFound ? '#78716c' : allDupes ? '#92400e' : '#15803d';
+          const subColor = nothingFound ? '#a8a29e' : allDupes ? '#b45309' : '#4ade80';
+          const Icon = nothingFound ? AlertCircle : allDupes ? AlertCircle : CheckCircle;
+          const iconColor = nothingFound ? '#a8a29e' : allDupes ? '#d97706' : '#16a34a';
 
-        {/* Find Leads button */}
-        <div className="flex items-center gap-3 mb-8">
+          return (
+            <div className="rounded-xl border p-4 mb-6 flex items-start gap-3"
+              style={{ borderColor, background: bgColor }}
+            >
+              <Icon className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: iconColor }} />
+              <div>
+                <p className="text-sm font-semibold" style={{ color: textColor }}>
+                  {nothingFound
+                    ? 'No leads found from selected sources'
+                    : allDupes
+                    ? `All ${lastResult.duplicates} leads already in pipeline — use "Clear & Re-prospect" to reset`
+                    : `${lastResult.inserted} new leads added to pipeline`}
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: subColor }}>
+                  {lastResult.total} raw · {lastResult.clean} clean · {lastResult.duplicates} dupes skipped · {lastResult.invalid} invalid
+                  {lastResult.wasRefresh ? ' · uncontacted leads cleared before run' : ''}
+                </p>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Action buttons */}
+        <div className="flex flex-wrap items-center gap-3 mb-8">
           <Button
-            onClick={handleFindLeads}
+            onClick={() => handleFindLeads(false)}
             disabled={prospecting || icp.enabled_sources.length === 0}
             className="px-6"
             style={{ background: '#CC5500', color: '#fff', border: 'none' }}
@@ -481,6 +513,16 @@ export default function BishopProspect() {
               ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Finding leads…</>
               : <><Search className="h-4 w-4 mr-2" /> Find Leads</>
             }
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => handleFindLeads(true)}
+            disabled={prospecting}
+            title="Deletes all uncontacted (NEW) leads, then re-prospects fresh with current ICP"
+            style={{ borderColor: '#E7E5E4', color: '#78716C' }}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Clear & Re-prospect
           </Button>
           <Button
             variant="outline"

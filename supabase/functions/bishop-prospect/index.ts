@@ -454,12 +454,27 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { user_id, sources = [], icp = {} } = body;
+    const { user_id, sources = [], icp = {}, force_refresh = false } = body;
 
     if (!user_id) {
       return new Response(JSON.stringify({ error: 'user_id is required' }), {
         status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
+    }
+
+    // force_refresh: delete all uncontacted (NEW) leads for this user before re-inserting.
+    // Allows the user to re-run with a new ICP without hitting the dupe wall.
+    if (force_refresh) {
+      const { error: delErr } = await supabase
+        .from('leads')
+        .delete()
+        .eq('user_id', user_id)
+        .eq('bishop_status', 'NEW');
+      if (delErr) {
+        console.error('[Prospect] force_refresh delete error:', delErr.message);
+      } else {
+        console.log('[Prospect] force_refresh: deleted uncontacted (NEW) leads');
+      }
     }
 
     const icpConfig: ICP = {
