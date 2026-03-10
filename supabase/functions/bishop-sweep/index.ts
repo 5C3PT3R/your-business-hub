@@ -16,6 +16,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
+import { getUserFromRequest } from '../_shared/auth.ts';
 
 const ALLOWED_ORIGINS = ['https://hireregent.com', 'https://www.hireregent.com'];
 
@@ -312,14 +313,12 @@ serve(async (req: Request) => {
       });
     }
 
-    const { user_id } = await req.json();
+    const user_id = await getUserFromRequest(req);
     if (!user_id) {
-      return new Response(JSON.stringify({ error: 'user_id is required' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-
-    console.log(`[BISHOP] Starting sweep for user: ${user_id.substring(0, 8)}...`);
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 

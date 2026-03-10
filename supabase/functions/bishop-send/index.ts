@@ -28,6 +28,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
 import { getValidGmailToken } from '../_shared/gmail-utils.ts';
+import { getUserFromRequest } from '../_shared/auth.ts';
 
 const ALLOWED_ORIGINS = ['https://hireregent.com', 'https://www.hireregent.com'];
 
@@ -95,20 +96,20 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
+    const user_id = await getUserFromRequest(req);
+    if (!user_id) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+
     const body = await req.json();
     const {
       draft_id,
       lead_id: directLeadId,
       subject: directSubject,
       body: directBody,
-      user_id,
     } = body;
-
-    if (!user_id) {
-      return new Response(JSON.stringify({ error: 'user_id is required' }), {
-        status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      });
-    }
 
     let lead: any;
     let subject: string;
@@ -204,7 +205,7 @@ serve(async (req) => {
     if (!sendRes.ok) {
       const errText = await sendRes.text();
       console.error('[Bishop Send] Gmail API error:', errText);
-      return new Response(JSON.stringify({ error: 'Gmail send failed', details: errText }), {
+      return new Response(JSON.stringify({ error: 'Gmail send failed', code: sendRes.status }), {
         status: 502, headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
     }
@@ -243,6 +244,23 @@ serve(async (req) => {
           },
         })
         .eq('id', draft_id);
+    }
+
+    // ── Auto-trigger Rook sync if lead belongs to a client ─
+    if (lead.client_id) {
+      fetch(`${SUPABASE_URL}/functions/v1/rook-sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'apikey': SUPABASE_SERVICE_ROLE_KEY,
+        },
+        body: JSON.stringify({
+          client_id:   lead.client_id,
+          entity_type: 'lead',
+          entity_id:   lead.id,
+        }),
+      }).catch(err => console.warn('[Bishop Send] Rook auto-sync failed (non-fatal):', err));
     }
 
     console.log(`[Bishop Send] ✓ Sent to ${lead.email} | status: ${currentStatus} → ${nextStatus}`);

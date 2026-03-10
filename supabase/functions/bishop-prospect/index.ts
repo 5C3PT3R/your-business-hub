@@ -28,6 +28,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
+import { getUserFromRequest } from '../_shared/auth.ts';
 
 const ALLOWED_ORIGINS = ['https://hireregent.com', 'https://www.hireregent.com'];
 
@@ -453,14 +454,15 @@ serve(async (req) => {
   );
 
   try {
-    const body = await req.json();
-    const { user_id, sources = [], icp = {}, force_refresh = false } = body;
-
+    const user_id = await getUserFromRequest(req);
     if (!user_id) {
-      return new Response(JSON.stringify({ error: 'user_id is required' }), {
-        status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
     }
+
+    const body = await req.json();
+    const { sources = [], icp = {}, force_refresh = false } = body;
 
     // force_refresh is handled below at the upsert stage — no pre-delete needed.
 

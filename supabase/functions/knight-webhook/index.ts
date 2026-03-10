@@ -50,7 +50,26 @@ interface WhatsAppPayload {
   workspace_id?: string;
 }
 
-const VERIFY_TOKEN = 'knight_whatsapp_verify_2024';
+const VERIFY_TOKEN = Deno.env.get('KNIGHT_VERIFY_TOKEN') ?? 'knight_whatsapp_verify_2024';
+const META_APP_SECRET = Deno.env.get('META_APP_SECRET') ?? '';
+
+// Verify Meta X-Hub-Signature-256 header to prevent spoofed webhook calls
+async function verifyMetaSignature(req: Request, rawBody: string): Promise<boolean> {
+  if (!META_APP_SECRET) return true; // skip if secret not configured
+  const signature = req.headers.get('X-Hub-Signature-256');
+  if (!signature) return false;
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(META_APP_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const sigBytes = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(rawBody));
+  const expected = 'sha256=' + Array.from(new Uint8Array(sigBytes))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+  return expected === signature;
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -67,14 +86,19 @@ serve(async (req) => {
     const token = url.searchParams.get('hub.verify_token');
     const challenge = url.searchParams.get('hub.challenge');
 
-    console.log('[Knight] Meta webhook verification:', { mode, token, challenge });
-
     if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-      console.log('[Knight] Webhook verified successfully');
       return new Response(challenge, { status: 200, headers: corsHeaders });
     } else {
-      console.log('[Knight] Webhook verification failed');
       return new Response('Forbidden', { status: 403, headers: corsHeaders });
+    }
+  }
+
+  // Verify Meta signature on whatsapp-meta POST requests
+  if (req.method === 'POST' && channel === 'whatsapp-meta') {
+    const rawBody = await req.clone().text();
+    const valid = await verifyMetaSignature(req, rawBody);
+    if (!valid) {
+      return new Response('Unauthorized', { status: 401, headers: corsHeaders });
     }
   }
 
@@ -440,7 +464,7 @@ async function handleWhatsAppWebhook(req: Request, supabase: any, workspaceId: s
 async function handleMetaWhatsAppWebhook(req: Request, supabase: any, workspaceId: string | null) {
   const payload = await req.json();
 
-  console.log('[Knight] Meta WhatsApp webhook:', JSON.stringify(payload, null, 2));
+  console.log('[Knight] Meta WhatsApp webhook received, entry count:', payload.entry?.length ?? 0);
 
   // Meta sends webhooks in this structure
   const entry = payload.entry?.[0];
