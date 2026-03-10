@@ -462,18 +462,36 @@ serve(async (req) => {
       });
     }
 
-    // force_refresh: delete all uncontacted (NEW) leads for this user before re-inserting.
-    // Allows the user to re-run with a new ICP without hitting the dupe wall.
+    // force_refresh: delete all uncontacted leads before re-inserting.
+    // "Uncontacted" = bishop_status is NEW, null, or empty — i.e. Bishop has
+    // never sent anything. Leads that are INTRO_SENT or further are preserved.
     if (force_refresh) {
-      const { error: delErr } = await supabase
+      const CONTACTED_STATUSES = ['INTRO_SENT', 'FOLLOW_UP_NEEDED', 'NUDGE_SENT', 'BREAKUP_SENT'];
+
+      // Fetch IDs of leads that have already been contacted — never delete these
+      const { data: contacted } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('user_id', user_id)
+        .in('bishop_status', CONTACTED_STATUSES);
+
+      const safeIds: string[] = (contacted ?? []).map((r: any) => r.id);
+
+      // Delete everything else for this user — uncontacted regardless of status value
+      const deleteQuery = supabase
         .from('leads')
         .delete()
-        .eq('user_id', user_id)
-        .eq('bishop_status', 'NEW');
+        .eq('user_id', user_id);
+
+      // If there are contacted leads, exclude them
+      const { error: delErr, count } = safeIds.length > 0
+        ? await deleteQuery.not('id', 'in', `(${safeIds.join(',')})`)
+        : await deleteQuery;
+
       if (delErr) {
         console.error('[Prospect] force_refresh delete error:', delErr.message);
       } else {
-        console.log('[Prospect] force_refresh: deleted uncontacted (NEW) leads');
+        console.log(`[Prospect] force_refresh: deleted ${count ?? 'unknown'} uncontacted leads`);
       }
     }
 
