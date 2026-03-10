@@ -462,28 +462,7 @@ serve(async (req) => {
       });
     }
 
-    // force_refresh: delete all leads that Bishop has never contacted.
-    // Reliable signal: last_contact_date IS NULL means nothing was ever sent.
-    // This avoids any bishop_status enum issues and works on all leads regardless of age.
-    if (force_refresh) {
-      const { error: delErr, count } = await supabase
-        .from('leads')
-        .delete({ count: 'exact' })
-        .eq('user_id', user_id)
-        .is('last_contact_date', null);
-
-      if (delErr) {
-        console.error('[Prospect] force_refresh delete error:', delErr.message);
-        // Surface the error so the client knows the clear failed
-        return new Response(JSON.stringify({
-          success: false,
-          error: `Clear failed: ${delErr.message}`,
-          stats: { total: 0, clean: 0, duplicates: 0, invalid: 0, inserted: 0 },
-        }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
-      }
-
-      console.log(`[Prospect] force_refresh: deleted ${count ?? 0} uncontacted leads`);
-    }
+    // force_refresh is handled below at the upsert stage — no pre-delete needed.
 
     const icpConfig: ICP = {
       titles: icp.titles || [],
@@ -554,26 +533,33 @@ serve(async (req) => {
 
     const invalidCount = allLeads.length - validLeads.length;
 
-    // Dedup: find which emails already exist
-    let existingEmails = new Set<string>();
-    if (validLeads.length > 0) {
-      const emails = validLeads.map(l => l.email);
-      const { data: existing } = await supabase
-        .from('leads')
-        .select('email')
-        .in('email', emails)
-        .eq('user_id', user_id);
-      existingEmails = new Set((existing || []).map((r: any) => r.email));
+    // ── Dedup (skipped on force_refresh) ──────────────────
+    let leadsToWrite = validLeads;
+    let duplicateCount = 0;
+
+    if (!force_refresh) {
+      // Normal mode: skip emails already in the pipeline
+      let existingEmails = new Set<string>();
+      if (validLeads.length > 0) {
+        const emails = validLeads.map(l => l.email);
+        const { data: existing } = await supabase
+          .from('leads')
+          .select('email')
+          .in('email', emails)
+          .eq('user_id', user_id);
+        existingEmails = new Set((existing || []).map((r: any) => r.email));
+      }
+      leadsToWrite = validLeads.filter(l => !existingEmails.has(l.email));
+      duplicateCount = validLeads.length - leadsToWrite.length;
     }
 
-    const newLeads = validLeads.filter(l => !existingEmails.has(l.email));
-    const duplicateCount = validLeads.length - newLeads.length;
-
-    // Insert new leads
+    // ── Upsert ─────────────────────────────────────────────
+    // force_refresh uses upsert — existing leads are reset to NEW status.
+    // Normal mode uses insert (skips dupes via dedup above).
     let inserted = 0;
-    if (newLeads.length > 0) {
+    if (leadsToWrite.length > 0) {
       const now = new Date().toISOString();
-      const toInsert = newLeads.map(l => ({
+      const toWrite = leadsToWrite.map(l => ({
         name:              l.name || null,
         email:             l.email,
         company:           l.company || null,
@@ -588,25 +574,35 @@ serve(async (req) => {
         next_action_due:   now,
       }));
 
-      const { error: insertErr } = await supabase.from('leads').insert(toInsert);
-      if (insertErr) {
-        console.error('[Prospect] Insert error:', insertErr.message);
-        // Always retry without workspace_id — it may be a FK constraint issue
-        const fallback = toInsert.map(({ workspace_id: _ws, ...l }) => l);
-        const { error: fallbackErr } = await supabase.from('leads').insert(fallback);
+      const upsertOpts = force_refresh
+        ? { onConflict: 'email,user_id', ignoreDuplicates: false }  // reset existing rows
+        : undefined;
+
+      const op = force_refresh
+        ? supabase.from('leads').upsert(toWrite, upsertOpts!)
+        : supabase.from('leads').insert(toWrite);
+
+      const { error: writeErr } = await op;
+      if (writeErr) {
+        console.error('[Prospect] Write error:', writeErr.message);
+        // Retry without workspace_id (FK constraint fallback)
+        const fallback = toWrite.map(({ workspace_id: _ws, ...l }) => l);
+        const fallbackOp = force_refresh
+          ? supabase.from('leads').upsert(fallback, upsertOpts!)
+          : supabase.from('leads').insert(fallback);
+        const { error: fallbackErr } = await fallbackOp;
         if (!fallbackErr) {
-          inserted = newLeads.length;
+          inserted = leadsToWrite.length;
         } else {
-          console.error('[Prospect] Fallback insert also failed:', fallbackErr.message);
-          // Surface error in stats for diagnosis
+          console.error('[Prospect] Fallback also failed:', fallbackErr.message);
           return new Response(JSON.stringify({
             success: false,
-            error: `Insert failed: ${fallbackErr.message}`,
-            stats: { total: allLeads.length, clean: newLeads.length, duplicates: duplicateCount, invalid: invalidCount, inserted: 0 },
+            error: `Write failed: ${fallbackErr.message}`,
+            stats: { total: allLeads.length, clean: leadsToWrite.length, duplicates: duplicateCount, invalid: invalidCount, inserted: 0 },
           }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
         }
       } else {
-        inserted = newLeads.length;
+        inserted = leadsToWrite.length;
       }
     }
 
