@@ -462,37 +462,27 @@ serve(async (req) => {
       });
     }
 
-    // force_refresh: delete all uncontacted leads before re-inserting.
-    // "Uncontacted" = bishop_status is NEW, null, or empty — i.e. Bishop has
-    // never sent anything. Leads that are INTRO_SENT or further are preserved.
+    // force_refresh: delete all leads that Bishop has never contacted.
+    // Reliable signal: last_contact_date IS NULL means nothing was ever sent.
+    // This avoids any bishop_status enum issues and works on all leads regardless of age.
     if (force_refresh) {
-      const CONTACTED_STATUSES = ['INTRO_SENT', 'FOLLOW_UP_NEEDED', 'NUDGE_SENT', 'BREAKUP_SENT'];
-
-      // Fetch IDs of leads that have already been contacted — never delete these
-      const { data: contacted } = await supabase
+      const { error: delErr, count } = await supabase
         .from('leads')
-        .select('id')
+        .delete({ count: 'exact' })
         .eq('user_id', user_id)
-        .in('bishop_status', CONTACTED_STATUSES);
-
-      const safeIds: string[] = (contacted ?? []).map((r: any) => r.id);
-
-      // Delete everything else for this user — uncontacted regardless of status value
-      const deleteQuery = supabase
-        .from('leads')
-        .delete()
-        .eq('user_id', user_id);
-
-      // If there are contacted leads, exclude them
-      const { error: delErr, count } = safeIds.length > 0
-        ? await deleteQuery.not('id', 'in', `(${safeIds.join(',')})`)
-        : await deleteQuery;
+        .is('last_contact_date', null);
 
       if (delErr) {
         console.error('[Prospect] force_refresh delete error:', delErr.message);
-      } else {
-        console.log(`[Prospect] force_refresh: deleted ${count ?? 'unknown'} uncontacted leads`);
+        // Surface the error so the client knows the clear failed
+        return new Response(JSON.stringify({
+          success: false,
+          error: `Clear failed: ${delErr.message}`,
+          stats: { total: 0, clean: 0, duplicates: 0, invalid: 0, inserted: 0 },
+        }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
       }
+
+      console.log(`[Prospect] force_refresh: deleted ${count ?? 0} uncontacted leads`);
     }
 
     const icpConfig: ICP = {
