@@ -61,8 +61,12 @@ async function getKnightResponse(
   workspaceId: string,
 ): Promise<string> {
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+
     const res = await fetch(`${SUPABASE_URL}/functions/v1/knight-webhook/social`, {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         'Content-Type':   'application/json',
         'Authorization':  `Bearer ${SUPABASE_SERVICE_KEY}`,
@@ -77,10 +81,15 @@ async function getKnightResponse(
       }),
     });
 
+    clearTimeout(timeout);
     const data = await res.json();
     if (data.response) return data.response;
     return "I currently do not have access to that information. Please contact our support team directly.";
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      console.error('[Knight Telegram] Pipeline timed out after 20s');
+      return "I'm taking longer than usual to respond. Please try again in a moment.";
+    }
     console.error('[Knight Telegram] Pipeline error:', err);
     return "I'm having trouble processing your request right now. Please try again shortly.";
   }
@@ -109,7 +118,7 @@ serve(async (req) => {
   }
 
   // Telegram always expects 200 OK immediately — process async
-  (async () => {
+  const backgroundTask = (async () => {
     const message = update?.message;
 
     // Only handle text messages
@@ -145,16 +154,26 @@ serve(async (req) => {
       return;
     }
 
-    // Send typing action (shows "typing..." to user while we process)
-    await fetch(`${TELEGRAM_API}/sendChatAction`, {
+    // Keep sending typing indicator every 4s while Knight processes
+    const sendTyping = () => fetch(`${TELEGRAM_API}/sendChatAction`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, action: 'typing' }),
     });
 
-    const reply = await getKnightResponse(text, userHandle, KNIGHT_WORKSPACE_ID);
-    await sendTelegramMessage(chatId, reply);
+    await sendTyping();
+    const typingInterval = setInterval(sendTyping, 4000);
+
+    try {
+      const reply = await getKnightResponse(text, userHandle, KNIGHT_WORKSPACE_ID);
+      await sendTelegramMessage(chatId, reply);
+    } finally {
+      clearInterval(typingInterval);
+    }
   })();
+
+  // Keep function alive until reply is sent
+  (globalThis as any).EdgeRuntime?.waitUntil(backgroundTask);
 
   // Respond 200 immediately so Telegram doesn't retry
   return new Response('ok', { status: 200 });
