@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { supabase } from '@/integrations/supabase/client';
 import {
   ChevronRight,
   ChevronDown,
@@ -38,6 +39,8 @@ import {
   Star,
   Sparkles,
   CheckCircle2,
+  Database,
+  Building2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -71,6 +74,26 @@ export function BreezeSidebar() {
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
+  const [pawnOverdue, setPawnOverdue] = useState(0);
+
+  // Live overdue count for Pawn badge
+  useEffect(() => {
+    if (!user) return;
+    const fetchOverdue = async () => {
+      const { count } = await supabase
+        .from('leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .is('meeting_booked_at', null)
+        .not('bishop_status', 'in', '("BREAKUP_SENT","ESCALATE_TO_KING")')
+        .lte('next_action_due', new Date().toISOString());
+      setPawnOverdue(count ?? 0);
+    };
+    fetchOverdue();
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchOverdue, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   const userName = user?.user_metadata?.full_name || 'User';
   const userEmail = user?.email || '';
@@ -181,33 +204,47 @@ export function BreezeSidebar() {
       label: 'Pawn (Data)',
       icon: ScanSearch,
       path: '/pawn',
-      badge: { count: 0, variant: 'info', label: 'Offline' },
+      badge: pawnOverdue > 0
+        ? { count: pawnOverdue, variant: 'warning' as const, label: `${pawnOverdue} overdue` }
+        : { count: 0, variant: 'info' as const, label: 'Ready' },
       subItems: [],
     },
     {
       id: 'rook',
-      label: 'Rook (Hiring)',
+      label: 'Rook',
       icon: Castle,
       path: '/rook',
       badge: { count: 0, variant: 'success', label: '●' }, // Green dot = Live
       subItems: [
         {
-          id: 'rook-dashboard',
-          label: 'Screening Hub',
-          icon: LayoutDashboard,
+          id: 'rook-log',
+          label: 'Sync Log',
+          icon: Activity,
           path: '/rook',
         },
         {
-          id: 'rook-jobs',
-          label: 'Open Positions',
-          icon: Briefcase,
-          path: '/rook?tab=jobs',
+          id: 'rook-clients',
+          label: 'Clients',
+          icon: Users,
+          path: '/rook?tab=clients',
         },
         {
-          id: 'rook-shortlist',
-          label: 'Shortlist',
-          icon: Star,
-          path: '/rook?tab=shortlist',
+          id: 'rook-manual',
+          label: 'Manual Sync',
+          icon: LayoutDashboard,
+          path: '/rook?tab=manual',
+        },
+        {
+          id: 'rook-bulk',
+          label: 'Bulk Sync',
+          icon: Database,
+          path: '/rook?tab=bulk',
+        },
+        {
+          id: 'rook-replies',
+          label: 'Replies',
+          icon: Mail,
+          path: '/rook?tab=replies',
         },
       ],
     },
@@ -313,6 +350,14 @@ export function BreezeSidebar() {
   ];
 
   const systemItems: MenuItem[] = [
+    {
+      id: 'clients',
+      label: 'BPO Clients',
+      icon: Building2,
+      path: '/clients',
+      badge: undefined,
+      subItems: [],
+    },
     {
       id: 'integrations',
       label: 'Integrations',
@@ -462,6 +507,26 @@ export function BreezeSidebar() {
           </div>
 
           {automationItems.map(item => (
+            <MenuItem
+              key={item.id}
+              item={item}
+              isCollapsed={isCollapsed}
+              isExpanded={expandedItems.includes(item.id)}
+              isActive={isItemActive(item)}
+              onToggle={() => toggleExpand(item.id)}
+              onNavigate={handleNavigate}
+            />
+          ))}
+
+          {/* Divider + System label */}
+          <div className="pt-3 pb-1">
+            <div className="border-t border-[#E7E5E4]" />
+            {!isCollapsed && (
+              <p className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-widest px-2 pt-2">System</p>
+            )}
+          </div>
+
+          {systemItems.map(item => (
             <MenuItem
               key={item.id}
               item={item}

@@ -69,6 +69,7 @@ interface Client {
   knight_whatsapp_number: string | null;
   rook_enabled: boolean;
   rook_crm_type: string | null;
+  rook_crm_creds: Record<string, string> | null;
   slack_webhook_url: string | null;
   created_at: string;
 }
@@ -97,6 +98,7 @@ const EMPTY_CLIENT: Omit<Client, 'id' | 'created_at'> = {
   knight_whatsapp_number: '',
   rook_enabled: false,
   rook_crm_type: null,
+  rook_crm_creds: null,
   slack_webhook_url: '',
 };
 
@@ -183,11 +185,16 @@ export default function Clients() {
       knight_whatsapp_number: client.knight_whatsapp_number || '',
       rook_enabled:          client.rook_enabled,
       rook_crm_type:         client.rook_crm_type,
+      rook_crm_creds:        client.rook_crm_creds || null,
       slack_webhook_url:     client.slack_webhook_url || '',
     });
     setActiveTab('overview');
     setModalOpen(true);
   };
+
+  // ── Validation helpers ────────────────────────────────────
+  const isValidEmail = (v: string) => /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(v);
+  const isValidUrl   = (v: string) => { try { new URL(v); return true; } catch { return false; } };
 
   // ── Save ──────────────────────────────────────────────────
   const handleSave = async () => {
@@ -195,6 +202,41 @@ export default function Clients() {
       toast({ title: 'Client name is required', variant: 'destructive' });
       return;
     }
+
+    // Validate optional email fields
+    if (form.contact_email && !isValidEmail(form.contact_email)) {
+      toast({ title: 'Invalid contact email', variant: 'destructive' });
+      return;
+    }
+    if (form.bishop_sender_email && !isValidEmail(form.bishop_sender_email)) {
+      toast({ title: 'Invalid Bishop sender email', variant: 'destructive' });
+      return;
+    }
+    if (form.knight_handoff_email && !isValidEmail(form.knight_handoff_email)) {
+      toast({ title: 'Invalid Knight handoff email', variant: 'destructive' });
+      return;
+    }
+
+    // Validate optional URL fields
+    if (form.website && !isValidUrl(form.website)) {
+      toast({ title: 'Invalid website URL (include https://)', variant: 'destructive' });
+      return;
+    }
+    if (form.slack_webhook_url && !isValidUrl(form.slack_webhook_url)) {
+      toast({ title: 'Invalid Slack webhook URL', variant: 'destructive' });
+      return;
+    }
+
+    // Validate numeric ranges
+    if (!Number.isInteger(form.bishop_daily_limit) || form.bishop_daily_limit < 1 || form.bishop_daily_limit > 500) {
+      toast({ title: 'Bishop daily limit must be between 1 and 500', variant: 'destructive' });
+      return;
+    }
+    if (!Number.isInteger(form.bishop_follow_up_days) || form.bishop_follow_up_days < 1 || form.bishop_follow_up_days > 30) {
+      toast({ title: 'Bishop follow-up days must be between 1 and 30', variant: 'destructive' });
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
@@ -623,7 +665,7 @@ export default function Clients() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="font-medium">Rook — CRM Sync</div>
-                  <div className="text-sm text-muted-foreground">Sync leads & tickets to their existing CRM</div>
+                  <div className="text-sm text-muted-foreground">Sync leads & tickets to the client's CRM automatically</div>
                 </div>
                 <Switch
                   checked={form.rook_enabled}
@@ -637,7 +679,7 @@ export default function Clients() {
                     <Label>CRM Type</Label>
                     <Select
                       value={form.rook_crm_type || ''}
-                      onValueChange={(v) => setForm({ ...form, rook_crm_type: v || null })}
+                      onValueChange={(v) => setForm({ ...form, rook_crm_type: v || null, rook_crm_creds: null })}
                     >
                       <SelectTrigger><SelectValue placeholder="Select CRM" /></SelectTrigger>
                       <SelectContent>
@@ -648,27 +690,131 @@ export default function Clients() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* HubSpot */}
                   {form.rook_crm_type === 'hubspot' && (
-                    <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm space-y-2">
-                      <div className="font-medium">HubSpot Setup</div>
-                      <div className="text-muted-foreground">
-                        Add the client's HubSpot Private App access token to Supabase secrets:
-                      </div>
-                      <code className="block bg-background rounded p-2 text-xs font-mono">
-                        npx supabase secrets set HUBSPOT_TOKEN_{'<client_id>'}=pat-xxx
-                      </code>
-                      <div className="text-muted-foreground text-xs">
-                        Required scopes: crm.objects.contacts.write, crm.objects.tickets.write
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <Label>Private App Access Token</Label>
+                        <Input
+                          type="password"
+                          autoComplete="off"
+                          placeholder="pat-na1-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                          value={form.rook_crm_creds?.access_token || ''}
+                          onChange={(e) => setForm({
+                            ...form,
+                            rook_crm_creds: { ...(form.rook_crm_creds || {}), access_token: e.target.value },
+                          })}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          HubSpot → Settings → Integrations → Private Apps. Required scopes: crm.objects.contacts.write, crm.objects.tickets.write
+                        </p>
                       </div>
                     </div>
                   )}
-                  {(form.rook_crm_type === 'salesforce' || form.rook_crm_type === 'zoho') && (
-                    <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-4 text-sm">
-                      <div className="font-medium text-yellow-500">Coming Soon</div>
-                      <div className="text-muted-foreground mt-1">
-                        {form.rook_crm_type === 'salesforce' ? 'Salesforce' : 'Zoho'} sync is in development.
-                        HubSpot is fully supported today.
+
+                  {/* Salesforce */}
+                  {form.rook_crm_type === 'salesforce' && (
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <Label>Instance URL</Label>
+                        <Input
+                          placeholder="https://yourorg.salesforce.com"
+                          value={form.rook_crm_creds?.instance_url || ''}
+                          onChange={(e) => setForm({
+                            ...form,
+                            rook_crm_creds: { ...(form.rook_crm_creds || {}), instance_url: e.target.value },
+                          })}
+                        />
                       </div>
+                      <div className="space-y-1.5">
+                        <Label>Access Token</Label>
+                        <Input
+                          type="password"
+                          autoComplete="off"
+                          placeholder="Salesforce OAuth2 access token"
+                          value={form.rook_crm_creds?.access_token || ''}
+                          onChange={(e) => setForm({
+                            ...form,
+                            rook_crm_creds: { ...(form.rook_crm_creds || {}), access_token: e.target.value },
+                          })}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Salesforce → Setup → Connected Apps → OAuth token. Needs Contacts + Cases read/write.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Zoho */}
+                  {form.rook_crm_type === 'zoho' && (
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <Label>Access Token</Label>
+                        <Input
+                          type="password"
+                          autoComplete="off"
+                          placeholder="Zoho OAuth2 access token"
+                          value={form.rook_crm_creds?.access_token || ''}
+                          onChange={(e) => setForm({
+                            ...form,
+                            rook_crm_creds: { ...(form.rook_crm_creds || {}), access_token: e.target.value },
+                          })}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>API Domain <span className="text-muted-foreground">(optional)</span></Label>
+                        <Input
+                          placeholder="https://www.zohoapis.com (default)"
+                          value={form.rook_crm_creds?.api_domain || ''}
+                          onChange={(e) => setForm({
+                            ...form,
+                            rook_crm_creds: { ...(form.rook_crm_creds || {}), api_domain: e.target.value },
+                          })}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Zoho API Console → Self Client → generate token with ZohoCRM.modules.contacts.ALL and ZohoCRM.modules.Cases.ALL scopes.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Pipedrive */}
+                  {form.rook_crm_type === 'pipedrive' && (
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <Label>API Token</Label>
+                        <Input
+                          type="password"
+                          autoComplete="off"
+                          placeholder="Pipedrive API token"
+                          value={form.rook_crm_creds?.api_token || ''}
+                          onChange={(e) => setForm({
+                            ...form,
+                            rook_crm_creds: { ...(form.rook_crm_creds || {}), api_token: e.target.value },
+                          })}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Company Domain <span className="text-muted-foreground">(optional)</span></Label>
+                        <Input
+                          placeholder="yourcompany.pipedrive.com (default: api.pipedrive.com)"
+                          value={form.rook_crm_creds?.company_domain || ''}
+                          onChange={(e) => setForm({
+                            ...form,
+                            rook_crm_creds: { ...(form.rook_crm_creds || {}), company_domain: e.target.value },
+                          })}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Pipedrive → Settings → Personal preferences → API. Token has full account access.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {form.rook_crm_type && (
+                    <div className="text-xs text-muted-foreground bg-muted/30 rounded-md px-3 py-2">
+                      Credentials are stored encrypted in your workspace. Rook will sync leads automatically when Bishop sends emails, and can be triggered manually from the Rook dashboard.
                     </div>
                   )}
                 </div>

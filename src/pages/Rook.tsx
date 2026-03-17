@@ -1,43 +1,20 @@
 /**
- * Rook (Steward) - Recruiting, Screening & Gatekeeping Dashboard
+ * Rook — Revenue Ops Dashboard
  *
- * The Citadel Wall - Binary Defense for Hiring
- * - Job Slot creation with knockout rules
- * - Resume upload and batch processing
- * - AI-powered scoring and tier assignment
- * - Candidate leaderboard with dossier views
+ * CRM sync control center: monitor sync health, view logs,
+ * retry failed syncs, and trigger manual syncs per client.
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Progress } from '@/components/ui/progress';
-import { Checkbox } from '@/components/ui/checkbox';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
 import {
   Select,
   SelectContent,
@@ -45,1411 +22,787 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Castle,
-  Plus,
-  Upload,
-  FileText,
-  Users,
+  RefreshCw,
+  Play,
   CheckCircle2,
   XCircle,
-  AlertTriangle,
-  ChevronRight,
-  MoreHorizontal,
-  Mail,
-  Phone,
-  Linkedin,
-  Globe,
-  MapPin,
-  Briefcase,
   Clock,
-  Star,
-  ThumbsUp,
-  ThumbsDown,
-  MessageSquare,
-  Calendar,
-  Trash2,
-  Search,
-  Filter,
-  ArrowUpDown,
-  Loader2,
-  Eye,
-  Award,
-  Target,
-  Shield,
-  X,
+  AlertTriangle,
   Building2,
-  GraduationCap,
+  ArrowRight,
+  RotateCcw,
+  Loader2,
+  Activity,
+  Database,
+  Mail,
+  TrendingUp,
+  MinusCircle,
+  HelpCircle,
+  Ban,
 } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
 
-// Types
-interface Job {
+// ─── Types ─────────────────────────────────────────────────
+
+interface ReplyLog {
   id: string;
-  title: string;
-  department?: string;
-  description: string;
-  requirements?: string;
-  location?: string;
-  status: 'DRAFT' | 'OPEN' | 'PAUSED' | 'CLOSED' | 'FILLED';
-  knockout_rules: { rule: string }[];
-  must_have_skills: string[];
-  nice_to_have_skills: string[];
-  total_applicants: number;
-  shortlisted_count: number;
+  lead_id: string;
+  intent_classification: string;
+  classification_confidence: number;
+  extracted_phone: string | null;
+  extracted_title: string | null;
+  suggested_next_state: string;
+  bishop_status_before: string | null;
+  bishop_status_after: string | null;
   created_at: string;
+  lead?: { name: string | null; email: string } | null;
 }
 
-interface Applicant {
+interface RookSync {
   id: string;
-  job_id: string;
+  client_id: string;
+  entity_type: 'lead' | 'ticket' | 'deal';
+  entity_id: string;
+  crm_type: string;
+  crm_record_id: string | null;
+  sync_status: 'pending' | 'synced' | 'failed' | 'skipped';
+  error_msg: string | null;
+  synced_at: string | null;
+  created_at: string;
+  client?: { name: string; rook_crm_type: string } | null;
+}
+
+interface RookClient {
+  id: string;
   name: string;
-  email: string;
-  phone?: string;
-  linkedin_url?: string;
-  portfolio_url?: string;
-  current_title?: string;
-  current_company?: string;
-  years_experience?: number;
-  location?: string;
-  fit_score: number;
-  tier: 'S' | 'A' | 'B' | 'C' | 'F';
+  rook_enabled: boolean;
+  rook_crm_type: string | null;
   status: string;
-  tags: string[];
-  analysis_summary: {
-    verdict?: string;
-    green_flags?: string[];
-    red_flags?: string[];
-    knockout_failures?: string[];
-    interview_questions?: string[];
-    skills_matched?: string[];
-    skills_missing?: string[];
-  };
-  resume_text?: string;
-  notes?: string;
-  created_at: string;
 }
 
-// Mock Data
-const MOCK_JOBS: Job[] = [
-  {
-    id: '1',
-    title: 'Senior React Engineer',
-    department: 'Engineering',
-    description: 'We are looking for a Senior React Engineer to join our growing team...',
-    requirements: '5+ years of React experience, TypeScript, Node.js',
-    location: 'Remote (US)',
-    status: 'OPEN',
-    knockout_rules: [
-      { rule: 'Must have 5+ years of React experience' },
-      { rule: 'Must be authorized to work in the US' },
-    ],
-    must_have_skills: ['React', 'TypeScript', 'Node.js'],
-    nice_to_have_skills: ['AWS', 'GraphQL', 'Postgres'],
-    total_applicants: 24,
-    shortlisted_count: 5,
-    created_at: '2026-01-20T10:00:00Z',
-  },
-  {
-    id: '2',
-    title: 'Product Designer',
-    department: 'Design',
-    description: 'Looking for a talented Product Designer to shape our user experience...',
-    requirements: '3+ years of product design experience, Figma expertise',
-    location: 'San Francisco, CA',
-    status: 'OPEN',
-    knockout_rules: [
-      { rule: 'Must have shipped at least 2 B2B products' },
-    ],
-    must_have_skills: ['Figma', 'User Research', 'Design Systems'],
-    nice_to_have_skills: ['Framer', 'Prototyping', 'HTML/CSS'],
-    total_applicants: 18,
-    shortlisted_count: 3,
-    created_at: '2026-01-18T10:00:00Z',
-  },
-];
+// ─── Helpers ───────────────────────────────────────────────
 
-const MOCK_APPLICANTS: Applicant[] = [
-  {
-    id: '1',
-    job_id: '1',
-    name: 'Alex Chen',
-    email: 'alex.chen@email.com',
-    phone: '+1 (555) 123-4567',
-    linkedin_url: 'https://linkedin.com/in/alexchen',
-    current_title: 'Senior Software Engineer',
-    current_company: 'Google',
-    years_experience: 7,
-    location: 'San Francisco, CA',
-    fit_score: 94,
-    tier: 'S',
-    status: 'REVIEWED',
-    tags: ['Ex-Google', 'Stanford', 'Open Source'],
-    analysis_summary: {
-      verdict: 'Exceptional candidate with perfect skill alignment and FAANG experience.',
-      green_flags: [
-        'Ex-Google with 4 years of React experience',
-        'Stanford CS degree',
-        'Major OSS contributor to React ecosystem',
-      ],
-      red_flags: [
-        'Salary expectations may be high',
-      ],
-      interview_questions: [
-        'What was your most impactful project at Google?',
-        'How do you approach performance optimization in large React apps?',
-      ],
-      skills_matched: ['React', 'TypeScript', 'Node.js', 'GraphQL'],
-      skills_missing: [],
-    },
-    created_at: '2026-01-22T10:00:00Z',
-  },
-  {
-    id: '2',
-    job_id: '1',
-    name: 'Jordan Williams',
-    email: 'jordan.w@email.com',
-    current_title: 'Full Stack Developer',
-    current_company: 'Stripe',
-    years_experience: 5,
-    location: 'Austin, TX',
-    fit_score: 82,
-    tier: 'A',
-    status: 'REVIEWED',
-    tags: ['Ex-Stripe', 'Payments Expert'],
-    analysis_summary: {
-      verdict: 'Strong candidate with relevant fintech experience.',
-      green_flags: [
-        'Stripe experience with high-scale systems',
-        'Strong TypeScript skills',
-      ],
-      red_flags: [
-        'More backend-focused, less React depth',
-        'Short tenure at previous company (1.5 years)',
-      ],
-      interview_questions: [
-        'Why did you leave your role at Acme Inc after only 18 months?',
-        'Describe your experience building complex React UIs at Stripe.',
-      ],
-      skills_matched: ['TypeScript', 'Node.js'],
-      skills_missing: ['GraphQL'],
-    },
-    created_at: '2026-01-22T11:00:00Z',
-  },
-  {
-    id: '3',
-    job_id: '1',
-    name: 'Sam Rodriguez',
-    email: 'sam.r@email.com',
-    current_title: 'Frontend Developer',
-    current_company: 'StartupXYZ',
-    years_experience: 3,
-    location: 'Miami, FL',
-    fit_score: 58,
-    tier: 'B',
-    status: 'REVIEWED',
-    tags: ['Startup Background', 'Self-Taught'],
-    analysis_summary: {
-      verdict: 'Promising but lacks senior-level experience.',
-      green_flags: [
-        'Fast learner, went from junior to lead in 2 years',
-        'Strong portfolio projects',
-      ],
-      red_flags: [
-        'Only 3 years experience (below 5 year requirement)',
-        'No large-scale production experience',
-        'No formal CS education',
-      ],
-      knockout_failures: ['Must have 5+ years of React experience'],
-      interview_questions: [
-        'How have you compensated for not having a traditional CS background?',
-        'Describe the largest codebase you have worked on.',
-      ],
-      skills_matched: ['React', 'TypeScript'],
-      skills_missing: ['Node.js', 'AWS'],
-    },
-    created_at: '2026-01-22T12:00:00Z',
-  },
-  {
-    id: '4',
-    job_id: '1',
-    name: 'Taylor Kim',
-    email: 'taylor.k@email.com',
-    current_title: 'Junior Developer',
-    current_company: 'Local Agency',
-    years_experience: 1,
-    location: 'Seattle, WA',
-    fit_score: 28,
-    tier: 'F',
-    status: 'REVIEWED',
-    tags: ['Entry Level', 'No Degree'],
-    analysis_summary: {
-      verdict: 'Not qualified for senior role. Consider for junior positions.',
-      green_flags: [
-        'Enthusiastic and eager to learn',
-      ],
-      red_flags: [
-        'Only 1 year of experience (needs 5+)',
-        'Limited technical depth',
-        'No production React experience',
-      ],
-      knockout_failures: [
-        'Must have 5+ years of React experience',
-      ],
-      interview_questions: [],
-      skills_matched: ['React'],
-      skills_missing: ['TypeScript', 'Node.js', 'AWS', 'GraphQL'],
-    },
-    created_at: '2026-01-22T13:00:00Z',
-  },
-];
-
-// Tier colors and labels
-const TIER_CONFIG = {
-  S: { label: 'Elite', color: 'bg-gradient-to-r from-amber-400 to-yellow-500 text-black', bgColor: 'bg-amber-500/10 border-amber-500/30' },
-  A: { label: 'Strong', color: 'bg-gradient-to-r from-emerald-500 to-green-600 text-white', bgColor: 'bg-emerald-500/10 border-emerald-500/30' },
-  B: { label: 'Maybe', color: 'bg-gradient-to-r from-blue-500 to-cyan-600 text-white', bgColor: 'bg-blue-500/10 border-blue-500/30' },
-  C: { label: 'Weak', color: 'bg-gradient-to-r from-orange-500 to-amber-600 text-white', bgColor: 'bg-orange-500/10 border-orange-500/30' },
-  F: { label: 'Reject', color: 'bg-gradient-to-r from-red-500 to-rose-600 text-white', bgColor: 'bg-red-500/10 border-red-500/30' },
+const CRM_LABELS: Record<string, string> = {
+  hubspot:    'HubSpot',
+  salesforce: 'Salesforce',
+  zoho:       'Zoho CRM',
+  pipedrive:  'Pipedrive',
 };
 
+const INTENT_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
+  positive_meeting:    { label: 'Meeting',     color: 'bg-emerald-100 text-emerald-800', icon: TrendingUp },
+  objection_pricing:   { label: 'Pricing',     color: 'bg-amber-100 text-amber-800',     icon: HelpCircle },
+  objection_timing:    { label: 'Timing',      color: 'bg-amber-100 text-amber-800',     icon: Clock },
+  information_request: { label: 'Info Req.',   color: 'bg-blue-100 text-blue-800',       icon: HelpCircle },
+  not_interested:      { label: 'Not Inter.',  color: 'bg-stone-100 text-stone-600',     icon: MinusCircle },
+  unsubscribe:         { label: 'Unsub',       color: 'bg-red-100 text-red-800',         icon: Ban },
+};
+
+const STATUS_CONFIG = {
+  synced:  { label: 'Synced',  color: 'bg-emerald-100 text-emerald-800', icon: CheckCircle2 },
+  failed:  { label: 'Failed',  color: 'bg-red-100 text-red-800',         icon: XCircle },
+  pending: { label: 'Pending', color: 'bg-amber-100 text-amber-800',     icon: Clock },
+  skipped: { label: 'Skipped', color: 'bg-stone-100 text-stone-600',     icon: ArrowRight },
+};
+
+function formatTime(iso: string | null) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    + ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+function timeAgo(iso: string) {
+  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (seconds < 60)  return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+// ─── Component ─────────────────────────────────────────────
+
 export default function Rook() {
-  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
 
-  // State
-  const [jobs, setJobs] = useState<Job[]>(MOCK_JOBS);
-  const [selectedJobId, setSelectedJobId] = useState<string>(MOCK_JOBS[0]?.id || '');
-  const [applicants, setApplicants] = useState<Applicant[]>(MOCK_APPLICANTS);
-  const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
-  const [isDossierOpen, setIsDossierOpen] = useState(false);
-
-  // Filters
-  const [searchQuery, setSearchQuery] = useState('');
-  const [tierFilter, setTierFilter] = useState<string>('all');
+  const [syncs, setSyncs]         = useState<RookSync[]>([]);
+  const [clients, setClients]     = useState<RookClient[]>([]);
+  const [replyLogs, setReplyLogs] = useState<ReplyLog[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [retrying, setRetrying]   = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<'score' | 'name' | 'date'>('score');
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'log');
 
-  // Create Job Dialog
-  const [isCreateJobOpen, setIsCreateJobOpen] = useState(false);
-  const [newJob, setNewJob] = useState({
-    title: '',
-    department: '',
-    description: '',
-    requirements: '',
-    location: '',
-    knockout_rules: [''],
-    must_have_skills: '',
-    nice_to_have_skills: '',
-  });
-  const [jobPdfFiles, setJobPdfFiles] = useState<File[]>([]);
-  const jobFileInputRef = useRef<HTMLInputElement>(null);
+  // Manual sync form
+  const [manualClientId,   setManualClientId]   = useState('');
+  const [manualEntityType, setManualEntityType] = useState<'lead' | 'ticket'>('lead');
+  const [manualEntityId,   setManualEntityId]   = useState('');
+  const [manualForce,      setManualForce]      = useState(false);
+  const [manualLoading,    setManualLoading]    = useState(false);
 
-  // Upload State
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Bulk sync state
+  const [bulkClientId,  setBulkClientId]  = useState('');
+  const [bulkLoading,   setBulkLoading]   = useState(false);
+  const [bulkProgress,  setBulkProgress]  = useState<{ done: number; total: number; failed: number } | null>(null);
 
-  // Get current job
-  const currentJob = jobs.find(j => j.id === selectedJobId);
+  // ── Load data ─────────────────────────────────────────────
 
-  // Filter and sort applicants
-  const filteredApplicants = applicants
-    .filter(a => a.job_id === selectedJobId)
-    .filter(a => {
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        return (
-          a.name.toLowerCase().includes(query) ||
-          a.email.toLowerCase().includes(query) ||
-          a.current_company?.toLowerCase().includes(query) ||
-          a.current_title?.toLowerCase().includes(query)
-        );
-      }
-      return true;
-    })
-    .filter(a => tierFilter === 'all' || a.tier === tierFilter)
-    .filter(a => statusFilter === 'all' || a.status === statusFilter)
-    .sort((a, b) => {
-      switch (sortBy) {
-        case 'score':
-          return b.fit_score - a.fit_score;
-        case 'name':
-          return a.name.localeCompare(b.name);
-        case 'date':
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        default:
-          return 0;
-      }
-    });
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    const [syncsRes, clientsRes, repliesRes] = await Promise.all([
+      supabase
+        .from('rook_crm_syncs')
+        .select('*, client:clients(name, rook_crm_type)')
+        .order('created_at', { ascending: false })
+        .limit(200),
+      supabase
+        .from('clients')
+        .select('id, name, rook_enabled, rook_crm_type, status')
+        .eq('rook_enabled', true),
+      supabase
+        .from('rook_reply_logs')
+        .select('*, lead:leads(name, email)')
+        .order('created_at', { ascending: false })
+        .limit(100),
+    ]);
 
-  // Stats
-  const stats = {
-    total: applicants.filter(a => a.job_id === selectedJobId).length,
-    tierS: applicants.filter(a => a.job_id === selectedJobId && a.tier === 'S').length,
-    tierA: applicants.filter(a => a.job_id === selectedJobId && a.tier === 'A').length,
-    shortlisted: applicants.filter(a => a.job_id === selectedJobId && a.status === 'SHORTLISTED').length,
-  };
-
-  // Handle file drop
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-
-    const files = Array.from(e.dataTransfer.files).filter(
-      f => f.type === 'application/pdf'
-    );
-
-    if (files.length > 0) {
-      processFiles(files);
-    } else {
-      toast({
-        title: 'Invalid files',
-        description: 'Please upload PDF files only.',
-        variant: 'destructive',
-      });
-    }
+    if (syncsRes.data)   setSyncs(syncsRes.data as RookSync[]);
+    if (clientsRes.data) setClients(clientsRes.data as RookClient[]);
+    if (repliesRes.data) setReplyLogs(repliesRes.data as ReplyLog[]);
+    setLoading(false);
   }, []);
 
-  // Process uploaded files
-  const processFiles = async (files: File[]) => {
-    setIsUploading(true);
-    setUploadProgress(0);
+  useEffect(() => { loadData(); }, [loadData]);
 
-    // Simulate processing
-    for (let i = 0; i < files.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setUploadProgress(((i + 1) / files.length) * 100);
+  // ── Stats ─────────────────────────────────────────────────
+
+  const today      = new Date().toDateString();
+  const todaySyncs = syncs.filter(s => new Date(s.created_at).toDateString() === today);
+  const totalToday = todaySyncs.length;
+  const syncedToday = todaySyncs.filter(s => s.sync_status === 'synced').length;
+  const failedTotal = syncs.filter(s => s.sync_status === 'failed').length;
+  const successRate = syncs.length > 0
+    ? Math.round((syncs.filter(s => s.sync_status === 'synced').length / syncs.filter(s => s.sync_status !== 'skipped').length) * 100) || 0
+    : 0;
+
+  // ── Filter syncs ──────────────────────────────────────────
+
+  const filteredSyncs = statusFilter === 'all'
+    ? syncs
+    : syncs.filter(s => s.sync_status === statusFilter);
+
+  // ── Per-client stats ──────────────────────────────────────
+
+  const clientStats = clients.map(c => {
+    const clientSyncs = syncs.filter(s => s.client_id === c.id);
+    const synced = clientSyncs.filter(s => s.sync_status === 'synced').length;
+    const failed = clientSyncs.filter(s => s.sync_status === 'failed').length;
+    const lastSync = clientSyncs[0]?.synced_at ?? clientSyncs[0]?.created_at ?? null;
+    const rate = clientSyncs.length > 0
+      ? Math.round((synced / clientSyncs.filter(s => s.sync_status !== 'skipped').length) * 100) || 0
+      : null;
+    return { ...c, synced, failed, total: clientSyncs.length, lastSync, rate };
+  });
+
+  // ── Trigger sync ──────────────────────────────────────────
+
+  async function triggerSync(
+    clientId: string,
+    entityType: string,
+    entityId: string,
+    force = false,
+  ) {
+    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rook-sync`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify({ client_id: clientId, entity_type: entityType, entity_id: entityId, force }),
+    });
+    return res.json();
+  }
+
+  // ── Retry a failed sync ───────────────────────────────────
+
+  async function handleRetry(sync: RookSync) {
+    setRetrying(sync.id);
+    try {
+      const result = await triggerSync(sync.client_id, sync.entity_type, sync.entity_id, true);
+      if (result.success) {
+        toast({ title: 'Sync successful', description: `${sync.entity_type} pushed to ${CRM_LABELS[sync.crm_type] || sync.crm_type}` });
+      } else {
+        toast({ title: 'Sync failed', description: result.error || 'Unknown error', variant: 'destructive' });
+      }
+    } catch (err) {
+      toast({ title: 'Request failed', description: String(err), variant: 'destructive' });
+    } finally {
+      setRetrying(null);
+      loadData();
+    }
+  }
+
+  // ── Manual sync ───────────────────────────────────────────
+
+  async function handleManualSync() {
+    if (!manualClientId || !manualEntityId) {
+      toast({ title: 'Missing fields', description: 'Select a client and enter an entity ID', variant: 'destructive' });
+      return;
+    }
+    setManualLoading(true);
+    try {
+      const result = await triggerSync(manualClientId, manualEntityType, manualEntityId, manualForce);
+      if (result.success) {
+        toast({
+          title: result.action === 'skipped' ? 'Skipped' : 'Sync complete',
+          description: result.action === 'skipped'
+            ? result.reason === 'already_synced' ? 'Already synced — use Force to re-push' : 'Rook disabled for this client'
+            : `${result.action} in ${CRM_LABELS[result.crm_type] || result.crm_type} (#${result.crm_record_id})`,
+        });
+      } else {
+        toast({ title: 'Sync failed', description: result.error || 'Unknown error', variant: 'destructive' });
+      }
+    } catch (err) {
+      toast({ title: 'Request failed', description: String(err), variant: 'destructive' });
+    } finally {
+      setManualLoading(false);
+      loadData();
+    }
+  }
+
+  // ── Bulk sync: push all unsynced leads for a client ───────
+
+  async function handleBulkSync() {
+    if (!bulkClientId) {
+      toast({ title: 'Select a client first', variant: 'destructive' });
+      return;
+    }
+    setBulkLoading(true);
+    setBulkProgress(null);
+
+    // Fetch all leads for this client that haven't been synced yet
+    const client = clients.find(c => c.id === bulkClientId);
+    const { data: leads, error } = await supabase
+      .from('leads')
+      .select('id')
+      .eq('client_id', bulkClientId);
+
+    if (error || !leads) {
+      toast({ title: 'Failed to load leads', description: error?.message, variant: 'destructive' });
+      setBulkLoading(false);
+      return;
     }
 
-    // Create new mock applicants from uploaded files
-    const newApplicants: Applicant[] = files.map((file, index) => {
-      const baseId = Date.now() + index;
-      const fileName = file.name.replace('.pdf', '').replace(/_/g, ' ');
-      const nameParts = fileName.split(' ');
-      const firstName = nameParts[0] || 'Candidate';
-      const lastName = nameParts.slice(1).join(' ') || 'Unknown';
-      const fullName = `${firstName} ${lastName}`.trim();
-      
-      // Generate a random score between 20-95
-      const score = Math.floor(Math.random() * 76) + 20;
-      
-      // Determine tier based on score
-      let tier: 'S' | 'A' | 'B' | 'C' | 'F';
-      if (score >= 85) tier = 'S';
-      else if (score >= 70) tier = 'A';
-      else if (score >= 50) tier = 'B';
-      else if (score >= 30) tier = 'C';
-      else tier = 'F';
-
-      return {
-        id: baseId.toString(),
-        job_id: selectedJobId,
-        name: fullName,
-        email: `${firstName.toLowerCase()}.${lastName.toLowerCase().replace(/\s/g, '')}@email.com`,
-        phone: `+1 (555) ${100 + index}${200 + index}${300 + index}`,
-        current_title: ['Senior Developer', 'Frontend Engineer', 'Full Stack Developer', 'Software Engineer', 'Product Manager'][index % 5],
-        current_company: ['TechCorp', 'StartupXYZ', 'Digital Solutions', 'Innovate Inc', 'Global Tech'][index % 5],
-        years_experience: Math.floor(Math.random() * 10) + 1,
-        location: ['San Francisco, CA', 'New York, NY', 'Austin, TX', 'Remote', 'Seattle, WA'][index % 5],
-        fit_score: score,
-        tier,
-        status: 'NEW',
-        tags: ['Uploaded', 'PDF Resume', 'New Applicant'],
-        analysis_summary: {
-          verdict: `Candidate uploaded via resume. AI analysis gives a score of ${score}/100.`,
-          green_flags: [
-            'Resume shows relevant experience',
-            'Skills match job requirements',
-            'Clean formatting and professional presentation'
-          ],
-          red_flags: score < 50 ? [
-            'May need more experience',
-            'Some required skills missing'
-          ] : [],
-          interview_questions: [
-            'Tell me about your experience with the technologies mentioned in the resume',
-            'What was your most challenging project?',
-            'Why are you interested in this role?'
-          ],
-          skills_matched: ['React', 'TypeScript', 'JavaScript'],
-          skills_missing: score < 60 ? ['AWS', 'GraphQL', 'Docker'] : []
-        },
-        created_at: new Date().toISOString()
-      };
-    });
-
-    // Add new applicants to the list
-    setApplicants(prev => [...prev, ...newApplicants]);
-
-    toast({
-      title: 'Resumes Processed',
-      description: `${files.length} new applicant${files.length > 1 ? 's' : ''} added to the queue.`,
-    });
-
-    setIsUploading(false);
-    setUploadProgress(0);
-  };
-
-  // Handle applicant actions
-  const handleShortlist = (applicant: Applicant) => {
-    setApplicants(prev =>
-      prev.map(a =>
-        a.id === applicant.id ? { ...a, status: 'SHORTLISTED' } : a
-      )
+    // Filter out leads already synced
+    const syncedIds = new Set(
+      syncs
+        .filter(s => s.client_id === bulkClientId && s.sync_status === 'synced' && s.entity_type === 'lead')
+        .map(s => s.entity_id),
     );
-    toast({
-      title: 'Candidate Shortlisted',
-      description: `${applicant.name} has been added to your shortlist.`,
-    });
-  };
+    const unsynced = leads.filter(l => !syncedIds.has(l.id));
 
-  const handleReject = (applicant: Applicant) => {
-    setApplicants(prev =>
-      prev.map(a =>
-        a.id === applicant.id ? { ...a, status: 'REJECTED' } : a
-      )
-    );
-    toast({
-      title: 'Candidate Rejected',
-      description: `${applicant.name} has been moved to rejected.`,
-    });
-  };
-
-  // Create job
-  const handleCreateJob = () => {
-    const job: Job = {
-      id: Date.now().toString(),
-      title: newJob.title,
-      department: newJob.department || undefined,
-      description: newJob.description,
-      requirements: newJob.requirements || undefined,
-      location: newJob.location || undefined,
-      status: 'OPEN',
-      knockout_rules: newJob.knockout_rules
-        .filter(r => r.trim())
-        .map(rule => ({ rule })),
-      must_have_skills: newJob.must_have_skills
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean),
-      nice_to_have_skills: newJob.nice_to_have_skills
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean),
-      total_applicants: 0,
-      shortlisted_count: 0,
-      created_at: new Date().toISOString(),
-    };
-
-    setJobs(prev => [job, ...prev]);
-    setSelectedJobId(job.id);
-    
-    // Process any uploaded PDF files for this job
-    if (jobPdfFiles.length > 0) {
-      processFiles(jobPdfFiles);
-      toast({
-        title: 'Job Created with Resumes',
-        description: `${job.title} created and ${jobPdfFiles.length} resume${jobPdfFiles.length > 1 ? 's' : ''} queued for processing.`,
-      });
-    } else {
-      toast({
-        title: 'Job Created',
-        description: `${job.title} is now open for applications.`,
-      });
+    if (unsynced.length === 0) {
+      toast({ title: 'All leads already synced', description: `${leads.length} leads up to date in ${CRM_LABELS[client?.rook_crm_type || ''] || 'CRM'}` });
+      setBulkLoading(false);
+      return;
     }
-    
-    setIsCreateJobOpen(false);
-    setNewJob({
-      title: '',
-      department: '',
-      description: '',
-      requirements: '',
-      location: '',
-      knockout_rules: [''],
-      must_have_skills: '',
-      nice_to_have_skills: '',
-    });
-    setJobPdfFiles([]);
-  };
 
-  // Add knockout rule input
-  const addKnockoutRule = () => {
-    setNewJob(prev => ({
-      ...prev,
-      knockout_rules: [...prev.knockout_rules, ''],
-    }));
-  };
+    let done = 0;
+    let failed = 0;
+    setBulkProgress({ done: 0, total: unsynced.length, failed: 0 });
 
-  // Update knockout rule
-  const updateKnockoutRule = (index: number, value: string) => {
-    setNewJob(prev => ({
-      ...prev,
-      knockout_rules: prev.knockout_rules.map((r, i) => (i === index ? value : r)),
-    }));
-  };
-
-  // Remove knockout rule
-  const removeKnockoutRule = (index: number) => {
-    setNewJob(prev => ({
-      ...prev,
-      knockout_rules: prev.knockout_rules.filter((_, i) => i !== index),
-    }));
-  };
-
-  // Handle job PDF file selection
-  const handleJobFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    const pdfFiles = files.filter(f => f.type === 'application/pdf');
-    
-    if (pdfFiles.length > 0) {
-      setJobPdfFiles(prev => [...prev, ...pdfFiles]);
-      toast({
-        title: 'PDFs Added',
-        description: `${pdfFiles.length} PDF file${pdfFiles.length > 1 ? 's' : ''} added for processing.`,
-      });
-    } else if (files.length > 0) {
-      toast({
-        title: 'Invalid files',
-        description: 'Please upload PDF files only.',
-        variant: 'destructive',
-      });
+    for (const lead of unsynced) {
+      try {
+        await triggerSync(bulkClientId, 'lead', lead.id);
+        done++;
+      } catch {
+        failed++;
+      }
+      setBulkProgress({ done: done + failed, total: unsynced.length, failed });
     }
-    
-    // Reset file input
-    if (e.target) e.target.value = '';
-  };
 
-  // Remove job PDF file
-  const removeJobFile = (index: number) => {
-    setJobPdfFiles(prev => prev.filter((_, i) => i !== index));
-  };
+    toast({
+      title: `Bulk sync complete`,
+      description: `${done} synced, ${failed} failed out of ${unsynced.length} leads`,
+      variant: failed > 0 ? 'destructive' : 'default',
+    });
+    setBulkLoading(false);
+    setBulkProgress(null);
+    loadData();
+  }
+
+  // ── Render ────────────────────────────────────────────────
 
   return (
     <MainLayout>
       <Header
-        title="The Rook"
-        subtitle="Recruiting, Screening & Gatekeeping"
+        title="Rook"
+        subtitle="Revenue Ops — CRM sync bridge"
+        icon={<Castle className="w-5 h-5" />}
+        actions={
+          <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        }
       />
 
-      <div className="p-4 md:p-6 space-y-6">
-        {/* Top Bar: Job Selector + Actions */}
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          <div className="flex items-center gap-3">
-            {/* Job Selector */}
-            <Select value={selectedJobId} onValueChange={setSelectedJobId}>
-              <SelectTrigger className="w-[280px]">
-                <SelectValue placeholder="Select a job..." />
-              </SelectTrigger>
-              <SelectContent>
-                {jobs.map(job => (
-                  <SelectItem key={job.id} value={job.id}>
-                    <div className="flex items-center gap-2">
-                      <span>{job.title}</span>
-                      <Badge variant="secondary" className="text-xs">
-                        {job.total_applicants}
-                      </Badge>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Create Job Button */}
-            <Dialog open={isCreateJobOpen} onOpenChange={setIsCreateJobOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Create Job Slot</DialogTitle>
-                  <DialogDescription>
-                    Define the role and set knockout rules for automatic screening.
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="space-y-4 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Job Title *</Label>
-                      <Input
-                        placeholder="e.g., Senior React Engineer"
-                        value={newJob.title}
-                        onChange={e => setNewJob(prev => ({ ...prev, title: e.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Department</Label>
-                      <Input
-                        placeholder="e.g., Engineering"
-                        value={newJob.department}
-                        onChange={e => setNewJob(prev => ({ ...prev, department: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Location</Label>
-                    <Input
-                      placeholder="e.g., Remote (US) or San Francisco, CA"
-                      value={newJob.location}
-                      onChange={e => setNewJob(prev => ({ ...prev, location: e.target.value }))}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Job Description *</Label>
-                    <Textarea
-                      placeholder="Describe the role, responsibilities, and what success looks like..."
-                      value={newJob.description}
-                      onChange={e => setNewJob(prev => ({ ...prev, description: e.target.value }))}
-                      rows={4}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Requirements</Label>
-                    <Textarea
-                      placeholder="List the required qualifications and experience..."
-                      value={newJob.requirements}
-                      onChange={e => setNewJob(prev => ({ ...prev, requirements: e.target.value }))}
-                      rows={3}
-                    />
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label>Knockout Rules</Label>
-                        <p className="text-xs text-muted-foreground">
-                          Strict requirements. Failing any = auto-reject.
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={addKnockoutRule}
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        Add Rule
-                      </Button>
-                    </div>
-                    {newJob.knockout_rules.map((rule, i) => (
-                      <div key={i} className="flex gap-2">
-                        <Input
-                          placeholder="e.g., Must have 5+ years experience"
-                          value={rule}
-                          onChange={e => updateKnockoutRule(i, e.target.value)}
-                        />
-                        {newJob.knockout_rules.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeKnockoutRule(i)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  <Separator />
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Must-Have Skills</Label>
-                      <Input
-                        placeholder="React, TypeScript, Node.js"
-                        value={newJob.must_have_skills}
-                        onChange={e => setNewJob(prev => ({ ...prev, must_have_skills: e.target.value }))}
-                      />
-                      <p className="text-xs text-muted-foreground">Comma separated</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Nice-to-Have Skills</Label>
-                      <Input
-                        placeholder="AWS, GraphQL, Postgres"
-                        value={newJob.nice_to_have_skills}
-                        onChange={e => setNewJob(prev => ({ ...prev, nice_to_have_skills: e.target.value }))}
-                      />
-                      <p className="text-xs text-muted-foreground">Comma separated</p>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* PDF Upload Section */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label>Upload Resumes (Optional)</Label>
-                        <p className="text-xs text-muted-foreground">
-                          Upload PDF resumes to automatically create applicants for this job.
-                        </p>
-                      </div>
-                      <input
-                        type="file"
-                        ref={jobFileInputRef}
-                        className="hidden"
-                        accept=".pdf"
-                        multiple
-                        onChange={handleJobFileSelect}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => jobFileInputRef.current?.click()}
-                      >
-                        <Upload className="h-3 w-3 mr-1" />
-                        Add PDFs
-                      </Button>
-                    </div>
-                    
-                    {jobPdfFiles.length > 0 ? (
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium">{jobPdfFiles.length} PDF file{jobPdfFiles.length > 1 ? 's' : ''} selected:</p>
-                        <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                          {jobPdfFiles.map((file, index) => (
-                            <div key={index} className="flex items-center justify-between gap-2 p-2 bg-muted/50 rounded">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <FileText className="h-4 w-4 text-stone-500 shrink-0" />
-                                <span className="text-sm truncate">{file.name}</span>
-                                <span className="text-xs text-muted-foreground shrink-0">
-                                  ({(file.size / 1024).toFixed(1)} KB)
-                                </span>
-                              </div>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={() => removeJobFile(index)}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="border-2 border-dashed border-muted-foreground/20 rounded-lg p-6 text-center">
-                        <FileText className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">No PDFs uploaded yet</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Upload resumes to automatically create applicants
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsCreateJobOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleCreateJob}
-                    disabled={!newJob.title || !newJob.description}
-                    className="bg-gradient-to-r from-stone-600 to-stone-700 hover:from-stone-700 hover:to-stone-800"
-                  >
-                    <Castle className="h-4 w-4 mr-2" />
-                    Create Job
-                    {jobPdfFiles.length > 0 && (
-                      <Badge variant="secondary" className="ml-2">
-                        +{jobPdfFiles.length} PDF{jobPdfFiles.length > 1 ? 's' : ''}
-                      </Badge>
-                    )}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          {/* Upload Button */}
-          <div>
-            <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              accept=".pdf"
-              multiple
-              onChange={e => {
-                const files = Array.from(e.target.files || []);
-                if (files.length > 0) processFiles(files);
-              }}
-            />
-            <Button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={!selectedJobId || isUploading}
-              className="bg-gradient-to-r from-stone-600 to-stone-700 hover:from-stone-700 hover:to-stone-800"
-            >
-              {isUploading ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Upload className="h-4 w-4 mr-2" />
-              )}
-              Upload Resumes
-            </Button>
-          </div>
-        </div>
-
-        {/* Upload Drop Zone */}
-        {selectedJobId && (
-          <div
-            className={cn(
-              'border-2 border-dashed rounded-xl p-8 text-center transition-all',
-              isDragOver
-                ? 'border-stone-500 bg-stone-500/10'
-                : 'border-muted-foreground/20 hover:border-muted-foreground/40',
-              isUploading && 'pointer-events-none opacity-50'
-            )}
-            onDragOver={e => {
-              e.preventDefault();
-              setIsDragOver(true);
-            }}
-            onDragLeave={() => setIsDragOver(false)}
-            onDrop={handleDrop}
-          >
-            {isUploading ? (
-              <div className="space-y-3">
-                <Loader2 className="h-10 w-10 mx-auto animate-spin text-stone-500" />
-                <p className="text-sm text-muted-foreground">Processing resumes...</p>
-                <Progress value={uploadProgress} className="w-64 mx-auto" />
-              </div>
-            ) : (
-              <>
-                <FileText className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-                <p className="font-medium">Drag & drop PDF resumes here</p>
-                <p className="text-sm text-muted-foreground">
-                  or click "Upload Resumes" to browse
-                </p>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* Stats Row */}
-        {currentJob && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-stone-500/10 flex items-center justify-center">
-                    <Users className="h-5 w-5 text-stone-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{stats.total}</p>
-                    <p className="text-xs text-muted-foreground">Total Applicants</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className={TIER_CONFIG.S.bgColor}>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
-                    <Award className="h-5 w-5 text-amber-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{stats.tierS}</p>
-                    <p className="text-xs text-muted-foreground">Tier S (Elite)</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className={TIER_CONFIG.A.bgColor}>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                    <Star className="h-5 w-5 text-emerald-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{stats.tierA}</p>
-                    <p className="text-xs text-muted-foreground">Tier A (Strong)</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                    <CheckCircle2 className="h-5 w-5 text-blue-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{stats.shortlisted}</p>
-                    <p className="text-xs text-muted-foreground">Shortlisted</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Filters */}
-        {currentJob && (
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search candidates..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
+      {/* Stats row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="text-xs text-stone-500 font-space-grotesk uppercase tracking-wide mb-1">Synced Today</div>
+            <div className="text-2xl font-instrument-serif">{syncedToday}<span className="text-sm text-stone-400 ml-1">/ {totalToday}</span></div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="text-xs text-stone-500 font-space-grotesk uppercase tracking-wide mb-1">Success Rate</div>
+            <div className={`text-2xl font-instrument-serif ${successRate < 80 ? 'text-red-600' : successRate < 95 ? 'text-amber-600' : 'text-emerald-600'}`}>
+              {successRate}%
             </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="text-xs text-stone-500 font-space-grotesk uppercase tracking-wide mb-1">Failed</div>
+            <div className={`text-2xl font-instrument-serif ${failedTotal > 0 ? 'text-red-600' : ''}`}>{failedTotal}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="text-xs text-stone-500 font-space-grotesk uppercase tracking-wide mb-1">Active Clients</div>
+            <div className="text-2xl font-instrument-serif">{clients.length}</div>
+          </CardContent>
+        </Card>
+      </div>
 
-            <Select value={tierFilter} onValueChange={setTierFilter}>
-              <SelectTrigger className="w-[140px]">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Tier" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Tiers</SelectItem>
-                <SelectItem value="S">Tier S (Elite)</SelectItem>
-                <SelectItem value="A">Tier A (Strong)</SelectItem>
-                <SelectItem value="B">Tier B (Maybe)</SelectItem>
-                <SelectItem value="C">Tier C (Weak)</SelectItem>
-                <SelectItem value="F">Tier F (Reject)</SelectItem>
-              </SelectContent>
-            </Select>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="log">
+            <Activity className="w-3.5 h-3.5 mr-1.5" />
+            Sync Log
+            {failedTotal > 0 && (
+              <span className="ml-1.5 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">
+                {failedTotal}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="clients">
+            <Building2 className="w-3.5 h-3.5 mr-1.5" />
+            Clients
+          </TabsTrigger>
+          <TabsTrigger value="manual">
+            <Play className="w-3.5 h-3.5 mr-1.5" />
+            Manual Sync
+          </TabsTrigger>
+          <TabsTrigger value="bulk">
+            <Database className="w-3.5 h-3.5 mr-1.5" />
+            Bulk Sync
+          </TabsTrigger>
+          <TabsTrigger value="replies">
+            <Mail className="w-3.5 h-3.5 mr-1.5" />
+            Replies
+            {replyLogs.filter(r => r.intent_classification === 'positive_meeting').length > 0 && (
+              <span className="ml-1.5 bg-emerald-500 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">
+                {replyLogs.filter(r => r.intent_classification === 'positive_meeting').length}
+              </span>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
+        {/* ── Sync Log ─────────────────────────────────────── */}
+        <TabsContent value="log">
+          <div className="flex items-center gap-3 mb-4">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Status" />
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="All statuses" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="NEW">New</SelectItem>
-                <SelectItem value="REVIEWED">Reviewed</SelectItem>
-                <SelectItem value="SHORTLISTED">Shortlisted</SelectItem>
-                <SelectItem value="REJECTED">Rejected</SelectItem>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="synced">Synced</SelectItem>
+                <SelectItem value="failed">Failed</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="skipped">Skipped</SelectItem>
               </SelectContent>
             </Select>
-
-            <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
-              <SelectTrigger className="w-[140px]">
-                <ArrowUpDown className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Sort" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="score">Score (High→Low)</SelectItem>
-                <SelectItem value="name">Name (A→Z)</SelectItem>
-                <SelectItem value="date">Date (New→Old)</SelectItem>
-              </SelectContent>
-            </Select>
+            <span className="text-sm text-stone-400">{filteredSyncs.length} records</span>
           </div>
-        )}
 
-        {/* Candidate Leaderboard */}
-        {currentJob && (
-          <div className="space-y-3">
-            {filteredApplicants.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-lg font-medium">No candidates yet</p>
-                  <p className="text-sm text-muted-foreground">
-                    Upload resumes to start screening applicants
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              filteredApplicants.map((applicant, index) => (
-                <Card
-                  key={applicant.id}
-                  className={cn(
-                    'transition-all hover:shadow-md cursor-pointer',
-                    applicant.status === 'SHORTLISTED' && 'ring-2 ring-emerald-500/50',
-                    applicant.status === 'REJECTED' && 'opacity-60'
-                  )}
-                  onClick={() => {
-                    setSelectedApplicant(applicant);
-                    setIsDossierOpen(true);
-                  }}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-4">
-                      {/* Rank */}
-                      <div className="hidden sm:flex items-center justify-center w-8 text-lg font-bold text-muted-foreground">
-                        #{index + 1}
-                      </div>
-
-                      {/* Score Badge */}
-                      <div
-                        className={cn(
-                          'flex items-center justify-center w-14 h-14 rounded-xl font-bold text-lg',
-                          TIER_CONFIG[applicant.tier].color
-                        )}
-                      >
-                        {applicant.fit_score}
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold truncate">{applicant.name}</h3>
-                          <Badge variant="outline" className="text-xs">
-                            {TIER_CONFIG[applicant.tier].label}
-                          </Badge>
-                          {applicant.status === 'SHORTLISTED' && (
-                            <Badge className="bg-emerald-500 text-xs">Shortlisted</Badge>
+          {loading ? (
+            <div className="flex items-center gap-2 text-stone-400 py-12 justify-center">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading sync log…
+            </div>
+          ) : filteredSyncs.length === 0 ? (
+            <div className="text-center py-12 text-stone-400">
+              <Database className="w-8 h-8 mx-auto mb-3 opacity-40" />
+              <p>No syncs yet.</p>
+              <p className="text-sm mt-1">Syncs appear here as leads are sourced and emails are sent.</p>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-[#E7E5E4] overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-stone-50 border-b border-[#E7E5E4]">
+                  <tr>
+                    <th className="text-left px-4 py-2.5 font-space-grotesk text-xs text-stone-500 uppercase tracking-wide">Entity</th>
+                    <th className="text-left px-4 py-2.5 font-space-grotesk text-xs text-stone-500 uppercase tracking-wide">Client</th>
+                    <th className="text-left px-4 py-2.5 font-space-grotesk text-xs text-stone-500 uppercase tracking-wide">CRM</th>
+                    <th className="text-left px-4 py-2.5 font-space-grotesk text-xs text-stone-500 uppercase tracking-wide">Status</th>
+                    <th className="text-left px-4 py-2.5 font-space-grotesk text-xs text-stone-500 uppercase tracking-wide">Time</th>
+                    <th className="text-left px-4 py-2.5 font-space-grotesk text-xs text-stone-500 uppercase tracking-wide">CRM ID</th>
+                    <th className="px-4 py-2.5"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E7E5E4]">
+                  {filteredSyncs.map(sync => {
+                    const cfg = STATUS_CONFIG[sync.sync_status] || STATUS_CONFIG.pending;
+                    const Icon = cfg.icon;
+                    return (
+                      <tr key={sync.id} className="hover:bg-stone-50 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="font-medium capitalize">{sync.entity_type}</div>
+                          <div className="text-xs text-stone-400 font-mono">{sync.entity_id.slice(0, 8)}…</div>
+                        </td>
+                        <td className="px-4 py-3 text-stone-600">
+                          {sync.client?.name ?? '—'}
+                        </td>
+                        <td className="px-4 py-3 text-stone-600">
+                          {CRM_LABELS[sync.crm_type] || sync.crm_type}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${cfg.color}`}>
+                            <Icon className="w-3 h-3" />
+                            {cfg.label}
+                          </span>
+                          {sync.sync_status === 'failed' && sync.error_msg && (
+                            <div className="text-xs text-red-500 mt-1 max-w-[200px] truncate" title={sync.error_msg}>
+                              {sync.error_msg}
+                            </div>
                           )}
-                          {applicant.status === 'REJECTED' && (
-                            <Badge variant="destructive" className="text-xs">Rejected</Badge>
+                        </td>
+                        <td className="px-4 py-3 text-stone-400 text-xs whitespace-nowrap">
+                          {formatTime(sync.synced_at || sync.created_at)}
+                        </td>
+                        <td className="px-4 py-3 text-xs font-mono text-stone-400">
+                          {sync.crm_record_id ? sync.crm_record_id.slice(0, 12) + '…' : '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          {sync.sync_status === 'failed' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-[#CC5500] hover:text-[#CC5500] hover:bg-orange-50 h-7 px-2"
+                              disabled={retrying === sync.id}
+                              onClick={() => handleRetry(sync)}
+                            >
+                              {retrying === sync.id
+                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                : <RotateCcw className="w-3.5 h-3.5" />
+                              }
+                              <span className="ml-1">Retry</span>
+                            </Button>
                           )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── Clients ──────────────────────────────────────── */}
+        <TabsContent value="clients">
+          {loading ? (
+            <div className="flex items-center gap-2 text-stone-400 py-12 justify-center">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading clients…
+            </div>
+          ) : clients.length === 0 ? (
+            <div className="text-center py-12 text-stone-400">
+              <Building2 className="w-8 h-8 mx-auto mb-3 opacity-40" />
+              <p>No clients have Rook enabled yet.</p>
+              <p className="text-sm mt-1">Enable Rook in the Clients page to start syncing.</p>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {clientStats.map(c => (
+                <Card key={c.id}>
+                  <CardContent className="pt-4 pb-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-[#CC5500]/10 flex items-center justify-center">
+                          <Castle className="w-4 h-4 text-[#CC5500]" />
                         </div>
-                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                          {applicant.current_title && (
-                            <span className="flex items-center gap-1">
-                              <Briefcase className="h-3 w-3" />
-                              {applicant.current_title}
-                            </span>
-                          )}
-                          {applicant.current_company && (
-                            <span className="flex items-center gap-1">
-                              <Building2 className="h-3 w-3" />
-                              {applicant.current_company}
-                            </span>
-                          )}
-                          {applicant.location && (
-                            <span className="hidden md:flex items-center gap-1">
-                              <MapPin className="h-3 w-3" />
-                              {applicant.location}
-                            </span>
-                          )}
+                        <div>
+                          <div className="font-medium">{c.name}</div>
+                          <div className="text-sm text-stone-400">
+                            {CRM_LABELS[c.rook_crm_type || ''] || c.rook_crm_type || 'No CRM set'}
+                          </div>
                         </div>
                       </div>
-
-                      {/* Tags */}
-                      <div className="hidden lg:flex items-center gap-1.5">
-                        {applicant.tags.slice(0, 3).map(tag => (
-                          <Badge key={tag} variant="secondary" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-emerald-500 hover:text-emerald-600 hover:bg-emerald-500/10"
-                          onClick={() => handleShortlist(applicant)}
-                          disabled={applicant.status === 'SHORTLISTED'}
-                        >
-                          <ThumbsUp className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                          onClick={() => handleReject(applicant)}
-                          disabled={applicant.status === 'REJECTED'}
-                        >
-                          <ThumbsDown className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setSelectedApplicant(applicant);
-                            setIsDossierOpen(true);
-                          }}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                      <div className="flex items-center gap-6 text-sm">
+                        <div className="text-center">
+                          <div className="font-medium text-emerald-600">{c.synced}</div>
+                          <div className="text-xs text-stone-400">Synced</div>
+                        </div>
+                        <div className="text-center">
+                          <div className={`font-medium ${c.failed > 0 ? 'text-red-600' : 'text-stone-400'}`}>{c.failed}</div>
+                          <div className="text-xs text-stone-400">Failed</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="font-medium">{c.rate !== null ? `${c.rate}%` : '—'}</div>
+                          <div className="text-xs text-stone-400">Rate</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xs text-stone-400">Last sync</div>
+                          <div className="text-xs font-medium">{c.lastSync ? timeAgo(c.lastSync) : 'Never'}</div>
+                        </div>
+                        <Badge variant="outline" className={c.status === 'active' ? 'border-emerald-300 text-emerald-700' : ''}>
+                          {c.status}
+                        </Badge>
                       </div>
                     </div>
+                    {c.failed > 0 && (
+                      <div className="mt-3 flex items-center gap-2 text-sm text-red-600 bg-red-50 rounded-md px-3 py-2">
+                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                        {c.failed} failed sync{c.failed > 1 ? 's' : ''} — retry from the Sync Log tab.
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
-              ))
-            )}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </TabsContent>
 
-        {/* No Job Selected */}
-        {!currentJob && (
-          <Card>
-            <CardContent className="py-16 text-center">
-              <Castle className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-              <h2 className="text-xl font-semibold mb-2">Welcome to The Rook</h2>
-              <p className="text-muted-foreground mb-6">
-                Create a job posting to start screening candidates.
-              </p>
-              <Button onClick={() => setIsCreateJobOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Your First Job
+        {/* ── Manual Sync ───────────────────────────────────── */}
+        <TabsContent value="manual">
+          <Card className="max-w-lg">
+            <CardHeader>
+              <CardTitle className="text-base font-instrument-serif">Trigger a manual sync</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="text-xs font-space-grotesk uppercase tracking-wide text-stone-500 mb-1.5 block">Client</Label>
+                <Select value={manualClientId} onValueChange={setManualClientId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a client…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients.map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name} — {CRM_LABELS[c.rook_crm_type || ''] || c.rook_crm_type || 'No CRM'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-xs font-space-grotesk uppercase tracking-wide text-stone-500 mb-1.5 block">Entity type</Label>
+                <Select value={manualEntityType} onValueChange={v => setManualEntityType(v as 'lead' | 'ticket')}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="lead">Lead</SelectItem>
+                    <SelectItem value="ticket">Ticket</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-xs font-space-grotesk uppercase tracking-wide text-stone-500 mb-1.5 block">Entity ID (UUID)</Label>
+                <Input
+                  placeholder="e.g. 3f4a1b2c-…"
+                  value={manualEntityId}
+                  onChange={e => setManualEntityId(e.target.value.trim())}
+                  className="font-mono text-sm"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  id="force-toggle"
+                  type="checkbox"
+                  checked={manualForce}
+                  onChange={e => setManualForce(e.target.checked)}
+                  className="rounded"
+                />
+                <Label htmlFor="force-toggle" className="text-sm text-stone-600 cursor-pointer">
+                  Force re-sync (overwrite already-synced records)
+                </Label>
+              </div>
+
+              <Button
+                className="w-full bg-[#CC5500] hover:bg-[#b34a00] text-white"
+                disabled={manualLoading || !manualClientId || !manualEntityId}
+                onClick={handleManualSync}
+              >
+                {manualLoading
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Syncing…</>
+                  : <><Play className="w-4 h-4 mr-2" />Sync now</>
+                }
               </Button>
             </CardContent>
           </Card>
-        )}
-      </div>
+        </TabsContent>
 
-      {/* Dossier Sheet */}
-      <Sheet open={isDossierOpen} onOpenChange={setIsDossierOpen}>
-        <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
-          {selectedApplicant && (
-            <>
-              <SheetHeader>
-                <div className="flex items-start gap-4">
-                  <div
-                    className={cn(
-                      'flex items-center justify-center w-16 h-16 rounded-xl font-bold text-2xl',
-                      TIER_CONFIG[selectedApplicant.tier].color
-                    )}
-                  >
-                    {selectedApplicant.fit_score}
-                  </div>
-                  <div className="flex-1">
-                    <SheetTitle className="text-xl">{selectedApplicant.name}</SheetTitle>
-                    <SheetDescription>
-                      {selectedApplicant.current_title}
-                      {selectedApplicant.current_company && ` at ${selectedApplicant.current_company}`}
-                    </SheetDescription>
-                    <div className="flex items-center gap-2 mt-2">
-                      <Badge className={TIER_CONFIG[selectedApplicant.tier].color}>
-                        Tier {selectedApplicant.tier} - {TIER_CONFIG[selectedApplicant.tier].label}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-              </SheetHeader>
-
-              <div className="mt-6 space-y-6">
-                {/* Contact Info */}
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
-                    Contact
-                  </h4>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Mail className="h-4 w-4 text-muted-foreground" />
-                      <a href={`mailto:${selectedApplicant.email}`} className="hover:underline">
-                        {selectedApplicant.email}
-                      </a>
-                    </div>
-                    {selectedApplicant.phone && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        {selectedApplicant.phone}
-                      </div>
-                    )}
-                    {selectedApplicant.location && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <MapPin className="h-4 w-4 text-muted-foreground" />
-                        {selectedApplicant.location}
-                      </div>
-                    )}
-                    {selectedApplicant.linkedin_url && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <Linkedin className="h-4 w-4 text-muted-foreground" />
-                        <a
-                          href={selectedApplicant.linkedin_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="hover:underline"
-                        >
-                          LinkedIn Profile
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* The Verdict */}
-                {selectedApplicant.analysis_summary.verdict && (
-                  <div className="space-y-2">
-                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-                      <Shield className="h-4 w-4" />
-                      The Verdict
-                    </h4>
-                    <p className="text-sm bg-muted/50 rounded-lg p-3">
-                      {selectedApplicant.analysis_summary.verdict}
-                    </p>
-                  </div>
-                )}
-
-                {/* Green Flags */}
-                {selectedApplicant.analysis_summary.green_flags && selectedApplicant.analysis_summary.green_flags.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                      Strengths
-                    </h4>
-                    <ul className="space-y-1.5">
-                      {selectedApplicant.analysis_summary.green_flags.map((flag, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
-                          {flag}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Red Flags */}
-                {selectedApplicant.analysis_summary.red_flags && selectedApplicant.analysis_summary.red_flags.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 text-red-500" />
-                      Concerns
-                    </h4>
-                    <ul className="space-y-1.5">
-                      {selectedApplicant.analysis_summary.red_flags.map((flag, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm">
-                          <XCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
-                          {flag}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Knockout Failures */}
-                {selectedApplicant.analysis_summary.knockout_failures && selectedApplicant.analysis_summary.knockout_failures.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-                      <XCircle className="h-4 w-4 text-red-600" />
-                      Knockout Failures
-                    </h4>
-                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
-                      <ul className="space-y-1">
-                        {selectedApplicant.analysis_summary.knockout_failures.map((rule, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm text-red-600">
-                            <span>•</span>
-                            {rule}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                )}
-
-                {/* Skills */}
-                <div className="grid grid-cols-2 gap-4">
-                  {selectedApplicant.analysis_summary.skills_matched && selectedApplicant.analysis_summary.skills_matched.length > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
-                        Skills Matched
-                      </h4>
-                      <div className="flex flex-wrap gap-1">
-                        {selectedApplicant.analysis_summary.skills_matched.map(skill => (
-                          <Badge key={skill} className="bg-emerald-500/20 text-emerald-600 border-emerald-500/30">
-                            {skill}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedApplicant.analysis_summary.skills_missing && selectedApplicant.analysis_summary.skills_missing.length > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
-                        Skills Missing
-                      </h4>
-                      <div className="flex flex-wrap gap-1">
-                        {selectedApplicant.analysis_summary.skills_missing.map(skill => (
-                          <Badge key={skill} variant="outline" className="text-muted-foreground">
-                            {skill}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <Separator />
-
-                {/* Interview Questions */}
-                {selectedApplicant.analysis_summary.interview_questions && selectedApplicant.analysis_summary.interview_questions.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4" />
-                      Interrogation Sheet
-                    </h4>
-                    <div className="bg-muted/50 rounded-lg p-3 space-y-3">
-                      {selectedApplicant.analysis_summary.interview_questions.map((q, i) => (
-                        <div key={i} className="flex gap-2">
-                          <span className="font-bold text-stone-500">{i + 1}.</span>
-                          <p className="text-sm">{q}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Tags */}
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
-                    Quick Tags
-                  </h4>
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedApplicant.tags.map(tag => (
-                      <Badge key={tag} variant="secondary">
-                        {tag}
-                      </Badge>
+        {/* ── Bulk Sync ─────────────────────────────────────── */}
+        <TabsContent value="bulk">
+          <Card className="max-w-lg">
+            <CardHeader>
+              <CardTitle className="text-base font-instrument-serif">Bulk sync all leads</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="text-xs font-space-grotesk uppercase tracking-wide text-stone-500 mb-1.5 block">Client</Label>
+                <Select value={bulkClientId} onValueChange={setBulkClientId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a client…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients.map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name} — {CRM_LABELS[c.rook_crm_type || ''] || c.rook_crm_type || 'No CRM'}
+                      </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="text-sm text-stone-500 bg-stone-50 rounded-md px-3 py-2">
+                Pushes all leads assigned to this client that haven't been synced yet. Already-synced leads are skipped. Use Manual Sync with Force enabled to re-push specific records.
+              </div>
+
+              {bulkProgress && (
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-stone-600">{bulkProgress.done} / {bulkProgress.total} processed</span>
+                    {bulkProgress.failed > 0 && (
+                      <span className="text-red-500">{bulkProgress.failed} failed</span>
+                    )}
+                  </div>
+                  <div className="w-full bg-stone-100 rounded-full h-1.5">
+                    <div
+                      className="bg-[#CC5500] h-1.5 rounded-full transition-all"
+                      style={{ width: `${(bulkProgress.done / bulkProgress.total) * 100}%` }}
+                    />
                   </div>
                 </div>
+              )}
 
-                <Separator />
+              <Button
+                className="w-full bg-[#CC5500] hover:bg-[#b34a00] text-white"
+                disabled={bulkLoading || !bulkClientId}
+                onClick={handleBulkSync}
+              >
+                {bulkLoading
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Syncing…</>
+                  : <><Database className="w-4 h-4 mr-2" />Bulk sync leads</>
+                }
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-                {/* Actions */}
-                <div className="flex gap-3">
-                  <Button
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                    onClick={() => {
-                      handleShortlist(selectedApplicant);
-                      setIsDossierOpen(false);
-                    }}
-                    disabled={selectedApplicant.status === 'SHORTLISTED'}
-                  >
-                    <ThumbsUp className="h-4 w-4 mr-2" />
-                    Shortlist
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    className="flex-1"
-                    onClick={() => {
-                      handleReject(selectedApplicant);
-                      setIsDossierOpen(false);
-                    }}
-                    disabled={selectedApplicant.status === 'REJECTED'}
-                  >
-                    <ThumbsDown className="h-4 w-4 mr-2" />
-                    Reject
-                  </Button>
-                </div>
+        {/* ── Replies ───────────────────────────────────────── */}
+        <TabsContent value="replies">
+          {replyLogs.length === 0 ? (
+            <div className="text-center py-12 text-stone-400">
+              <Mail className="w-8 h-8 mx-auto mb-3 opacity-40" />
+              <p>No classified replies yet.</p>
+              <p className="text-sm mt-1">When prospects reply to Bishop emails, Rook classifies them here.</p>
+            </div>
+          ) : (
+            <>
+              {/* Intent summary */}
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-5">
+                {Object.entries(INTENT_CONFIG).map(([key, cfg]) => {
+                  const count = replyLogs.filter(r => r.intent_classification === key).length;
+                  const Icon = cfg.icon;
+                  return (
+                    <div key={key} className="rounded-lg border border-[#E7E5E4] p-3 text-center">
+                      <Icon className="w-4 h-4 mx-auto mb-1 text-stone-400" />
+                      <div className="text-lg font-instrument-serif">{count}</div>
+                      <div className="text-xs text-stone-500">{cfg.label}</div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="rounded-lg border border-[#E7E5E4] overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-stone-50 border-b border-[#E7E5E4]">
+                    <tr>
+                      <th className="text-left px-4 py-2.5 font-space-grotesk text-xs text-stone-500 uppercase tracking-wide">Lead</th>
+                      <th className="text-left px-4 py-2.5 font-space-grotesk text-xs text-stone-500 uppercase tracking-wide">Intent</th>
+                      <th className="text-left px-4 py-2.5 font-space-grotesk text-xs text-stone-500 uppercase tracking-wide">Confidence</th>
+                      <th className="text-left px-4 py-2.5 font-space-grotesk text-xs text-stone-500 uppercase tracking-wide">Extracted</th>
+                      <th className="text-left px-4 py-2.5 font-space-grotesk text-xs text-stone-500 uppercase tracking-wide">State Change</th>
+                      <th className="text-left px-4 py-2.5 font-space-grotesk text-xs text-stone-500 uppercase tracking-wide">Time</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E7E5E4]">
+                    {replyLogs.map(log => {
+                      const intentCfg = INTENT_CONFIG[log.intent_classification] || { label: log.intent_classification, color: 'bg-stone-100 text-stone-600', icon: HelpCircle };
+                      const Icon = intentCfg.icon;
+                      return (
+                        <tr key={log.id} className="hover:bg-stone-50 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="font-medium">{log.lead?.name || '—'}</div>
+                            <div className="text-xs text-stone-400">{log.lead?.email || log.lead_id.slice(0, 8) + '…'}</div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${intentCfg.color}`}>
+                              <Icon className="w-3 h-3" />
+                              {intentCfg.label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 bg-stone-100 rounded-full h-1.5">
+                                <div
+                                  className="bg-[#CC5500] h-1.5 rounded-full"
+                                  style={{ width: `${log.classification_confidence * 100}%` }}
+                                />
+                              </div>
+                              <span className="text-xs text-stone-500">{Math.round(log.classification_confidence * 100)}%</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-stone-500">
+                            {log.extracted_phone && <div>📞 {log.extracted_phone}</div>}
+                            {log.extracted_title && <div>💼 {log.extracted_title}</div>}
+                            {!log.extracted_phone && !log.extracted_title && <span className="text-stone-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-xs">
+                            {log.bishop_status_before && log.bishop_status_after ? (
+                              <span className="text-stone-500">
+                                {log.bishop_status_before} <ArrowRight className="w-3 h-3 inline" /> <span className="font-medium text-[#CC5500]">{log.bishop_status_after}</span>
+                              </span>
+                            ) : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-stone-400 whitespace-nowrap">
+                            {formatTime(log.created_at)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </>
           )}
-        </SheetContent>
-      </Sheet>
+        </TabsContent>
+      </Tabs>
     </MainLayout>
   );
 }
