@@ -46,7 +46,7 @@ CREATE POLICY "Users can read global and workspace knowledge"
     OR EXISTS (
       SELECT 1 FROM public.workspaces w
       WHERE w.id = knight_knowledge_base.workspace_id
-        AND w.user_id = auth.uid()
+        AND w.owner_id = auth.uid()
     )
   );
 
