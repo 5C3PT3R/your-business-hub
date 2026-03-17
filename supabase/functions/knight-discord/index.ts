@@ -167,12 +167,11 @@ serve(async (req) => {
       const interactionToken = interaction.token;
       const appId            = interaction.application_id;
 
-      // Fire-and-forget: send deferred response immediately, process async
-      (async () => {
+      // Use EdgeRuntime.waitUntil so the async task keeps running after we return
+      const backgroundTask = (async () => {
         const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
         const reply    = await getKnightResponse(userMessage, userHandle, KNIGHT_WORKSPACE_ID, supabase);
 
-        // Edit the deferred message with the actual response
         await fetch(
           `https://discord.com/api/v10/webhooks/${appId}/${interactionToken}/messages/@original`,
           {
@@ -185,6 +184,9 @@ serve(async (req) => {
           },
         );
       })();
+
+      // Keep function alive until background task finishes
+      (globalThis as any).EdgeRuntime?.waitUntil(backgroundTask);
 
       // Return deferred response immediately (Discord requires < 3s)
       return new Response(

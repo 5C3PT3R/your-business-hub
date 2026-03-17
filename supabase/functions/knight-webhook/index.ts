@@ -196,7 +196,8 @@ async function handleSocialWebhook(req: Request, supabase: any, workspaceId: str
   // 4. Generate response if critical
   let response = null;
   if (priority === 'critical' || priority === 'medium') {
-    response = await generateResponse(payload.content, [], sentiment, payload.platform, [], supabase, workspaceId);
+    const knowledge = await searchKnowledgeBase(supabase, workspaceId, payload.content);
+    response = await generateResponse(payload.content, knowledge, sentiment, payload.platform, [], supabase, workspaceId);
 
     // Add Knight's response to ticket
     await supabase.rpc('add_knight_message', {
@@ -1175,7 +1176,7 @@ async function searchKnowledgeBase(supabase: any, workspaceId: string, query: st
 
   const { data, error } = await supabase.rpc('match_knowledge', {
     query_embedding:  embedding,
-    match_threshold:  0.75,
+    match_threshold:  0.60,
     match_count:      5,
     p_workspace_id:   workspaceId,
   });

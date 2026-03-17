@@ -9,7 +9,7 @@ Requirements:
 
 Usage:
     1. Download dataset from Kaggle:
-       https://www.kaggle.com/datasets/bitext/training-dataset-for-chatbots-and-virtual-assistants
+       https://www.kaggle.com/datasets/bitext/bitext-gen-ai-chatbot-customer-support-dataset
        Save CSV as: scripts/bitext_dataset.csv
 
     2. Create scripts/.env (or set env vars):
