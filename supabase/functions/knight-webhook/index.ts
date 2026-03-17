@@ -1057,6 +1057,11 @@ async function generateResponse(
 
   const businessContext = buildBusinessContext(bizConfig);
 
+  // Anti-hallucination gate:
+  // If no knowledge context was retrieved above the confidence threshold,
+  // Knight must decline rather than invent an answer.
+  const hasContext = knowledgeContext.length > 0;
+
   let toneGuidance = '';
   if (sentiment.score <= 3) {
     toneGuidance = 'The customer seems frustrated or upset. Acknowledge their frustration first, then help.';
@@ -1089,22 +1094,32 @@ async function generateResponse(
 
   const systemPrompt = `${businessContext}
 
-You are texting a customer on WhatsApp. They should feel like they're talking to a real person, not a bot.
+You are texting a customer on ${channel === 'discord' ? 'Discord' : channel === 'telegram' ? 'Telegram' : 'WhatsApp'}. They should feel like they're talking to a real person, not a bot.
 
-How you talk:
-- Sound human. Use natural language, contractions, and casual tone when appropriate
-- Keep it short — 1-3 sentences. This is WhatsApp, not email
-- Answer their actual question directly. Don't dodge or give generic responses
-- If they're upset, acknowledge it genuinely ("ugh, that's frustrating" not "I apologize for the inconvenience")
-- Use the customer's name if you know it
-- If they use Hindi/Hinglish, reply in the same style
-- Never say "I'm an AI" or "as an AI assistant" — you are ${bizConfig.agent_name}
-- If you genuinely don't know something, say "let me check with the team" — don't make stuff up
+# STRICT ANTI-HALLUCINATION RULES — NON-NEGOTIABLE
+${hasContext
+  ? `- You MUST answer ONLY using the information in the [KNOWLEDGE CONTEXT] section below.
+- Do NOT add, infer, or invent any information not explicitly stated in the context.
+- Do NOT speculate about policies, prices, timelines, or features not in the context.`
+  : `- You do NOT have any knowledge context for this query.
+- You MUST respond with: "I currently do not have access to that information. Please contact our support team directly for assistance."
+- Do NOT attempt to answer the question. Do NOT make up an answer. Do NOT say you will check and get back.`
+}
+- NEVER say "let me check the backend", "I'll look into it", "let me get back to you", or any variation implying you can take async action.
+- NEVER hallucinate product features, pricing, order statuses, or account data.
+- If you cannot answer truthfully from the context, say you don't have access to that information.
+
+# COMMUNICATION RULES
+- Sound human. Use natural language and contractions.
+- Keep it short — 1-3 sentences. This is a chat channel, not email.
+- If they're upset, acknowledge it genuinely first, then help.
+- Use the customer's name if you know it.
+- Never say "I'm an AI" or "as an AI assistant" — you are ${bizConfig.agent_name}.
 ${toneGuidance ? `\nTone: ${toneGuidance}` : ''}
-${knowledgeContext ? `\nThings you know:\n${knowledgeContext}` : ''}
-${bizConfig.persona_prompt ? `\nAdditional instructions: ${bizConfig.persona_prompt}` : ''}
+${hasContext ? `\n[KNOWLEDGE CONTEXT]\n${knowledgeContext}` : ''}
+${bizConfig.persona_prompt ? `\nAdditional persona: ${bizConfig.persona_prompt}` : ''}
 
-NEVER use markdown, bullet points, or formatting. Just plain text like a real person texting.`;
+NEVER use markdown, bullet points, or formatting. Plain text only.`;
 
   console.log('[Knight] Calling OpenAI with', chatMessages.length, 'messages...');
 
@@ -1128,14 +1143,47 @@ NEVER use markdown, bullet points, or formatting. Just plain text like a real pe
   };
 }
 
+// ─── RAG: embed query via OpenAI ─────────────────────────────────────────────
+async function embedQuery(text: string): Promise<number[] | null> {
+  if (!OPENAI_API_KEY) return null;
+  try {
+    const res = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'text-embedding-3-small',
+        input: text.slice(0, 8192), // model max
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.data?.[0]?.embedding ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── RAG: vector similarity search ───────────────────────────────────────────
+// Confidence threshold: 0.75 cosine similarity.
+// Below threshold → no context returned → anti-hallucination guard triggers.
 async function searchKnowledgeBase(supabase: any, workspaceId: string, query: string) {
-  // Simple text search since we may not have embeddings set up
-  const { data } = await supabase
-    .from('knowledge_base')
-    .select('content, category, title')
-    .eq('workspace_id', workspaceId)
-    .textSearch('content', query.split(' ').slice(0, 5).join(' | '))
-    .limit(3);
+  const embedding = await embedQuery(query);
+  if (!embedding) return [];
+
+  const { data, error } = await supabase.rpc('match_knowledge', {
+    query_embedding:  embedding,
+    match_threshold:  0.75,
+    match_count:      5,
+    p_workspace_id:   workspaceId,
+  });
+
+  if (error) {
+    console.error('[Knight] Vector search error:', error);
+    return [];
+  }
 
   return data || [];
 }

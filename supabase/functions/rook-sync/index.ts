@@ -384,6 +384,106 @@ async function pipedriveSync(
   }
 }
 
+// ─── Zendesk ──────────────────────────────────────────────
+// Creds format: { subdomain: string, email: string, api_token: string }
+// Auth: Basic base64("{email}/token:{api_token}")
+
+async function zendeskSync(
+  creds: { subdomain: string; email: string; api_token: string },
+  entityType: string,
+  entity: any,
+): Promise<{ id: string; action: string }> {
+  const { subdomain, email, api_token } = creds;
+  if (!subdomain || !email || !api_token) {
+    throw new Error('Zendesk creds must include subdomain, email, and api_token');
+  }
+
+  const baseUrl = `https://${subdomain}.zendesk.com/api/v2`;
+  const authHeader = 'Basic ' + btoa(`${email}/token:${api_token}`);
+  const headers = {
+    'Authorization': authHeader,
+    'Content-Type':  'application/json',
+  };
+
+  if (entityType === 'lead') {
+    // Search for existing user by email
+    const searchRes = await fetchWithTimeout(
+      `${baseUrl}/users/search.json?query=${encodeURIComponent(`email:${entity.email}`)}`,
+      { headers },
+    );
+    const searchData = searchRes.ok ? await searchRes.json() : null;
+    const existingUser = searchData?.users?.[0];
+
+    if (existingUser) {
+      // Update existing user
+      const updateRes = await fetchWithTimeout(`${baseUrl}/users/${existingUser.id}.json`, {
+        method:  'PUT',
+        headers,
+        body: JSON.stringify({
+          user: {
+            name:  entity.name || existingUser.name,
+            phone: entity.phone || existingUser.phone,
+            ...(entity.title ? { user_fields: { job_title: entity.title } } : {}),
+          },
+        }),
+      });
+      if (!updateRes.ok) throw new Error(`Zendesk user update failed: ${await updateRes.text()}`);
+      return { id: String(existingUser.id), action: 'updated' };
+    }
+
+    // Create new user
+    const createRes = await fetchWithTimeout(`${baseUrl}/users.json`, {
+      method:  'POST',
+      headers,
+      body: JSON.stringify({
+        user: {
+          name:  entity.name || entity.email,
+          email: entity.email,
+          ...(entity.phone ? { phone: entity.phone } : {}),
+          ...(entity.title ? { user_fields: { job_title: entity.title } } : {}),
+          role:  'end-user',
+        },
+      }),
+    });
+    if (!createRes.ok) throw new Error(`Zendesk user create failed: ${await createRes.text()}`);
+    const created = await createRes.json();
+    return { id: String(created.user?.id), action: 'created' };
+
+  } else {
+    // ticket → Zendesk Ticket
+    const priority = entity.priority === 'critical' ? 'urgent'
+                   : entity.priority === 'medium'   ? 'normal'
+                   : 'low';
+
+    const tags: string[] = ['regent', 'knight'];
+    if (entity.source_channel) tags.push(entity.source_channel);
+    if (entity.priority)       tags.push(entity.priority);
+
+    const createRes = await fetchWithTimeout(`${baseUrl}/tickets.json`, {
+      method:  'POST',
+      headers,
+      body: JSON.stringify({
+        ticket: {
+          subject:     entity.subject || `${entity.source_channel || 'Support'} ticket`,
+          comment:     { body: entity.summary || entity.content || '' },
+          requester:   { email: entity.source_handle || undefined },
+          priority,
+          tags,
+          status:      entity.status === 'resolved' ? 'solved'
+                     : entity.status === 'escalated' ? 'open'
+                     : 'new',
+        },
+      }),
+    });
+
+    if (!createRes.ok) throw new Error(`Zendesk ticket create failed: ${await createRes.text()}`);
+    const created = await createRes.json();
+    const ticketId = created.ticket?.id;
+    if (!ticketId) throw new Error(`Zendesk ticket create returned unexpected shape: ${JSON.stringify(created)}`);
+    return { id: String(ticketId), action: 'created' };
+  }
+}
+
 // ─── Main handler ─────────────────────────────────────────
 
 serve(async (req) => {
@@ -512,6 +612,10 @@ serve(async (req) => {
 
         case 'pipedrive':
           result = await pipedriveSync(creds, entity_type, entity);
+          break;
+
+        case 'zendesk':
+          result = await zendeskSync(creds, entity_type, entity);
           break;
 
         default:
